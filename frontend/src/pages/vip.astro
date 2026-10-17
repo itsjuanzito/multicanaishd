@@ -163,7 +163,7 @@ const vipSchema = {
             
             <!-- SECTION 1: USER SUBSCRIPTIONS (VIP) -->
             <div id="section-vip" class="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch max-w-6xl mx-auto">
-                <!-- LEFT CARD: BETTERVIP (Básico) -->
+                <!-- LEFT CARD: MULTICANAISHD VIP (Básico) -->
 <div class="flex flex-col bg-[#0E111A]/60 backdrop-blur-md border border-white/5 p-8 rounded-[32px] shadow-xl hover:scale-[1.01] hover:border-white/10 transition-all duration-300 flex-grow relative overflow-hidden text-left justify-between">
     <div>
         <!-- Card Header -->
@@ -224,7 +224,7 @@ const vipSchema = {
     </button>
 </div>
 
-                <!-- CENTER CARD: BETTERVIP DIAMOND (Supremo) -->
+                <!-- CENTER CARD: MULTICANAISHD VIP DIAMOND (Supremo) -->
                 <div class="flex flex-col bg-gradient-to-b from-cyan-950/20 via-neutral-900/80 to-[#0E111A]/90 backdrop-blur-md border border-cyan-500/30 p-8 rounded-[32px] hover:scale-[1.01] hover:border-cyan-400/50 transition-all duration-300 flex-grow relative overflow-hidden text-left justify-between" id="card-diamond-container">
                     <div>
                         <!-- Top Ribbon -->
@@ -289,7 +289,7 @@ const vipSchema = {
                     </button>
                 </div>
 
-                <!-- RIGHT CARD: BETTERVIP BLACK (Topo) -->
+                <!-- RIGHT CARD: MULTICANAISHD VIP BLACK (Topo) -->
                 <div class="flex flex-col bg-gradient-to-b from-neutral-900/40 via-neutral-900/80 to-[#0E111A]/95 backdrop-blur-md border border-neutral-400/20 p-8 rounded-[32px] hover:scale-[1.01] hover:border-neutral-300/40 transition-all duration-300 flex-grow relative overflow-hidden text-left justify-between" id="card-black-container">
                     <div>
                         <!-- Card Header -->
@@ -352,7 +352,7 @@ const vipSchema = {
                 <!-- Modal Header Details -->
                 <div class="text-center mt-2">
                     <span id="modal-plan-badge" class="inline-block px-3 py-1 text-[8.5px] font-black uppercase tracking-widest rounded-full mb-3 select-none">
-                        BETTERVIP
+                        MULTICANAISHD VIP
                     </span>
                     <h3 class="text-xl font-black text-white uppercase italic leading-none" id="modal-plan-title">MultiCanaisHD VIP</h3>
                     <p class="text-gray-400 text-[10px] font-bold uppercase tracking-wider mt-1.5" id="modal-plan-duration">Faturamento Mensal</p>
@@ -662,13 +662,13 @@ const vipSchema = {
             // Configurar modal baseado no plano
             if (plan === "basic") {
                 if (modalPlanBadge) {
-                    modalPlanBadge.textContent = "BETTERVIP";
+                    modalPlanBadge.textContent = "MULTICANAISHD VIP";
                     modalPlanBadge.className = "inline-block px-3 py-1 text-[8.5px] font-black uppercase tracking-widest rounded-full mb-3 select-none bg-red-500/10 text-[#DF0912] border border-red-500/10";
                 }
                 if (modalPlanTitle) modalPlanTitle.textContent = isPt ? "MultiCanaisHD VIP Básico" : "MultiCanaisHD VIP Basic";
             } else if (plan === "diamond") {
                 if (modalPlanBadge) {
-                    modalPlanBadge.textContent = "BETTERVIP DIAMOND";
+                    modalPlanBadge.textContent = "MULTICANAISHD VIP DIAMOND";
                     modalPlanBadge.className = "inline-block px-3 py-1 text-[8.5px] font-black uppercase tracking-widest rounded-full mb-3 select-none bg-cyan-500/10 text-cyan-400 border border-cyan-500/10 animate-pulse";
                 }
                 if (modalPlanTitle) {
@@ -676,7 +676,7 @@ const vipSchema = {
                 }
             } else {
                 if (modalPlanBadge) {
-                    modalPlanBadge.textContent = "BETTERVIP BLACK";
+                    modalPlanBadge.textContent = "MULTICANAISHD VIP BLACK";
                     modalPlanBadge.className = "inline-block px-3 py-1 text-[8.5px] font-black uppercase tracking-widest rounded-full mb-3 select-none bg-neutral-300/10 text-neutral-200 border border-neutral-400/20 animate-pulse";
                 }
                 if (modalPlanTitle) {

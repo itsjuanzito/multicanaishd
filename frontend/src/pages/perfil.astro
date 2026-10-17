@@ -356,7 +356,7 @@ const isPt = lang === "pt";
             data-t-login-vip={t('stats.login_vip') || t('login-vip') || 'Conecte-se para ativar benefícios VIP'}
             data-t-login-btn={t('stats.login_btn') || t('login-btn') || 'Entrar'}
             data-t-loading-vip={t('stats.loading_vip') || t('loading-vip') || 'Carregando...'}
-            data-t-vip-active={t('stats.vip_active_label') || 'BETTERVIP ATIVO'}
+            data-t-vip-active={t('stats.vip_active_label') || 'MULTICANAISHD VIP ATIVO'}
             data-t-vip-plan-mensal={t('stats.vip_plan_mensal') || '💎 MEMBRO VIP MENSAL'}
             data-t-vip-plan-trimestral={t('stats.vip_plan_trimestral') || '💎 MEMBRO VIP TRIMESTRAL'}
             data-t-vip-plan-anual={t('stats.vip_plan_anual') || '💎 MEMBRO VIP ANUAL'}
@@ -1678,7 +1678,7 @@ const isPt = lang === "pt";
             const vipActions = document.getElementById('vip-actions');
             if (statusText && vipActions) {
                 if (profile.isVIP) {
-                    const activeLabel = profile.vipPlan ? `💎 ${formatVipPlan(profile.vipPlan, isPt ? 'pt' : 'en')}` : (isPt ? "BETTERVIP ATIVO" : "BETTERVIP ACTIVE");
+                    const activeLabel = profile.vipPlan ? `💎 ${formatVipPlan(profile.vipPlan, isPt ? 'pt' : 'en')}` : (isPt ? "MULTICANAISHD VIP ATIVO" : "MULTICANAISHD VIP ACTIVE");
                     statusText.innerHTML = `<span class="text-white font-black tracking-tight">${activeLabel}</span>`;
                     vipActions.innerHTML = `
                         <div class="px-4 py-3 bg-white/[0.04] border border-white/[0.08] rounded-2xl text-gray-400 font-semibold text-[11px] text-center">
