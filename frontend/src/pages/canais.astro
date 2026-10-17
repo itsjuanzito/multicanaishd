@@ -1,0 +1,188 @@
+---
+// src/pages/canais.astro
+import BaseLayout from "../layouts/BaseLayout.astro";
+import LayoutCardsTV from "../layouts/LayoutCardTV.astro";
+
+// i18n
+import { getLangFromUrl, useTranslations } from "../i18n/utils";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+
+import { setRuntimeEnv, getSiteUrl } from "../services/env-adapter.js";
+
+if (Astro.locals?.runtime?.env) {
+    setRuntimeEnv(Astro.locals.runtime.env);
+}
+const siteUrl = getSiteUrl(Astro.url);
+
+// 1. Status VIP: constante de propósito, resolvido no cliente pelo authStore.
+// O `supabase.auth.getSession()` que ficava aqui nunca devolvia sessão — no SSR do Worker o
+// cliente público é criado sem storage nem cookie, então a sessão (que vive no localStorage
+// do navegador) é invisível pro servidor. Mesma razão já documentada em redirect/[slug].astro.
+// Além de não produzir nada, era um `await` SEQUENCIAL (fora de qualquer Promise.all) no
+// caminho crítico do render, seguido de uma segunda ida ao banco quando houvesse sessão.
+// Esta página já é servida com `s-maxage=600` logo abaixo, então o HTML dela nunca poderia
+// ter sido específico por usuário de qualquer forma.
+const isVIP = false;
+
+// 2. Cache na CDN para melhor indexação e performance (Pilar 4)
+// CDN caching for high performance and crawling (Pilar 4)
+Astro.response.headers.set('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=30');
+
+const pageTitle = isPt 
+    ? "Assistir Canais de TV ao Vivo Online Grátis em HD" 
+    : "Watch Live TV Channels Online Free in HD";
+
+const keywords = isPt
+    ? "canais ao vivo online gratis, assistir canais de tv gratis online, canais de tv ao vivo online gratis, assistir tv online gratis no pc, assistir futebol ao vivo gratis, assistir futebol online, jogo ao vivo online gratis, multicanaishd canais"
+    : "watch live tv online free, free live tv stream, stream sports live free, watch soccer live online free, free tv channels, stream online channels free";
+
+const channelsJsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+        {
+            "@type": "CollectionPage",
+            "@id": `${siteUrl}${Astro.url.pathname}#collection`,
+            "name": pageTitle,
+            "description": t('tv.meta_desc'),
+            "url": `${siteUrl}${Astro.url.pathname}`
+        },
+        {
+            "@type": "BreadcrumbList",
+            "@id": `${siteUrl}${Astro.url.pathname}#breadcrumb`,
+            "itemListElement": [
+                {
+                    "@type": "ListItem",
+                    "position": 1,
+                    "name": isPt ? "Início" : "Home",
+                    "item": `${siteUrl}${isPt ? "" : "/en"}`
+                },
+                {
+                    "@type": "ListItem",
+                    "position": 2,
+                    "name": isPt ? "Canais ao Vivo" : "Live Channels",
+                    "item": `${siteUrl}${Astro.url.pathname}`
+                }
+            ]
+        }
+    ]
+};
+---
+
+<BaseLayout
+    title={`${pageTitle} | MultiCanaisHD`}
+    description={t('tv.meta_desc')}
+    keywords={keywords}
+    jsonLd={channelsJsonLd}
+>
+    <main class="flex-grow container mx-auto px-4 py-8 mt-24 sm:mt-28">
+        <!-- Breadcrumb Visual Premium -->
+        <nav class="flex items-center gap-2 mb-8 text-xs font-black uppercase tracking-widest text-gray-500 relative z-20">
+            <a href={isPt ? "/" : "/en"} class="hover:text-[#DF0912] transition-colors duration-300 flex items-center gap-1.5 group">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                {isPt ? "Início" : "Home"}
+            </a>
+            <span class="text-gray-700">/</span>
+            <span class="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]">{isPt ? "Canais de TV" : "Live TV"}</span>
+        </nav>
+        <!-- 1. Título e Descrição (Restaurados) -->
+        <div class="mb-10 text-center max-w-2xl mx-auto">
+            <h1 class="text-3xl sm:text-4xl font-black text-white mb-4 tracking-tight">
+                {t('tv.title_p1')} <span class="text-[#DF0912]">{t('tv.title_p2')}</span>
+            </h1>
+            <p class="text-gray-400 text-sm sm:text-base font-medium leading-relaxed">
+                {t('tv.description')}
+            </p>
+
+            {!isPt && (
+                <div class="mt-6 inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-500 text-[10px] font-black uppercase tracking-widest">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    {t('tv.content_warning')}
+                </div>
+            )}
+        </div>
+
+        <!-- 2. Containers Controlados pelo Cliente -->
+        <div id="verification-loader" class="hidden min-h-[300px] flex flex-col items-center justify-center opacity-100 transition-opacity duration-300">
+            <div class="w-12 h-12 border-4 border-[#DF0912] border-t-transparent rounded-full animate-spin mb-6"></div>
+            <p class="text-gray-500 text-[10px] font-black uppercase tracking-[0.4em] animate-pulse">{t('tv.access_validating')}</p>
+        </div>
+
+        <!-- Conteúdo VIP (Liberado via JS) -->
+        <section id="vip-content-channels" class="w-full bg-[#161B28]/50 rounded-3xl border border-white/5 shadow-2xl overflow-hidden backdrop-blur-sm opacity-100 transition-opacity duration-500">
+            <LayoutCardsTV titleHead={t('tv.explore_categories')} />
+        </section>
+
+        <!-- Modal de Bloqueio (Mostrado via JS) -->
+        <div id="vip-block-modal" class="hidden w-full max-w-xl mx-auto opacity-0 transition-opacity duration-500">
+            <div class="bg-gradient-to-br from-[#0E111A] to-[#060911] border border-white/10 rounded-[40px] p-8 sm:p-12 text-center shadow-2xl relative overflow-hidden group">
+                <!-- Glow effect -->
+                <div class="absolute -top-24 -left-24 w-48 h-48 bg-[#DF0912] rounded-full blur-[80px] opacity-20 group-hover:opacity-30 transition-opacity"></div>
+                
+                <div class="relative z-10">
+                    <div class="w-20 h-20 bg-[#DF0912] rounded-[30px] flex items-center justify-center mx-auto mb-8 shadow-xl shadow-red-900/40 transform -rotate-6">
+                        <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                    </div>
+                    
+                    <h2 class="text-3xl font-black text-white uppercase tracking-tighter mb-4 italic">{t('tv.vip_content_title_p1')} <span class="text-[#DF0912]">{t('tv.vip_content_title_p2')}</span></h2>
+                    <p class="text-gray-400 text-sm font-medium leading-relaxed mb-8">
+                        {t('tv.exclusive_desc')}
+                    </p>
+                    
+                    <button onclick="window.openVipBuyModal ? window.openVipBuyModal() : null" class="inline-flex items-center justify-center px-10 py-4 bg-white text-black font-black uppercase text-xs tracking-widest rounded-2xl hover:bg-gray-200 transition-all shadow-xl shadow-white/10 active:scale-95">
+                        {t('tv.subscribe_btn')}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        async function checkAccess() {
+            const loader = document.getElementById('verification-loader');
+            const content = document.getElementById('vip-content-channels');
+            
+            if (!loader || !content) return;
+
+            // Fail-safe: Se a verificação demorar mais de 2 segundos, força a exibição
+            const safetyTimer = setTimeout(() => {
+                if (!loader.classList.contains('hidden')) {
+                    console.warn("🕒 [Canais] Verificação lenta. Forçando exibição...");
+                    loader.style.opacity = '0';
+                    loader.classList.add('hidden');
+                    content.classList.remove('hidden');
+                    content.classList.add('opacity-100');
+                }
+            }, 2000);
+
+            // Transição: Agora todos têm acesso à lista
+            loader.style.opacity = '0';
+            setTimeout(() => {
+                clearTimeout(safetyTimer);
+                loader.classList.add('hidden');
+                content.classList.remove('hidden');
+                setTimeout(() => content.classList.add('opacity-100'), 50);
+
+                // Se veio redirecionado de um bloqueio, abre o modal de VIP
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('locked') === 'true') {
+                    const lang = document.documentElement.lang || 'pt';
+                    const lockedMsg = lang === 'pt' ? 'Este canal é exclusivo para membros VIP!' : 'This channel is exclusive to VIP members!';
+                    if (window._showToast) window._showToast(lockedMsg, "error");
+                    
+                    // Limpa a URL para não ficar abrindo ao navegar no histórico (UX Phase 15)
+                    const newUrl = window.location.pathname;
+                    window.history.replaceState({}, '', newUrl);
+
+                    // Pequeno delay para garantir que os modais foram inicializados
+                    setTimeout(() => {
+                        document.dispatchEvent(new CustomEvent('multicanaishd:open-vip'));
+                    }, 500);
+                }
+            }, 300);
+        }
+
+        document.addEventListener("astro:page-load", checkAccess);
+    </script>
+</BaseLayout>

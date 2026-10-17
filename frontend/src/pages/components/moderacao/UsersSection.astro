@@ -1,0 +1,47 @@
+---
+---
+
+                <div id="users-section" class="hidden space-y-4 animate-in fade-in duration-500">
+                    <div class="bg-[#141414] border border-white/10 rounded-xl p-5">
+                        <label for="user-search-query" class="block text-white text-sm font-semibold mb-1">Controle VIP de usuários</label>
+                        <p class="text-gray-400 text-xs mb-4">Busque por BetterID, e-mail ou nickname para conceder ou revogar VIP.</p>
+                        <div class="flex flex-col sm:flex-row gap-2">
+                            <input type="text" id="user-search-query" placeholder="BetterID (ex: A1B2C3D4), e-mail ou nickname..." class="flex-1 bg-[#060911] border border-white/10 rounded-lg px-4 py-3 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-[#DF0912]/60 transition-colors" />
+                            <button id="search-user-btn" class="bg-[#DF0912] hover:bg-[#be080f] text-white font-semibold px-5 py-3 rounded-lg text-sm transition-colors shrink-0">Buscar usuário</button>
+                        </div>
+                    </div>
+                    <div id="search-results" class="grid gap-3"></div>
+
+                    <!-- Seção da Lista de VIPs Ativos -->
+                    <div class="bg-[#141414] border border-white/10 rounded-xl p-5 space-y-4">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-4">
+                            <h3 class="text-white text-sm font-semibold flex items-center gap-2.5">
+                                <span class="w-1.5 h-1.5 bg-[#DF0912] rounded-full"></span>
+                                VIPs ativos (<span id="vips-total-count" class="text-gray-400 font-mono">0</span>)
+                            </h3>
+                            <div class="flex items-center gap-2 self-end sm:self-auto">
+                                <select id="vip-plan-filter" class="bg-[#060911] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#DF0912]/60 transition-colors">
+                                    <option value="">Todos os planos</option>
+                                    <option value="1 Mês (R$ 10)">1 Mês (R$ 10)</option>
+                                    <option value="3 Meses (R$ 25)">3 Meses (R$ 25)</option>
+                                    <option value="1 Ano (R$ 80)">1 Ano (R$ 80)</option>
+                                    <option value="Diamond 1 Mês (R$ 19,90)">Diamond 1 Mês (R$ 19,90)</option>
+                                    <option value="Diamond 3 Meses (R$ 49,90)">Diamond 3 Meses (R$ 49,90)</option>
+                                    <option value="Diamond 1 Ano (R$ 149,90)">Diamond 1 Ano (R$ 149,90)</option>
+                                    <option value="Black 1 Mês (R$ 50)">Black 1 Mês (R$ 50)</option>
+                                    <option value="Black 3 Meses (R$ 125)">Black 3 Meses (R$ 125)</option>
+                                    <option value="Black 1 Ano (R$ 500)">Black 1 Ano (R$ 500)</option>
+                                    <option value="Manual">Manual / Outros</option>
+                                </select>
+                                <button id="refresh-vips-list-btn" class="text-gray-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition-colors text-xs font-medium flex items-center gap-2 px-3 py-2 rounded-lg">
+                                    Recarregar
+                                    <div id="vips-list-loader" class="animate-spin h-3 w-3 border-2 border-[#DF0912] border-t-transparent rounded-full hidden"></div>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="vips-list" class="grid gap-3">
+                            <!-- Lista Carregada Dinamicamente -->
+                        </div>
+                    </div>
+                </div>
+

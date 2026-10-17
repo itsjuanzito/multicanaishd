@@ -1,0 +1,42 @@
+---
+---
+
+                    <div id="notifications-section" class="hidden space-y-4 animate-in fade-in duration-500">
+                        <div class="bg-[#141414] border border-white/10 rounded-xl p-5">
+                            <div class="pb-4 mb-5 border-b border-white/5">
+                                <h3 class="text-white text-sm font-semibold">Enviar notificação</h3>
+                                <p class="text-gray-400 text-xs mt-1">Anúncio exibido no sininho do header para todos os usuários.</p>
+                            </div>
+
+                            <form id="send-notification-form" class="space-y-4">
+                                <div>
+                                    <label for="notif-title-input" class="block text-gray-400 text-xs mb-1.5">Título</label>
+                                    <input type="text" id="notif-title-input" required maxlength="100" placeholder="Ex: Nova promoção VIP!" class="w-full bg-[#060911] border border-white/10 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-[#DF0912]/60 transition-colors placeholder:text-gray-600" />
+                                </div>
+                                <div>
+                                    <label for="notif-message-input" class="block text-gray-400 text-xs mb-1.5">Mensagem</label>
+                                    <textarea id="notif-message-input" required maxlength="500" rows="3" placeholder="Ex: Assine o plano Diamond com 20% de desconto até domingo!" class="w-full bg-[#060911] border border-white/10 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-[#DF0912]/60 transition-colors placeholder:text-gray-600 resize-none"></textarea>
+                                </div>
+                                <div>
+                                    <label for="notif-link-input" class="block text-gray-400 text-xs mb-1.5">Link (opcional)</label>
+                                    <input type="text" id="notif-link-input" maxlength="200" placeholder="Ex: /vip" class="w-full bg-[#060911] border border-white/10 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-[#DF0912]/60 transition-colors placeholder:text-gray-600" />
+                                </div>
+
+                                <div class="flex justify-end">
+                                    <button type="submit" id="send-notification-btn" class="bg-[#DF0912] hover:bg-[#be080f] text-white font-semibold px-5 py-3 rounded-lg text-sm transition-colors flex items-center justify-center gap-2.5 cursor-pointer">
+                                        <span>Enviar notificação</span>
+                                        <div id="notif-send-spinner" class="animate-spin h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full hidden"></div>
+                                    </button>
+                                </div>
+                            </form>
+
+                            <div id="notif-send-feedback" class="mt-4 hidden"></div>
+                        </div>
+
+                        <div class="bg-[#141414] border border-white/10 rounded-xl p-5">
+                            <h3 class="text-white text-sm font-semibold mb-4">Notificações ativas</h3>
+                            <div id="notif-list" class="space-y-2.5">
+                                <p class="text-gray-500 text-sm">Carregando...</p>
+                            </div>
+                        </div>
+                    </div>

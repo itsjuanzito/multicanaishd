@@ -1,0 +1,1886 @@
+---
+// src/pages/perfil.astro
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+// i18n
+import { getLangFromUrl, useTranslations } from "../i18n/utils";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+
+---
+
+<BaseLayout
+    title={isPt ? "Meu Perfil" : "My Profile"}
+    description={isPt ? "Acompanhe suas estatísticas de maratona, títulos assistidos e nível de maratonista no MultiCanaisHD." : "Track your marathon stats, watched titles, and level of marathoner on MultiCanaisHD."}
+    robots="noindex, nofollow"
+>
+
+    <main class="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-12 mt-24 sm:mt-28 relative z-10">
+        
+        <!-- Public Profile Inspection Banner -->
+        <div id="public-profile-banner" class="hidden max-w-5xl mx-auto bg-gradient-to-r from-[#DF0912]/10 via-[#DF0912]/15 to-transparent border border-[#DF0912]/20 backdrop-blur-md p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 mb-8 shadow-lg shadow-red-950/10">
+            <div class="flex items-center gap-3.5 text-center sm:text-left">
+                <div class="w-10 h-10 bg-[#DF0912]/10 rounded-full flex items-center justify-center text-[#DF0912] border border-[#DF0912]/15 animate-pulse">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                </div>
+                <div>
+                    <p class="text-white font-black uppercase text-xs tracking-wider" id="inspection-banner-text">
+                        {isPt ? "Modo de Inspeção de Membro" : "Member Inspection Mode"}
+                    </p>
+                    <p class="text-gray-400 text-[10px] font-bold uppercase tracking-widest mt-0.5">
+                        {isPt ? "Visualizando perfil público e estatísticas de maratona" : "Viewing public profile and marathon stats"}
+                    </p>
+                </div>
+            </div>
+            <a href={isPt ? "/perfil" : "/en/perfil"} class="h-10 px-5 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-[10px] tracking-widest rounded-xl transition-all border border-white/5 hover:border-[#DF0912]/30 flex items-center justify-center gap-2 cursor-pointer active:scale-95 shadow">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                <span>{isPt ? "Voltar ao Meu Perfil" : "Back to My Profile"}</span>
+            </a>
+        </div>
+
+        <!-- Loading State Spinner -->
+        <div id="public-profile-loading" class="hidden flex-col items-center justify-center py-24 sm:py-32 text-center max-w-md mx-auto">
+            <div class="w-14 h-14 border-4 border-white/5 border-t-[#DF0912] rounded-full animate-spin mb-6"></div>
+            <p class="text-gray-400 font-black uppercase text-xs tracking-widest animate-pulse">{isPt ? "Carregando Perfil..." : "Loading Profile..."}</p>
+        </div>
+
+        <!-- Public Profile Error Fallback (User Not Found) -->
+        <div id="public-profile-error" class="hidden flex-col items-center justify-center py-20 sm:py-28 text-center max-w-md mx-auto relative">
+            <div class="w-24 h-24 bg-white/[0.02] border border-white/10 rounded-[28px] flex items-center justify-center mb-8 shadow-inner relative overflow-hidden group">
+                <div class="absolute inset-0 bg-gradient-to-tr from-[#DF0912]/10 to-transparent opacity-100 transition-opacity"></div>
+                <svg class="w-10 h-10 text-[#DF0912]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            </div>
+            
+            <h2 class="text-3xl font-black text-white uppercase tracking-tighter mb-3 italic">
+                {isPt ? "Membro Não Encontrado" : "Member Not Found"}
+            </h2>
+            <p class="text-gray-400 text-sm font-medium leading-relaxed mb-10 px-4">
+                {isPt ? "O username ou nickname pesquisado não existe no MultiCanaisHD." : "The username or nickname searched does not exist on MultiCanaisHD."}
+            </p>
+            
+            <a
+                href={isPt ? "/perfil" : "/en/perfil"}
+                class="px-10 py-4 bg-white/5 hover:bg-white/10 text-white border border-white/5 hover:border-[#DF0912]/30 font-black uppercase text-xs tracking-widest rounded-2xl hover:scale-105 transition-all shadow active:scale-95"
+            >
+                {isPt ? "Voltar ao Meu Perfil" : "Back to My Profile"}
+            </a>
+        </div>
+        
+        <!-- Logged In Dashboard Container -->
+        <div id="logged-in-container" class="hidden max-w-5xl mx-auto">
+            
+            <!-- Dashboard Header Section -->
+            <!-- Cabeçalho do perfil -->
+            <div class="bg-[#141414] border border-white/[0.06] rounded-3xl p-6 sm:p-8 mb-6 relative">
+
+                <button id="logout-btn" class="absolute top-5 right-5 h-9 px-3.5 flex items-center gap-2 text-gray-500 hover:text-[#DF0912] rounded-xl transition-colors text-[11px] font-semibold" title={t('nav.logout')}>
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                    <span class="hidden sm:inline">{t('nav.logout')}</span>
+                </button>
+
+                <div class="flex flex-col sm:flex-row items-center sm:items-start gap-5 sm:gap-6 text-center sm:text-left">
+                    <button id="user-profile-avatar-wrapper" class="group shrink-0 w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 relative overflow-hidden border-2 border-white/10 bg-black/40 cursor-pointer outline-none hover:border-[#DF0912]/60 active:scale-95" title={isPt ? "Alterar Avatar" : "Change Avatar"}>
+                        <div id="avatar-fallback" class="absolute inset-0 bg-[#DF0912] rounded-full flex items-center justify-center transition-opacity duration-300">
+                            <svg class="w-9 h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        </div>
+                        <div id="avatar-custom" class="absolute inset-0 rounded-full flex items-center justify-center text-white font-black text-3xl transition-all duration-300 opacity-0 select-none"></div>
+                        <div id="avatar-edit-overlay" class="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity duration-200 select-none">
+                            <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                            <span class="text-[9px] font-semibold text-gray-300">{isPt ? "Mudar" : "Edit"}</span>
+                        </div>
+                    </button>
+
+                    <div class="min-w-0 flex-1 w-full">
+                        <!-- Nome -->
+                        <div id="username-display-wrapper" class="flex items-center gap-2.5 justify-center sm:justify-start min-w-0">
+                            <h2 id="user-display-name" class="text-3xl sm:text-4xl font-black text-white tracking-tight leading-none truncate">
+                                ---
+                            </h2>
+                            <button id="edit-username-btn" class="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-gray-600 hover:text-[#DF0912] hover:bg-white/5 transition-colors cursor-pointer" title={isPt ? "Editar Nome de Exibição" : "Edit Display Name"}>
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                            </button>
+                        </div>
+
+                        <div id="username-edit-wrapper" class="hidden items-center gap-2 max-w-sm mx-auto sm:mx-0">
+                            <input
+                                type="text"
+                                id="username-input"
+                                maxlength="25"
+                                placeholder={isPt ? "ex: Carlos Silva" : "ex: John Doe"}
+                                class="flex-1 h-10 px-3.5 bg-black/40 border border-white/10 focus:border-[#DF0912]/60 rounded-xl text-white font-semibold text-sm outline-none transition-colors placeholder:text-gray-600"
+                            />
+                            <button id="save-username-btn" class="h-10 px-4 bg-[#DF0912] hover:bg-[#cf0811] text-white font-bold text-[11px] rounded-xl active:scale-95 transition-all cursor-pointer">
+                                {isPt ? "Salvar" : "Save"}
+                            </button>
+                            <button id="cancel-username-btn" class="h-10 px-3 text-gray-500 hover:text-white font-bold text-[11px] rounded-xl transition-colors cursor-pointer">
+                                {isPt ? "Cancelar" : "Cancel"}
+                            </button>
+                        </div>
+                        <p id="username-error-msg" class="hidden text-[11px] font-semibold text-[#DF0912] mt-1.5 select-none text-center sm:text-left"></p>
+
+                        <!-- E-mail -->
+                        <h3 id="user-display-email" class="text-[13px] font-medium text-gray-500 leading-none mt-2">
+                            ---
+                        </h3>
+
+                        <!-- Metadados: nickname, BetterID, plano -->
+                        <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-4">
+                            <div id="nickname-display-wrapper" class="flex items-center gap-1.5">
+                                <span id="user-nickname" class="text-[11px] font-semibold text-[#DF0912] bg-[#DF0912]/10 px-2.5 py-1 rounded-lg border border-[#DF0912]/20 select-all">
+                                    @---
+                                </span>
+                                <button id="edit-nickname-btn" class="w-6 h-6 rounded-lg flex items-center justify-center text-gray-600 hover:text-[#DF0912] hover:bg-white/5 transition-colors cursor-pointer" title={isPt ? "Editar Nickname" : "Edit Nickname"}>
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                </button>
+                                <span id="nickname-changes-left" class="text-[10px] text-gray-600 font-medium">
+                                    --
+                                </span>
+                            </div>
+
+                            <div id="user-better-id-badge" class="hidden px-2.5 py-1 bg-white/[0.04] border border-white/[0.08] rounded-lg text-[11px] font-mono font-semibold text-gray-500 cursor-pointer hover:text-white hover:border-white/15 transition-colors" title={t('stats.copy_id')}>
+                                #---
+                            </div>
+
+                            <div id="user-membership-badge" class="px-2.5 py-1 bg-white/[0.04] border border-white/[0.08] rounded-lg text-[11px] font-semibold text-gray-500 select-none">
+                                Membro Standard
+                            </div>
+                        </div>
+
+                        <div id="nickname-edit-wrapper" class="hidden items-center gap-2 mt-3 max-w-sm mx-auto sm:mx-0">
+                            <div class="relative flex-1">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600 font-semibold text-sm select-none">@</span>
+                                <input
+                                    type="text"
+                                    id="nickname-input"
+                                    maxlength="20"
+                                    placeholder="nickname"
+                                    class="w-full h-10 pl-7 pr-3.5 bg-black/40 border border-white/10 focus:border-[#DF0912]/60 rounded-xl text-white font-semibold text-sm outline-none transition-colors placeholder:text-gray-600 lowercase"
+                                />
+                            </div>
+                            <button id="save-nickname-btn" class="h-10 px-4 bg-[#DF0912] hover:bg-[#cf0811] text-white font-bold text-[11px] rounded-xl active:scale-95 transition-all cursor-pointer">
+                                {isPt ? "Salvar" : "Save"}
+                            </button>
+                            <button id="cancel-nickname-btn" class="h-10 px-3 text-gray-500 hover:text-white font-bold text-[11px] rounded-xl transition-colors cursor-pointer">
+                                {isPt ? "Cancelar" : "Cancel"}
+                            </button>
+                        </div>
+                        <p id="nickname-error-msg" class="hidden text-[11px] font-semibold text-[#DF0912] mt-1.5 select-none text-center sm:text-left"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Perfis da conta (MultiCanaisHD VIP Black). Escondido por padrão: o script revela só
+                 quando o plano ativo dá direito a múltiplos perfis. -->
+            <a
+                id="account-profiles-card"
+                href={isPt ? "/perfis" : "/en/perfis"}
+                class="hidden items-center gap-4 bg-[#141414] border border-white/[0.06] hover:border-white/20 rounded-3xl p-5 sm:p-6 mb-6 transition-colors group"
+            >
+                <img id="active-profile-avatar" src="/avatars/avatar_1.svg" alt="" class="w-12 h-12 rounded-xl object-cover shrink-0" />
+                <div class="min-w-0 flex-1">
+                    <p class="text-[11px] text-gray-500 font-semibold leading-none mb-1.5">
+                        {isPt ? "Assistindo como" : "Watching as"}
+                    </p>
+                    <p id="active-profile-name" class="text-white font-bold text-sm truncate">---</p>
+                </div>
+                <span class="shrink-0 text-[11px] font-bold text-gray-400 group-hover:text-[#DF0912] transition-colors">
+                    {isPt ? "Trocar perfil" : "Switch profile"}
+                </span>
+            </a>
+
+            <!-- Painel principal: tempo assistido e patente contam a MESMA história, então viram
+                 um bloco só (2/3) em vez de dois cards soltos de peso visual idêntico. O VIP fica
+                 no terço restante — a assimetria é o que faz a grade parecer desenhada, em vez de
+                 três caixas iguais lado a lado. -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+
+                <div class="md:col-span-2 bg-[#141414] border border-white/[0.06] rounded-3xl p-6 sm:p-8 flex flex-col justify-between gap-8">
+                    <div>
+                        <p class="text-[11px] text-gray-500 font-semibold mb-3">{t('stats.total_time')}</p>
+                        <div class="flex items-baseline gap-2.5">
+                            <span id="stat-hours" class="text-6xl sm:text-7xl font-black text-white leading-[0.85] tracking-tighter">0.0</span>
+                            <span id="stat-hours-label" class="text-lg font-bold text-gray-600 hidden">{t('stats.hours_label')}</span>
+                        </div>
+                        <a href="/ranking" class="inline-flex items-center gap-1.5 text-[11px] text-gray-500 hover:text-[#DF0912] font-medium transition-colors mt-4">
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                            {isPt ? "Temporada atual:" : "Current season:"} <span id="stat-season-hours" class="text-gray-300 font-semibold">0.0h</span>
+                        </a>
+                    </div>
+
+                    <div class="pt-6 border-t border-white/[0.06]">
+                        <div class="flex items-end justify-between gap-4 mb-3">
+                            <div class="min-w-0">
+                                <p class="text-[11px] text-gray-500 font-semibold mb-1.5">{t('stats.rank_title')}</p>
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <span id="rank-icon" class="text-lg leading-none shrink-0">🐣</span>
+                                    <h3 id="rank-name" class="text-xl sm:text-2xl font-black text-white tracking-tight leading-none truncate">{t('stats.rank_beginner')}</h3>
+                                </div>
+                            </div>
+                            <p id="rank-next" class="text-[11px] text-gray-600 font-medium text-right shrink-0 leading-tight">---</p>
+                        </div>
+                        <div class="w-full bg-white/[0.06] h-1.5 rounded-full overflow-hidden">
+                            <div id="rank-progress" class="bg-[#DF0912] h-full rounded-full transition-all duration-700" style="width: 10%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-[#141414] border border-white/[0.06] rounded-3xl p-6 sm:p-8 flex flex-col justify-between gap-6">
+                    <div>
+                        <p class="text-[11px] text-gray-500 font-semibold mb-3">{isPt ? "Assinatura" : "Subscription"}</p>
+                        <h3 id="vip-status-text" class="text-sm font-semibold text-gray-300 leading-relaxed">---</h3>
+                    </div>
+                    <div id="vip-actions" class="w-full"></div>
+                </div>
+
+            </div>
+
+            <!-- Contadores: um painel só com células internas, em vez de quatro caixas cada uma
+                 com borda, sombra e ícone dentro de um tile colorido próprio. -->
+            <div class="bg-[#141414] border border-white/[0.06] rounded-3xl p-2 grid grid-cols-2 lg:grid-cols-4 gap-1 mb-12">
+
+                <div class="group rounded-2xl p-5 hover:bg-white/[0.03] transition-colors">
+                    <div class="flex items-center gap-2 text-gray-600 group-hover:text-[#DF0912] transition-colors">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
+                        <p class="text-[11px] font-semibold">{t('stats.movies')}</p>
+                    </div>
+                    <p class="mt-2.5"><span id="stat-movies" class="text-3xl font-black text-white leading-none tracking-tight">0</span></p>
+                </div>
+
+                <div class="group rounded-2xl p-5 hover:bg-white/[0.03] transition-colors">
+                    <div class="flex items-center gap-2 text-gray-600 group-hover:text-[#DF0912] transition-colors">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                        <p class="text-[11px] font-semibold">{t('stats.episodes')}</p>
+                    </div>
+                    <p class="mt-2.5"><span id="stat-episodes" class="text-3xl font-black text-white leading-none tracking-tight">0</span></p>
+                </div>
+
+                <div class="group rounded-2xl p-5 hover:bg-white/[0.03] transition-colors">
+                    <div class="flex items-center gap-2 text-gray-600 group-hover:text-[#DF0912] transition-colors">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+                        <p class="text-[11px] font-semibold">{t('stats.favorites')}</p>
+                    </div>
+                    <p class="mt-2.5"><span id="stat-favorites" class="text-3xl font-black text-white leading-none tracking-tight">0</span></p>
+                </div>
+
+                <div class="group rounded-2xl p-5 hover:bg-white/[0.03] transition-colors">
+                    <div class="flex items-center gap-2 text-gray-600 group-hover:text-[#DF0912] transition-colors">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+                        <p class="text-[11px] font-semibold">{t('stats.vibe')}</p>
+                    </div>
+                    <p class="mt-2.5"><span id="stat-genre" class="text-lg font-black text-white leading-none tracking-tight truncate block">---</span></p>
+                </div>
+
+            </div>
+
+            <!-- Histórico de atividades recentes (populado pelo JS em #recent-grid) -->
+            <div id="recent-activity-section" class="hidden mb-12">
+                <h3 class="text-[11px] text-gray-500 font-semibold mb-4 flex items-center gap-2 select-none">
+                    <span class="w-1.5 h-1.5 bg-[#DF0912] rounded-full"></span>
+                    <span>{t('stats.recent_activity')}</span>
+                </h3>
+                <div id="recent-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                    <!-- Cards injetados dinamicamente -->
+                </div>
+            </div>
+
+            <!-- Sync Notice Disclaimer -->
+            <p class="mt-16 text-center text-gray-600 text-[10px] font-black uppercase tracking-[0.25em] opacity-40 select-none">
+                {t('stats.sync_notice')}
+            </p>
+        </div>
+
+        <!-- Auth Loading State — shown while Supabase session is resolving (no localStorage cache) -->
+        <!-- Estado de carregamento — exibido enquanto a sessão do Supabase está sendo resolvida -->
+        <div id="auth-loading-container" class="hidden max-w-5xl mx-auto">
+            <!-- Profile Header Skeleton -->
+            <div class="bg-white/[0.02] backdrop-blur-md border border-white/5 rounded-[32px] p-8 sm:p-10 flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl mb-12">
+                <div class="flex flex-col sm:flex-row items-center gap-6">
+                    <div class="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-white/[0.05] animate-pulse"></div>
+                    <div class="space-y-3 text-center sm:text-left">
+                        <div class="w-48 h-7 bg-white/[0.05] rounded-xl animate-pulse mx-auto sm:mx-0"></div>
+                        <div class="w-32 h-4 bg-white/[0.05] rounded-lg animate-pulse mx-auto sm:mx-0"></div>
+                        <div class="w-20 h-4 bg-white/[0.05] rounded-lg animate-pulse mx-auto sm:mx-0"></div>
+                    </div>
+                </div>
+                <div class="w-full md:w-48 h-12 bg-white/[0.05] rounded-2xl animate-pulse"></div>
+            </div>
+            <!-- Stats Grid Skeleton -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-12">
+                <div class="bg-white/[0.02] border border-white/5 rounded-2xl p-6 animate-pulse"><div class="w-10 h-10 bg-white/[0.05] rounded-xl mx-auto mb-3"></div><div class="w-14 h-6 bg-white/[0.05] rounded-lg mx-auto mb-2"></div><div class="w-20 h-3 bg-white/[0.05] rounded mx-auto"></div></div>
+                <div class="bg-white/[0.02] border border-white/5 rounded-2xl p-6 animate-pulse"><div class="w-10 h-10 bg-white/[0.05] rounded-xl mx-auto mb-3"></div><div class="w-14 h-6 bg-white/[0.05] rounded-lg mx-auto mb-2"></div><div class="w-20 h-3 bg-white/[0.05] rounded mx-auto"></div></div>
+                <div class="bg-white/[0.02] border border-white/5 rounded-2xl p-6 animate-pulse"><div class="w-10 h-10 bg-white/[0.05] rounded-xl mx-auto mb-3"></div><div class="w-14 h-6 bg-white/[0.05] rounded-lg mx-auto mb-2"></div><div class="w-20 h-3 bg-white/[0.05] rounded mx-auto"></div></div>
+                <div class="bg-white/[0.02] border border-white/5 rounded-2xl p-6 animate-pulse"><div class="w-10 h-10 bg-white/[0.05] rounded-xl mx-auto mb-3"></div><div class="w-14 h-6 bg-white/[0.05] rounded-lg mx-auto mb-2"></div><div class="w-20 h-3 bg-white/[0.05] rounded mx-auto"></div></div>
+            </div>
+        </div>
+
+        <!-- Logged Out / Guest Access Fallback Screen -->
+        <div id="logged-out-container" class="hidden flex-col items-center justify-center py-20 sm:py-28 text-center max-w-md mx-auto relative">
+            <div class="w-24 h-24 bg-white/[0.02] border border-white/10 rounded-[28px] flex items-center justify-center mb-8 shadow-inner relative overflow-hidden group">
+                <div class="absolute inset-0 bg-gradient-to-tr from-[#DF0912]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <svg class="w-10 h-10 text-gray-500 group-hover:text-[#DF0912] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+            </div>
+            
+            <h2 class="text-3xl font-black text-white uppercase tracking-tighter mb-3 italic">
+                {isPt ? "Acesso Restrito" : "Restricted Access"}
+            </h2>
+            <p class="text-gray-400 text-sm font-medium leading-relaxed mb-1 px-4">
+                {isPt ? "Conecte-se para acompanhar suas maratonas" : "Log in to track your video marathons"}
+            </p>
+            <p class="text-gray-500 text-xs leading-relaxed mb-10 max-w-xs px-6">
+                {isPt ? "Acesse seu histórico, lista de favoritos, conquiste novos níveis e receba recomendações exclusivas." : "Access your watched history, favorites list, conquer new levels, and get personalized recommendations."}
+            </p>
+            
+            <a
+                href={`${isPt ? '' : '/en'}/login`}
+                class="px-10 py-4 bg-gradient-to-r from-[#DF0912] to-red-600 text-white font-black uppercase text-xs tracking-widest rounded-2xl hover:scale-105 transition-all shadow-lg shadow-red-900/30 active:scale-95"
+            >
+                {t('watchlist.login_cta')}
+            </a>
+        </div>
+        
+        <!-- Localized data layer -->
+        <div id="stats-data-layer" hidden
+            data-t-stats-title={t('stats.title')}
+            data-t-copied={t('copied')}
+            data-t-copied-title={t('stats.copy_id')}
+            data-t-beginner={t('stats.rank_beginner') || t('beginner') || 'Iniciante'}
+            data-t-spectator={t('stats.rank_spectator') || t('spectator') || 'Espectador'}
+            data-t-marathoner={t('stats.rank_marathoner') || t('marathoner') || 'Maratonista'}
+            data-t-addict={t('stats.rank_addict') || t('addict') || 'Viciado'}
+            data-t-legend={t('stats.rank_legend') || t('legend') || 'Lenda'}
+            data-t-next-level={t('stats.next_level') || t('next-level') || 'Próximo nível em {time}'}
+            data-t-max-level={t('stats.max_level') || t('max-level') || 'Nível Máximo Atingido!'}
+            data-t-login-vip={t('stats.login_vip') || t('login-vip') || 'Conecte-se para ativar benefícios VIP'}
+            data-t-login-btn={t('stats.login_btn') || t('login-btn') || 'Entrar'}
+            data-t-loading-vip={t('stats.loading_vip') || t('loading-vip') || 'Carregando...'}
+            data-t-vip-active={t('stats.vip_active_label') || 'BETTERVIP ATIVO'}
+            data-t-vip-plan-mensal={t('stats.vip_plan_mensal') || '💎 MEMBRO VIP MENSAL'}
+            data-t-vip-plan-trimestral={t('stats.vip_plan_trimestral') || '💎 MEMBRO VIP TRIMESTRAL'}
+            data-t-vip-plan-anual={t('stats.vip_plan_anual') || '💎 MEMBRO VIP ANUAL'}
+            data-t-vip-plan-diamond_mensal={t('stats.vip_plan_diamond_mensal') || '💎 VIP DIAMOND MENSAL'}
+            data-t-vip-plan-diamond_trimestral={t('stats.vip_plan_diamond_trimestral') || '💎 VIP DIAMOND TRIMESTRAL'}
+            data-t-vip-plan-diamond_anual={t('stats.vip_plan_diamond_anual') || '💎 VIP DIAMOND ANUAL'}
+            data-t-vip-plan-vitalicio={t('stats.vip_plan_vitalicio') || '💎 MEMBRO VIP VITALÍCIO'}
+            data-t-vip-expires={t('stats.vip_expires') || 'Válido até {date}'}
+            data-t-vip-unlimited={t('stats.vip_unlimited') || 'Vitalício'}
+            data-t-vip-ready={t('stats.vip_access_ready') || 'Acesso VIP Ativado'}
+            data-t-vip-benefits={t('stats.vip_benefits') || 'Ative o VIP para remover anúncios e desbloquear canais exclusivos.'}
+            data-t-vip-buy-btn={t('stats.vip_buy_btn') || 'Quero ser VIP'}
+            data-t-no-image={isPt ? 'SEM IMAGEM' : 'NO IMAGE'}
+            data-lang={lang}
+        ></div>
+
+        <!-- Avatar Selection Modal (Netflix Style) -->
+        <div id="avatar-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+            <!-- Backdrop with smooth blur -->
+            <div id="avatar-modal-backdrop" class="absolute inset-0 bg-black/85 backdrop-blur-sm transition-opacity duration-300"></div>
+            
+            <!-- Modal Body -->
+            <div class="bg-[#0E111A]/95 border border-white/10 rounded-[32px] max-w-lg w-full p-8 relative z-10 shadow-2xl transform transition-all duration-300 scale-95 flex flex-col gap-6">
+                
+                <!-- Modal Header -->
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-xl font-black text-white tracking-tight">{isPt ? "Escolha seu Ícone" : "Choose your Icon"}</h3>
+                        <p class="text-xs text-gray-400 mt-1">{isPt ? "Selecione um dos avatares oficiais para o seu perfil." : "Select one of the official avatars for your profile."}</p>
+                    </div>
+                    <button id="close-avatar-modal-btn" class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 flex items-center justify-center text-gray-400 hover:text-white transition-all cursor-pointer">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                <!-- Avatar Options Grid -->
+                <div class="grid grid-cols-3 sm:grid-cols-5 gap-4 py-4 justify-items-center">
+                    <!-- Option 1 -->
+                    <button data-avatar-option="1" class="group relative w-16 h-16 sm:w-20 sm:h-20 rounded-full cursor-pointer outline-none transition-all duration-300 border-4 border-transparent hover:border-[#DF0912] active:scale-95">
+                        <img src="/avatars/avatar_1.svg" class="w-full h-full rounded-full object-cover shadow-lg" alt="Avatar 1" />
+                        <div class="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full hidden items-center justify-center shadow-md select-none" id="avatar-active-badge-1">
+                            <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                        </div>
+                    </button>
+
+                    <!-- Option 2 -->
+                    <button data-avatar-option="2" class="group relative w-16 h-16 sm:w-20 sm:h-20 rounded-full cursor-pointer outline-none transition-all duration-300 border-4 border-transparent hover:border-[#DF0912] active:scale-95">
+                        <img src="/avatars/avatar_2.svg" class="w-full h-full rounded-full object-cover shadow-lg" alt="Avatar 2" />
+                        <div class="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full hidden items-center justify-center shadow-md select-none" id="avatar-active-badge-2">
+                            <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                        </div>
+                    </button>
+
+                    <!-- Option 3 -->
+                    <button data-avatar-option="3" class="group relative w-16 h-16 sm:w-20 sm:h-20 rounded-full cursor-pointer outline-none transition-all duration-300 border-4 border-transparent hover:border-[#DF0912] active:scale-95">
+                        <img src="/avatars/avatar_3.svg" class="w-full h-full rounded-full object-cover shadow-lg" alt="Avatar 3" />
+                        <div class="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full hidden items-center justify-center shadow-md select-none" id="avatar-active-badge-3">
+                            <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                        </div>
+                    </button>
+
+                    <!-- Option 4 -->
+                    <button data-avatar-option="4" class="group relative w-16 h-16 sm:w-20 sm:h-20 rounded-full cursor-pointer outline-none transition-all duration-300 border-4 border-transparent hover:border-[#DF0912] active:scale-95">
+                        <img src="/avatars/avatar_4.svg" class="w-full h-full rounded-full object-cover shadow-lg" alt="Avatar 4" />
+                        <div class="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full hidden items-center justify-center shadow-md select-none" id="avatar-active-badge-4">
+                            <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                        </div>
+                    </button>
+
+                    <!-- Option 5 -->
+                    <button data-avatar-option="5" class="group relative w-16 h-16 sm:w-20 sm:h-20 rounded-full cursor-pointer outline-none transition-all duration-300 border-4 border-transparent hover:border-[#DF0912] active:scale-95">
+                        <img src="/avatars/avatar_5.svg" class="w-full h-full rounded-full object-cover shadow-lg" alt="Avatar 5" />
+                        <div class="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full hidden items-center justify-center shadow-md select-none" id="avatar-active-badge-5">
+                            <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                        </div>
+                    </button>
+
+                    <!-- Option 6 (VIP) -->
+                    <button data-avatar-option="6" data-vip-only="true" class="group relative w-16 h-16 sm:w-20 sm:h-20 rounded-full cursor-pointer outline-none transition-all duration-300 border-4 border-transparent hover:border-indigo-500 hover:shadow-lg hover:shadow-indigo-500/30 active:scale-95">
+                        <img src="/avatars/avatar_6.png" class="w-full h-full rounded-full object-cover shadow-lg" alt="Avatar 6" />
+                        <div class="absolute -top-1.5 -left-1.5 bg-indigo-600 text-white font-black text-[8px] px-1.5 py-0.5 rounded-full shadow border border-white/10 select-none">VIP</div>
+                        <div class="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full hidden items-center justify-center shadow-md select-none" id="avatar-active-badge-6">
+                            <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                        </div>
+                    </button>
+
+                    <!-- Option 7 (VIP) -->
+                    <button data-avatar-option="7" data-vip-only="true" class="group relative w-16 h-16 sm:w-20 sm:h-20 rounded-full cursor-pointer outline-none transition-all duration-300 border-4 border-transparent hover:border-indigo-500 hover:shadow-lg hover:shadow-indigo-500/30 active:scale-95">
+                        <img src="/avatars/avatar_7.png" class="w-full h-full rounded-full object-cover shadow-lg" alt="Avatar 7" />
+                        <div class="absolute -top-1.5 -left-1.5 bg-indigo-600 text-white font-black text-[8px] px-1.5 py-0.5 rounded-full shadow border border-white/10 select-none">VIP</div>
+                        <div class="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full hidden items-center justify-center shadow-md select-none" id="avatar-active-badge-7">
+                            <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                        </div>
+                    </button>
+
+                    <!-- Option 8 (VIP) -->
+                    <button data-avatar-option="8" data-vip-only="true" class="group relative w-16 h-16 sm:w-20 sm:h-20 rounded-full cursor-pointer outline-none transition-all duration-300 border-4 border-transparent hover:border-indigo-500 hover:shadow-lg hover:shadow-indigo-500/30 active:scale-95">
+                        <img src="/avatars/avatar_8.png" class="w-full h-full rounded-full object-cover shadow-lg" alt="Avatar 8" />
+                        <div class="absolute -top-1.5 -left-1.5 bg-indigo-600 text-white font-black text-[8px] px-1.5 py-0.5 rounded-full shadow border border-white/10 select-none">VIP</div>
+                        <div class="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full hidden items-center justify-center shadow-md select-none" id="avatar-active-badge-8">
+                            <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                        </div>
+                    </button>
+
+                    <!-- Option 9 (VIP) -->
+                    <button data-avatar-option="9" data-vip-only="true" class="group relative w-16 h-16 sm:w-20 sm:h-20 rounded-full cursor-pointer outline-none transition-all duration-300 border-4 border-transparent hover:border-indigo-500 hover:shadow-lg hover:shadow-indigo-500/30 active:scale-95">
+                        <img src="/avatars/avatar_9.png" class="w-full h-full rounded-full object-cover shadow-lg" alt="Avatar 9" />
+                        <div class="absolute -top-1.5 -left-1.5 bg-indigo-600 text-white font-black text-[8px] px-1.5 py-0.5 rounded-full shadow border border-white/10 select-none">VIP</div>
+                        <div class="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full hidden items-center justify-center shadow-md select-none" id="avatar-active-badge-9">
+                            <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                        </div>
+                    </button>
+
+                    <!-- Option 10 (VIP) -->
+                    <button data-avatar-option="10" data-vip-only="true" class="group relative w-16 h-16 sm:w-20 sm:h-20 rounded-full cursor-pointer outline-none transition-all duration-300 border-4 border-transparent hover:border-indigo-500 hover:shadow-lg hover:shadow-indigo-500/30 active:scale-95">
+                        <img src="/avatars/avatar_10.png" class="w-full h-full rounded-full object-cover shadow-lg" alt="Avatar 10" />
+                        <div class="absolute -top-1.5 -left-1.5 bg-indigo-600 text-white font-black text-[8px] px-1.5 py-0.5 rounded-full shadow border border-white/10 select-none">VIP</div>
+                        <div class="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full hidden items-center justify-center shadow-md select-none" id="avatar-active-badge-10">
+                            <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                        </div>
+                    </button>
+                </div>
+                
+                
+                <!-- Horizontal Separator -->
+                <div class="h-px bg-white/5"></div>
+
+                <!-- Diamond Custom Upload Section -->
+                <div class="flex flex-col gap-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-1.5 select-none">
+                            <span class="text-sm">💎</span>
+                            <h4 class="text-xs font-black bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent uppercase tracking-wider">
+                                {isPt ? "Avatar Customizado ou GIF" : "Custom Avatar or GIF"}
+                            </h4>
+                        </div>
+                        <span class="text-[8px] font-black uppercase bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-2 py-0.5 rounded-full select-none tracking-widest animate-pulse">
+                            DIAMOND
+                        </span>
+                    </div>
+
+                    <!-- Upload Trigger Container (Conditional) -->
+                    <div id="diamond-upload-container" class="relative">
+                        <!-- Restricted State: Locked overlay shown to non-Diamond members -->
+                        <div id="diamond-upload-locked" class="hidden flex flex-col items-center justify-center p-6 bg-cyan-950/5 border-2 border-dashed border-cyan-500/20 hover:border-cyan-500/40 rounded-2xl text-center cursor-pointer transition-all duration-300 gap-2 group select-none">
+                            <svg class="w-6 h-6 text-cyan-400 group-hover:scale-110 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                            </svg>
+                            <div>
+                                <p class="text-white text-[10px] font-black uppercase tracking-wider">{isPt ? "Fazer Upload de GIF ou Foto" : "Upload GIF or Photo"}</p>
+                                <p class="text-cyan-400 text-[8px] font-black uppercase tracking-widest mt-1 group-hover:underline">{isPt ? "Exclusivo para MultiCanaisHD VIP Diamond" : "Exclusive for MultiCanaisHD VIP Diamond"}</p>
+                            </div>
+                        </div>
+
+                        <!-- Active Upload State: Shown to Diamond members -->
+                        <div id="diamond-upload-active" class="hidden flex flex-col items-center justify-center p-6 bg-white/[0.01] border-2 border-dashed border-white/10 hover:border-cyan-500/40 hover:bg-cyan-500/[0.01] rounded-2xl text-center cursor-pointer transition-all duration-300 gap-2 group select-none">
+                            <svg class="w-6 h-6 text-gray-400 group-hover:text-cyan-400 group-hover:scale-110 transition-all duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            <div>
+                                <p class="text-white text-[10px] font-black uppercase tracking-wider">{isPt ? "Arraste ou clique para enviar" : "Drag or click to upload"}</p>
+                                <p class="text-gray-500 text-[8px] font-bold uppercase tracking-widest mt-0.5">{isPt ? "Suporta GIF, PNG, JPG (Máx 1MB)" : "Supports GIF, PNG, JPG (Max 1MB)"}</p>
+                            </div>
+                        </div>
+
+                        <!-- Upload Loading / Spinner State -->
+                        <div id="diamond-upload-loading" class="hidden absolute inset-0 bg-[#0E111A]/95 rounded-2xl flex flex-col items-center justify-center text-center gap-2 select-none">
+                            <div class="w-6 h-6 border-2 border-cyan-500/20 border-t-cyan-400 rounded-full animate-spin"></div>
+                            <p class="text-cyan-400 text-[9px] font-black uppercase tracking-widest">{isPt ? "Enviando arquivo..." : "Uploading file..."}</p>
+                        </div>
+                    </div>
+
+                    <!-- Hidden File Input -->
+                    <input type="file" id="custom-avatar-file-input" accept="image/png, image/jpeg, image/gif" class="hidden" />
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex items-center justify-end gap-3 border-t border-white/5 pt-4">
+                    <button id="cancel-avatar-btn" class="h-10 px-6 bg-white/5 hover:bg-white/10 border border-white/5 text-gray-400 hover:text-white font-black uppercase text-[10px] tracking-widest rounded-xl transition-all cursor-pointer">
+                        {isPt ? "Fechar" : "Close"}
+                    </button>
+                </div>
+                
+            </div>
+        </div>
+    </main>
+</BaseLayout>
+
+<style is:global>
+    /* Premium high-end design accents and keyframes */
+
+    @keyframes progressShimmer {
+        0% { background-position: 0 0; }
+        100% { background-position: 40px 0; }
+    }
+
+    .rank-progress-animated {
+        background-image: linear-gradient(
+            45deg,
+            rgba(255, 255, 255, 0.15) 25%,
+            transparent 25%,
+            transparent 50%,
+            rgba(255, 255, 255, 0.15) 50%,
+            rgba(255, 255, 255, 0.15) 75%,
+            transparent 75%,
+            transparent
+        );
+        background-size: 40px 40px;
+        animation: progressShimmer 1.5s linear infinite !important;
+    }
+</style>
+
+<script>
+    import { authStore, initAuth, updateUsername, updateAvatar, updateNickname } from "../store/authStore";
+    import { favoritesStore } from "../store/favoritesStore";
+    import { profilesStore, getActiveProfile } from "../store/profilesStore";
+    import { podeCriarPerfis } from "../services/vipPlans.js";
+
+    function getAvatarPath(avatarId: any) {
+        if (!avatarId) return `/avatars/avatar_1.svg`;
+        const avatarStr = String(avatarId);
+        if (avatarStr.startsWith('http://') || avatarStr.startsWith('https://')) {
+            return avatarStr;
+        }
+        const id = parseInt(avatarStr || '1', 10);
+        if (id > 5) {
+            return `/avatars/avatar_${id}.png`;
+        }
+        return `/avatars/avatar_${id}.svg`;
+    }
+
+    function formatTimeAgo(ts: any, lang = 'pt') {
+        if (!ts) return lang === 'pt' ? 'Recentemente' : 'Recently';
+        const now = Date.now();
+        const diff = now - parseInt(ts, 10);
+        if (isNaN(diff) || diff < 0) return lang === 'pt' ? 'Recentemente' : 'Recently';
+        const mins = Math.floor(diff / 60000);
+        const hrs = Math.floor(mins / 60);
+        const days = Math.floor(hrs / 24);
+
+        if (lang === 'pt') {
+            if (mins < 1) return 'Assistido agora';
+            if (mins < 60) return `Assistido há ${mins} min`;
+            if (hrs < 24) return `Assistido há ${hrs} h`;
+            return `Assistido há ${days} dia${days > 1 ? 's' : ''}`;
+        } else {
+            if (mins < 1) return 'Watched now';
+            if (mins < 60) return `Watched ${mins} min ago`;
+            if (hrs < 24) return `Watched ${hrs} h ago`;
+            return `Watched ${days} day${days > 1 ? 's' : ''} ago`;
+        }
+    }
+
+    function formatVipPlan(plan: any, lang = 'pt') {
+        if (!plan) return lang === 'pt' ? 'VIP Ativo' : 'VIP Active';
+        const clean = String(plan).toLowerCase().trim();
+        if (clean === 'mensal') return lang === 'pt' ? 'VIP Mensal' : 'Monthly VIP';
+        if (clean === 'trimestral') return lang === 'pt' ? 'VIP Trimestral' : 'Quarterly VIP';
+        if (clean === 'anual') return lang === 'pt' ? 'VIP Anual' : 'Annual VIP';
+        if (clean === 'vitalicio') return lang === 'pt' ? 'VIP Vitalício' : 'Lifetime VIP';
+        if (clean === 'diamond_mensal') return lang === 'pt' ? 'VIP Diamond Mensal' : 'VIP Diamond Monthly';
+        if (clean === 'diamond_trimestral') return lang === 'pt' ? 'VIP Diamond Trimestral' : 'VIP Diamond Quarterly';
+        if (clean === 'diamond_anual') return lang === 'pt' ? 'VIP Diamond Anual' : 'VIP Diamond Annual';
+        if (clean === 'black_mensal') return lang === 'pt' ? 'VIP Black Mensal' : 'VIP Black Monthly';
+        if (clean === 'black_trimestral') return lang === 'pt' ? 'VIP Black Trimestral' : 'VIP Black Quarterly';
+        if (clean === 'black_anual') return lang === 'pt' ? 'VIP Black Anual' : 'VIP Black Annual';
+        
+        return clean
+            .split('_')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+    }
+
+    function formatWatchedTime(seconds: any, lang = 'pt') {
+        if (seconds === undefined || seconds === null) {
+            return lang === 'pt' ? 'Não registrado (histórico antigo)' : 'Unrecorded (old history)';
+        }
+        const secs = parseInt(seconds, 10);
+        if (isNaN(secs) || secs < 60) {
+            return lang === 'pt' ? 'Tempo assistido: < 1 min' : 'Watched: < 1 min';
+        }
+        const mins = Math.floor(secs / 60);
+        const hrs = Math.floor(mins / 60);
+        const remainingMins = mins % 60;
+
+        if (lang === 'pt') {
+            if (hrs > 0) {
+                return `Tempo assistido: ${hrs}h ${remainingMins}m`;
+            }
+            return `Tempo assistido: ${mins} min`;
+        } else {
+            if (hrs > 0) {
+                return `Watched: ${hrs}h ${remainingMins}m`;
+            }
+            return `Watched: ${mins} min`;
+        }
+    }
+
+    // Sincroniza informações de VIP e perfil com a UI do cabeçalho
+    // Card "Assistindo como" — só aparece pra quem tem direito a múltiplos perfis.
+    function syncAccountProfilesCard() {
+        const card = document.getElementById('account-profiles-card');
+        if (!card) return;
+
+        const { vipPlan, user } = authStore.get();
+        if (!user || !podeCriarPerfis(vipPlan)) {
+            card.classList.add('hidden');
+            card.classList.remove('flex');
+            return;
+        }
+
+        card.classList.remove('hidden');
+        card.classList.add('flex');
+
+        // Sem linha de perfil (conta ainda sem account_profiles, ou a lista ainda
+        // carregando) o card cai na identidade da própria conta em vez de estampar "---",
+        // que o usuário lê como perfil quebrado.
+        const state = authStore.get();
+        const active = getActiveProfile() || {
+            name: state.username || state.nickname || (state.user?.email || '').split('@')[0],
+            avatar: state.avatar
+        };
+        const nameEl = document.getElementById('active-profile-name');
+        const avatarEl = document.getElementById('active-profile-avatar');
+        if (nameEl) nameEl.textContent = active.name || '';
+        if (avatarEl) avatarEl.src = getAvatarPath(active.avatar);
+    }
+
+    async function syncProfileUI() {
+        const state = authStore.get();
+        const { user, isVIP, vipUntil, vipPlan, loading, username, avatar, nickname, nicknameChanges } = state;
+
+        syncAccountProfilesCard();
+
+        const loggedInContainer = document.getElementById('logged-in-container');
+        const loggedOutContainer = document.getElementById('logged-out-container');
+        const dl = document.getElementById('stats-data-layer');
+        
+        const statusText = document.getElementById('vip-status-text');
+        const vipActions = document.getElementById('vip-actions');
+        const idBadge = document.getElementById('user-better-id-badge');
+        const userEmailEl = document.getElementById('user-display-email');
+        const membershipBadge = document.getElementById('user-membership-badge');
+
+        if (!dl) return;
+
+        // Função utilitária para buscar i18n traduzido do data layer
+        const t = (key, params) => {
+            let text = dl.getAttribute(`data-t-${key}`) || key;
+            if (params) {
+                Object.entries(params).forEach(([k, v]) => {
+                    const regex = new RegExp(`{${k}}`, 'gi');
+                    text = text.replace(regex, String(v));
+                });
+            }
+            return text;
+        };
+        const lang = dl.getAttribute('data-lang') || 'pt';
+        const authLoadingContainer = document.getElementById('auth-loading-container');
+
+        // Guard: Show loading skeleton while auth is still resolving (no localStorage cache present)
+        // Guarda: exibe skeleton enquanto a autenticação está pendente (sem cache no localStorage)
+        if (loading || state.initialized !== true) {
+            authLoadingContainer?.classList.remove('hidden');
+            loggedInContainer?.classList.add('hidden');
+            loggedOutContainer?.classList.add('hidden');
+            loggedOutContainer?.classList.remove('flex');
+            return;
+        }
+
+        // Auth resolved — hide loading skeleton
+        // Autenticação resolvida — oculta o skeleton
+        authLoadingContainer?.classList.add('hidden');
+
+        // Toggles principais de visualização conforme autenticação
+        if (!user) {
+            loggedInContainer?.classList.add('hidden');
+            loggedOutContainer?.classList.remove('hidden');
+            loggedOutContainer?.classList.add('flex');
+            return;
+        }
+
+        loggedInContainer?.classList.remove('hidden');
+        loggedOutContainer?.classList.add('hidden');
+        loggedOutContainer?.classList.remove('flex');
+
+        // Atualizar display name (Pilar 1)
+        const userDisplayNameEl = document.getElementById('user-display-name');
+        if (userDisplayNameEl) {
+            if (username) {
+                userDisplayNameEl.textContent = username;
+                userDisplayNameEl.classList.remove('text-gray-400', 'italic', 'font-normal');
+                userDisplayNameEl.classList.add('text-white', 'font-black');
+            } else {
+                userDisplayNameEl.textContent = lang === 'pt' ? 'Definir Nome de Exibição' : 'Set Display Name';
+                userDisplayNameEl.classList.add('text-gray-400', 'italic', 'font-normal');
+                userDisplayNameEl.classList.remove('text-white', 'font-black');
+            }
+        }
+
+        // Atualizar nickname e limite de trocas (Pilar 1)
+        const userNicknameEl = document.getElementById('user-nickname');
+        if (userNicknameEl) {
+            userNicknameEl.textContent = nickname ? `@${nickname}` : '@---';
+        }
+
+        const changesCount = nicknameChanges || 0;
+        const planLower = String(vipPlan || '').toLowerCase();
+        let limit = isVIP ? ((planLower.includes('diamond') || planLower.includes('black')) ? Infinity : 5) : 1;
+        let remaining = limit - changesCount;
+        if (remaining < 0) remaining = 0;
+
+        const changesLeftEl = document.getElementById('nickname-changes-left');
+        if (changesLeftEl) {
+            if (limit === Infinity) {
+                changesLeftEl.textContent = lang === 'pt' ? "Alterações ilimitadas" : "Unlimited changes";
+                changesLeftEl.className = "text-[9px] text-cyan-400 font-black uppercase tracking-wider bg-cyan-500/10 border border-cyan-500/15 px-2 py-0.5 rounded-md";
+            } else {
+                changesLeftEl.textContent = lang === 'pt' 
+                    ? `${remaining} ${remaining === 1 ? 'alteração restante' : 'alterações restantes'}` 
+                    : `${remaining} ${remaining === 1 ? 'change left' : 'changes left'}`;
+                changesLeftEl.className = remaining > 0 
+                    ? "text-[9px] text-[#DF0912] font-black uppercase tracking-wider bg-[#DF0912]/10 border border-[#DF0912]/15 px-2 py-0.5 rounded-md" 
+                    : "text-[9px] text-gray-500 font-bold uppercase tracking-wider bg-white/5 border border-white/10 px-2 py-0.5 rounded-md";
+            }
+        }
+
+        // Atualizar email no display
+        if (userEmailEl && user.email) {
+            userEmailEl.textContent = user.email;
+        }
+
+        // Atualizar crachá de membro
+        if (membershipBadge) {
+            // Ciano fica só no Diamond: é cor semântica de tier, usada igual no ranking. VIP
+            // básico e Standard voltam pro pill neutro — cor decorativa por status era o que
+            // dava o efeito arco-íris na página.
+            const badgeBase = "px-2.5 py-1 rounded-lg text-[11px] font-semibold select-none border";
+            if (isVIP) {
+                const planLower = String(vipPlan || '').toLowerCase();
+                if (planLower.includes('black')) {
+                    membershipBadge.textContent = "⚫ VIP Black";
+                    membershipBadge.className = `${badgeBase} bg-neutral-300/10 border-neutral-400/30 text-neutral-200`;
+                } else if (planLower.includes('diamond')) {
+                    membershipBadge.textContent = "💎 VIP Diamond";
+                    membershipBadge.className = `${badgeBase} bg-cyan-500/10 border-cyan-400/30 text-cyan-400`;
+                } else {
+                    membershipBadge.textContent = lang === 'pt' ? "MultiCanaisHD VIP Básico" : "MultiCanaisHD VIP Basic";
+                    membershipBadge.className = `${badgeBase} bg-white/[0.06] border-white/15 text-gray-300`;
+                }
+            } else {
+                membershipBadge.textContent = lang === 'pt' ? "Membro Standard" : "Standard Member";
+                membershipBadge.className = `${badgeBase} bg-white/[0.04] border-white/[0.08] text-gray-500`;
+            }
+        }
+
+        // Configurar avatar do usuário logado
+        const avatarFallback = document.getElementById('avatar-fallback');
+        const avatarCustom = document.getElementById('avatar-custom');
+        avatarFallback?.classList.add('opacity-0');
+        if (avatarCustom) {
+            avatarCustom.classList.remove('opacity-0');
+            avatarCustom.classList.add('opacity-100');
+            
+            const currentAvatar = avatar || '1';
+            avatarCustom.innerHTML = `<img src="${getAvatarPath(currentAvatar)}" class="w-full h-full rounded-full object-cover" alt="User Avatar" />`;
+            avatarCustom.style.background = 'none';
+        }
+
+        // Configurar ID Único e clique de cópia rápida
+        const betterId = user.id.substring(0, 8).toUpperCase();
+        if (idBadge) {
+            idBadge.textContent = `#${betterId}`;
+            idBadge.classList.remove('hidden');
+            idBadge.onclick = (e) => {
+                e.stopPropagation();
+                navigator.clipboard.writeText(betterId).then(() => {
+                    const originalText = idBadge.textContent;
+                    idBadge.textContent = t('copied');
+                    idBadge.classList.add('text-emerald-400', 'border-emerald-500/50');
+                    setTimeout(() => {
+                        idBadge.textContent = originalText;
+                        idBadge.classList.remove('text-emerald-400', 'border-emerald-500/50');
+                    }, 2000);
+                });
+            };
+        }
+
+        if (loading && !user) {
+            if (statusText) statusText.textContent = t('loading-vip');
+            return;
+        }
+
+        // Renderizar bloco VIP
+        if (statusText && vipActions) {
+            if (isVIP) {
+                const date = vipUntil ? new Date(vipUntil).toLocaleDateString(lang === 'pt' ? 'pt-BR' : 'en-US') : t('vip-unlimited');
+                const activeLabel = vipPlan ? `💎 ${formatVipPlan(vipPlan, lang)}` : t('vip-active');
+                statusText.innerHTML = `<span class="text-white font-black tracking-tight">${activeLabel}</span><br/><span class="text-[11px] text-gray-500 font-medium mt-1.5 block">${t('vip-expires', { date })}</span>`;
+                vipActions.innerHTML = `
+                    <div class="px-4 py-3 bg-white/[0.04] border border-white/[0.08] rounded-2xl text-gray-400 font-semibold text-[11px] text-center">
+                        ${t('vip-ready')}
+                    </div>
+                `;
+            } else {
+                statusText.textContent = t('vip-benefits');
+                vipActions.innerHTML = `
+                    <button id="buy-vip-btn" onclick="document.dispatchEvent(new CustomEvent('multicanaishd:open-vip'))" class="inline-flex items-center justify-center px-6 py-3.5 bg-[#DF0912] hover:bg-[#cf0811] text-white font-bold text-[12px] rounded-2xl transition-colors w-full active:scale-95 cursor-pointer">
+                        ${t('vip-buy-btn')}
+                    </button>
+                `;
+            }
+        }
+    }
+
+    // Processa os dados de progresso e estatísticas assistidas
+    async function updateDashboardData() {
+        try {
+            const state = authStore.get();
+            const isLogged = !!state.user;
+            const dl = document.getElementById('stats-data-layer');
+            if (!dl) return;
+
+            const t = (key, params) => {
+                let text = dl.getAttribute(`data-t-${key}`) || key;
+                if (params) {
+                    Object.entries(params).forEach(([k, v]) => {
+                        const regex = new RegExp(`{${k}}`, 'gi');
+                        text = text.replace(regex, String(v));
+                    });
+                }
+                return text;
+            };
+
+            let watchedMoviesList = [];
+            let episodesCount = 0;
+            let history = [];
+
+            if (isLogged) {
+                watchedMoviesList = state.watchedMovies || [];
+                history = (state.history || []).filter(item => item && item.id);
+                Object.values(state.watchedEpisodes || {}).forEach(eps => {
+                    if (Array.isArray(eps)) episodesCount += eps.length;
+                });
+            }
+
+            const movieEl = document.getElementById('stat-movies');
+            const epEl = document.getElementById('stat-episodes');
+            if (movieEl) movieEl.innerText = watchedMoviesList.length.toString();
+            if (epEl) epEl.innerText = episodesCount.toString();
+
+            // Cálculo do nível baseado nos segundos ativos auditados (Segurança Heartbeat)
+            const totalHours = (state.activeSeconds || 0) / 3600;
+            const seasonHours = (state.rankingActiveSeconds !== undefined && state.rankingActiveSeconds !== null ? state.rankingActiveSeconds : state.activeSeconds || 0) / 3600;
+            
+            const hourEl = document.getElementById('stat-hours');
+            const seasonHourEl = document.getElementById('stat-season-hours');
+            
+            const formatBetterHours = (h) => {
+                const hrs = Math.floor(h);
+                const mins = Math.round((h - hrs) * 60);
+                if (hrs > 0 && mins > 0) return `${hrs}h ${mins}m`;
+                if (hrs > 0) return `${hrs}h`;
+                return `${mins}m`;
+            };
+
+            if (hourEl) hourEl.innerText = formatBetterHours(totalHours);
+            if (seasonHourEl) seasonHourEl.innerText = formatBetterHours(seasonHours);
+
+            const rankIcon = document.getElementById('rank-icon');
+            const rankName = document.getElementById('rank-name');
+            const rankProgress = document.getElementById('rank-progress');
+            const rankNext = document.getElementById('rank-next');
+            
+            let rank = { icon: '🐣', name: t('beginner'), next: 10, percent: 10 };
+            if (totalHours >= 100) rank = { icon: '👑', name: t('legend'), next: 0, percent: 100 };
+            else if (totalHours >= 50) rank = { icon: '🔥', name: t('addict'), next: 100 - totalHours, percent: (totalHours/100)*100 };
+            else if (totalHours >= 20) rank = { icon: '跑', name: t('marathoner'), next: 50 - totalHours, percent: (totalHours/50)*100 };
+            else if (totalHours >= 5) rank = { icon: '👀', name: t('spectator'), next: 20 - totalHours, percent: (totalHours/20)*100 };
+            else rank = { icon: '🐣', name: t('beginner'), next: 5 - totalHours, percent: (totalHours/5)*100 };
+
+            if (rankIcon) rankIcon.innerText = rank.icon;
+            if (rankName) rankName.innerText = rank.name;
+            if (rankProgress) rankProgress.style.width = `${rank.percent}%`;
+            if (rankNext) rankNext.innerText = rank.next > 0 ? t('next-level', { time: formatBetterHours(rank.next) }) : t('max-level');
+
+            // Atualizar estilo do avatar baseado no Rank obtido
+            const avatarCustom = document.getElementById('avatar-custom');
+            if (avatarCustom && isLogged) {
+                avatarCustom.className = "absolute inset-0 rounded-full flex items-center justify-center text-white font-black text-3xl sm:text-4xl transition-all duration-500 opacity-100 border-[3px] select-none shadow-inner";
+                avatarCustom.style.boxShadow = 'none';
+                avatarCustom.style.borderColor = '';
+
+                if (totalHours >= 100) {
+                    avatarCustom.style.borderColor = '#8B5CF6';
+                } else if (totalHours >= 50) {
+                    avatarCustom.style.borderColor = '#EF4444';
+                } else if (totalHours >= 20) {
+                    avatarCustom.style.borderColor = '#10B981';
+                } else if (totalHours >= 5) {
+                    avatarCustom.style.borderColor = '#06B6D4';
+                } else {
+                    avatarCustom.style.borderColor = '#B45309';
+                }
+            }
+
+            // Atividade Recente
+            const recentSection = document.getElementById('recent-activity-section');
+            const recentGrid = document.getElementById('recent-grid');
+            if (recentSection && recentGrid) {
+                const dl = document.getElementById('stats-data-layer');
+                const isPt = dl?.getAttribute('data-lang') === 'pt';
+                recentSection.classList.remove('hidden');
+                
+                if (history.length > 0) {
+                    recentGrid.innerHTML = history.slice(0, 12).map(item => {
+                        const imgUrl = item.backdrop 
+                            ? (item.backdrop.startsWith('http') || item.backdrop.startsWith('/') ? item.backdrop : `https://image.tmdb.org/t/p/w780${item.backdrop}`)
+                            : (item.poster 
+                                ? (item.poster.startsWith('http') || item.poster.startsWith('/') ? item.poster : `https://image.tmdb.org/t/p/w500${item.poster}`)
+                                : `https://placehold.co/500x281/111/444?text=${t('no-image')}`);
+                        return `
+                            <a href="${item.url}" class="group relative aspect-video rounded-2xl overflow-hidden border border-white/5 bg-[#161B28] shadow-inner transition-all hover:scale-[1.03] hover:border-[#DF0912]/20 hover:shadow-xl duration-300">
+                                <img src="${imgUrl}" alt="${item.title}" class="w-full h-full object-cover opacity-40 transition-opacity group-hover:opacity-50" />
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent"></div>
+                                <div class="absolute bottom-3 left-4 right-4">
+                                     <p class="text-[11px] font-black text-white uppercase tracking-widest truncate mb-1">${item.title}</p>
+                                     <div class="flex flex-col gap-1">
+                                         <p class="text-[9px] text-gray-400 font-bold flex items-center gap-1.5">
+                                             <svg class="w-3.5 h-3.5 text-[#DF0912]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                             </svg>
+                                             <span>${formatTimeAgo(item.timestamp, isPt ? 'pt' : 'en')}</span>
+                                         </p>
+                                         <p class="text-[9px] text-gray-400 font-bold flex items-center gap-1.5">
+                                             <svg class="w-3.5 h-3.5 text-[#DF0912]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                             </svg>
+                                             <span>${formatWatchedTime(item.watched_seconds, isPt ? 'pt' : 'en')}</span>
+                                         </p>
+                                     </div>
+                                </div>
+                            </a>
+                        `;
+                    }).join('');
+                } else {
+                    const hasWatched = watchedMoviesList.length > 0 || episodesCount > 0;
+                    recentGrid.innerHTML = `
+                        <div class="col-span-full bg-white/[0.01] backdrop-blur-md border border-white/5 p-8 rounded-2xl flex flex-col items-center justify-center text-center py-12 shadow-inner select-none w-full">
+                            <div class="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-gray-500 mb-4 border border-white/5">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </div>
+                            <p class="text-white text-sm font-bold uppercase tracking-wider mb-2">
+                                ${isPt ? 'Nenhuma Atividade Recente' : 'No Recent Activity'}
+                            </p>
+                            <p class="text-gray-400 text-xs max-w-sm leading-relaxed">
+                                ${hasWatched
+                                    ? (isPt 
+                                        ? 'Você possui conteúdos assistidos em suas estatísticas, mas optou por limpar o histórico de reprodução ou as atividades recentes expiraram.' 
+                                        : 'You have watched content in your statistics, but chose to clear your playback history or recent activities expired.')
+                                    : (isPt 
+                                        ? 'Você ainda não assistiu a nenhum conteúdo no MultiCanaisHD. Comece a explorar nosso catálogo!' 
+                                        : 'You have not watched any content on MultiCanaisHD yet. Start exploring our catalog!')}
+                            </p>
+                        </div>
+                    `;
+                }
+            }
+
+            // Gênero Favorito (Vibe) - Suporta propriedades antigas e novas de forma robusta (Pilar 2 e 3)
+            const genres = history
+                .filter(i => i.genreName || i.genre)
+                .map(i => {
+                    const rawGenre = i.genreName || i.genre;
+                    return rawGenre.includes(',') ? rawGenre.split(',')[0].trim() : rawGenre.trim();
+                })
+                .filter(g => g && g !== 'N/A');
+
+            const genreCounts = genres.reduce((acc, g) => { acc[g] = (acc[g] || 0) + 1; return acc; }, {});
+            const topGenre = Object.entries(genreCounts).sort((a,b) => b[1] - a[1])[0]?.[0] || '---';
+            const genreEl = document.getElementById('stat-genre');
+            if (genreEl) {
+                genreEl.innerText = topGenre;
+                if (topGenre === '---') {
+                    genreEl.className = "text-[10px] font-black text-gray-500 bg-white/5 border border-white/10 px-3 py-0.5 rounded-lg truncate tracking-widest uppercase";
+                } else {
+                    genreEl.className = "text-[10px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-0.5 rounded-lg truncate tracking-widest uppercase";
+                }
+            }
+
+            // Favoritos salvos
+            const favorites = favoritesStore.get();
+            const favEl = document.getElementById('stat-favorites');
+            if (favEl) favEl.innerText = favorites.length.toString();
+
+        } catch (error) {
+            console.error('[MultiCanaisHD] Erro ao carregar estatísticas do dashboard:', error);
+        }
+    }
+
+    // Registro do Botão de Logout
+    function initLogout() {
+        const btn = document.getElementById('logout-btn');
+        if (!btn) return;
+        btn.onclick = async (e) => {
+            e.preventDefault();
+            console.log("👤 [Profile] Iniciando processo de logout...");
+            try {
+                const { supabase } = await import("../services/supabase");
+                const { clearActiveProfile } = await import("../store/profilesStore");
+                localStorage.removeItem('bf_session_optimistic');
+                localStorage.removeItem('supabase.auth.token');
+                clearActiveProfile();
+                authStore.set({
+                    user: null, token: null, isVIP: false, vipUntil: null, vipPlan: null, loading: false, initialized: true,
+                    favorites: [], history: [], watchedMovies: [], watchedEpisodes: {}, username: null, avatar: '1', activeSeconds: 0, nickname: null, nicknameChanges: 0,
+                    activeProfileId: null, isKidsProfile: false
+                });
+                await supabase.auth.signOut();
+                const isPt = document.getElementById('stats-data-layer')?.getAttribute('data-lang') === 'pt';
+                window.location.href = isPt ? '/login' : '/en/login';
+            } catch (err) {
+                console.error("Erro ao deslogar:", err);
+                localStorage.removeItem('bf_session_optimistic');
+                const isPt = document.getElementById('stats-data-layer')?.getAttribute('data-lang') === 'pt';
+                window.location.href = isPt ? '/login' : '/en/login';
+            }
+        };
+    }
+
+    // Gerenciador interativo de seleção de avatar (Netflix style)
+    function initAvatarSelector() {
+        const modal = document.getElementById('avatar-modal');
+        const wrapper = document.getElementById('user-profile-avatar-wrapper');
+        const closeBtn = document.getElementById('close-avatar-modal-btn');
+        const cancelBtn = document.getElementById('cancel-avatar-btn');
+        const backdrop = document.getElementById('avatar-modal-backdrop');
+
+        // Custom upload element references
+        const uploadLocked = document.getElementById('diamond-upload-locked');
+        const uploadActive = document.getElementById('diamond-upload-active');
+        const uploadLoading = document.getElementById('diamond-upload-loading');
+        const fileInput = document.getElementById('custom-avatar-file-input') as HTMLInputElement;
+
+        if (!modal || !wrapper) return;
+
+        const isPt = document.getElementById('stats-data-layer')?.getAttribute('data-lang') === 'pt';
+
+        function refreshUploadState() {
+            const state = authStore.get();
+            const { isVIP, vipPlan } = state;
+            const isDiamond = isVIP && vipPlan && (String(vipPlan).startsWith('diamond_') || String(vipPlan).startsWith('black_'));
+
+            if (isDiamond) {
+                uploadLocked?.classList.add('hidden');
+                uploadActive?.classList.remove('hidden');
+            } else {
+                uploadLocked?.classList.remove('hidden');
+                uploadActive?.classList.add('hidden');
+            }
+        }
+
+        // Abrir modal
+        wrapper.addEventListener('click', (e) => {
+            e.preventDefault();
+            modal.classList.remove('hidden');
+            const state = authStore.get();
+            const currentAvatar = state.avatar || '1';
+
+            // Destacar avatar atual e mostrar badge de ativo (suporta 10 avatares)
+            for (let i = 1; i <= 10; i++) {
+                const badge = document.getElementById(`avatar-active-badge-${i}`);
+                const btn = document.querySelector(`[data-avatar-option="${i}"]`);
+                const activeBorderClass = i > 5 ? 'border-indigo-500' : 'border-[#DF0912]';
+
+                if (badge) {
+                    if (String(i) === currentAvatar) {
+                        badge.classList.remove('hidden');
+                        badge.classList.add('flex');
+                    } else {
+                        badge.classList.add('hidden');
+                        badge.classList.remove('flex');
+                    }
+                }
+                if (btn) {
+                    if (String(i) === currentAvatar) {
+                        btn.classList.add(activeBorderClass);
+                        btn.classList.remove('border-transparent');
+                    } else {
+                        btn.classList.remove(activeBorderClass);
+                        btn.classList.add('border-transparent');
+                    }
+                }
+            }
+
+            refreshUploadState();
+        });
+
+        // Fechar modal
+        const closeModal = () => modal.classList.add('hidden');
+        closeBtn?.addEventListener('click', closeModal);
+        cancelBtn?.addEventListener('click', closeModal);
+        backdrop?.addEventListener('click', closeModal);
+
+        // Upload de avatar customizado para usuários Diamond
+        uploadLocked?.addEventListener('click', () => {
+            closeModal();
+            document.dispatchEvent(new CustomEvent('multicanaishd:open-vip'));
+            import("../store/toastStore").then(m => {
+                m.showToast(
+                    isPt 
+                        ? 'O upload de fotos e GIFs customizados é exclusivo do MultiCanaisHD VIP Diamond! 💎' 
+                        : 'Custom photo and GIF upload is exclusive to MultiCanaisHD VIP Diamond! 💎',
+                    'info'
+                );
+            });
+        });
+
+        uploadActive?.addEventListener('click', () => {
+            fileInput?.click();
+        });
+
+        fileInput?.addEventListener('change', async () => {
+            const file = fileInput.files?.[0];
+            if (!file) return;
+
+            // 1. Double-Security: Validação dupla de permissão Diamond (Pilar 2 - Segurança Proativa)
+            const state = authStore.get();
+            const { isVIP, vipPlan } = state;
+            const isDiamond = isVIP && vipPlan && (String(vipPlan).startsWith('diamond_') || String(vipPlan).startsWith('black_'));
+
+            if (!isDiamond) {
+                import("../store/toastStore").then(m => {
+                    m.showToast(
+                        isPt 
+                            ? 'Acesso negado! O upload é exclusivo para membros MultiCanaisHD VIP Diamond. 💎' 
+                            : 'Access denied! Upload is exclusive to MultiCanaisHD VIP Diamond members. 💎',
+                        'error'
+                    );
+                });
+                fileInput.value = '';
+                return;
+            }
+
+            // 2. Validação estrita de extensão (Pilar 2)
+            const extension = file.name.split('.').pop()?.toLowerCase() || '';
+            const allowedExtensions = ['png', 'jpg', 'jpeg', 'gif'];
+            if (!allowedExtensions.includes(extension)) {
+                import("../store/toastStore").then(m => {
+                    m.showToast(
+                        isPt 
+                            ? 'Formato de arquivo inválido! Apenas PNG, JPG, JPEG e GIF são permitidos.' 
+                            : 'Invalid file format! Only PNG, JPG, JPEG and GIF are allowed.',
+                        'error'
+                    );
+                });
+                fileInput.value = '';
+                return;
+            }
+
+            // 3. Validação estrita de tipo MIME para evitar spoofing (Pilar 2)
+            const allowedMimeTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+            if (!allowedMimeTypes.includes(file.type)) {
+                import("../store/toastStore").then(m => {
+                    m.showToast(
+                        isPt 
+                            ? 'Tipo de arquivo não permitido! Apenas PNG, JPG, WEBP ou GIF.' 
+                            : 'File type not allowed! Only PNG, JPG, WEBP or GIF.',
+                        'error'
+                    );
+                });
+                fileInput.value = '';
+                return;
+            }
+
+            // 4. Limite de tamanho de 10MB para proteger o armazenamento (Permite GIFs de alta qualidade)
+            if (file.size > 10 * 1024 * 1024) {
+                import("../store/toastStore").then(m => {
+                    m.showToast(
+                        isPt 
+                            ? 'O arquivo é muito grande! Escolha um arquivo de até 10MB.' 
+                            : 'The file is too large! Please choose a file up to 10MB.',
+                        'error'
+                    );
+                });
+                fileInput.value = '';
+                return;
+            }
+
+            uploadLoading?.classList.remove('hidden');
+
+            try {
+                const token = state.token;
+                if (!token) throw new Error(isPt ? "Sessão expirada. Faça login novamente." : "Session expired. Please login again.");
+
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('token', token);
+
+                const res = await fetch('/api/user/upload-avatar', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const resData = await res.json();
+                if (!res.ok) {
+                    throw new Error(resData.error || "Failed to upload");
+                }
+
+                const publicUrl = resData.publicUrl;
+                if (!publicUrl) throw new Error("Public URL not found");
+
+                // Atualizar avatar no perfil local
+                const updateRes = await updateAvatar(publicUrl);
+                if (updateRes.success) {
+                    closeModal();
+                    import("../store/toastStore").then(m => {
+                        m.showToast(
+                            isPt 
+                                ? 'Seu avatar customizado foi atualizado com sucesso! 💎' 
+                                : 'Your custom avatar was successfully updated! 💎',
+                            'success'
+                        );
+                    });
+                } else {
+                    throw new Error(updateRes.error || "Save error");
+                }
+
+            } catch (err: any) {
+                console.error("❌ [Upload Avatar] Erro:", err);
+                import("../store/toastStore").then(m => {
+                    m.showToast(
+                        isPt 
+                            ? `Erro ao enviar arquivo: ${err.message || "Tente novamente."}` 
+                            : `File upload failed: ${err.message || "Please try again."}`,
+                        'error'
+                    );
+                });
+            } finally {
+                uploadLoading?.classList.add('hidden');
+                fileInput.value = '';
+            }
+        });
+
+        // Selecionar opção de avatar oficial
+        document.querySelectorAll('[data-avatar-option]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const avatarIdx = btn.getAttribute('data-avatar-option');
+                if (!avatarIdx) return;
+
+                const isVipOnly = btn.getAttribute('data-vip-only') === 'true';
+                const state = authStore.get();
+                const { isVIP } = state;
+
+                if (isVipOnly && !isVIP) {
+                    const dl = document.getElementById('stats-data-layer');
+                    const lang = dl?.getAttribute('data-lang') || 'pt';
+                    
+                    import("../store/toastStore").then(m => {
+                        m.showToast(
+                            lang === 'pt' 
+                                ? 'Este avatar de personagem é exclusivo do MultiCanaisHD VIP!' 
+                                : 'This character avatar is exclusive to MultiCanaisHD VIP!',
+                            'error'
+                        );
+                    });
+
+                    document.dispatchEvent(new CustomEvent('multicanaishd:open-vip'));
+                    return;
+                }
+
+                closeModal();
+
+                try {
+                    const res = await updateAvatar(avatarIdx);
+                    if (!res.success) {
+                        console.error("❌ [Avatar] Erro ao salvar avatar no banco:", res.error);
+                    }
+                } catch (err) {
+                    console.error("❌ [Avatar] Erro inesperado ao salvar avatar:", err);
+                }
+            });
+        });
+    }
+
+    // Gerenciador interativo de edição e salvamento do nickname
+    function initNicknameEditor() {
+        const editBtn = document.getElementById('edit-username-btn');
+        const saveBtn = document.getElementById('save-username-btn');
+        const cancelBtn = document.getElementById('cancel-username-btn');
+        const input = document.getElementById('username-input') as HTMLInputElement;
+        
+        const displayWrapper = document.getElementById('username-display-wrapper');
+        const editWrapper = document.getElementById('username-edit-wrapper');
+        const errorMsg = document.getElementById('username-error-msg');
+
+        if (!editBtn || !saveBtn || !cancelBtn || !input || !displayWrapper || !editWrapper || !errorMsg) return;
+
+        // Sanitização proativa em tempo real enquanto o usuário digita (Pilar 2)
+        input.addEventListener('input', () => {
+            input.value = input.value.replace(/[^a-zA-Z0-9áéíóúâêîôûãõçÁÉÍÓÚÂÊÎÔÛÃÕÇ_ ]/g, '');
+        });
+
+        // Clique em Editar
+        editBtn.addEventListener('click', () => {
+            const state = authStore.get();
+            input.value = state.username || '';
+            
+            displayWrapper.classList.add('hidden');
+            editWrapper.classList.remove('hidden');
+            editWrapper.classList.add('flex');
+            
+            errorMsg.classList.add('hidden');
+            errorMsg.textContent = '';
+            input.focus();
+        });
+
+        // Clique em Cancelar
+        cancelBtn.addEventListener('click', () => {
+            displayWrapper.classList.remove('hidden');
+            editWrapper.classList.add('hidden');
+            editWrapper.classList.remove('flex');
+            
+            errorMsg.classList.add('hidden');
+            errorMsg.textContent = '';
+        });
+
+        // Clique em Salvar
+        saveBtn.addEventListener('click', async () => {
+            const val = input.value.trim();
+            
+            // Validação simples de tamanho mínimo local antes de disparar requisição
+            if (val.length < 2 || val.length > 25) {
+                const isPt = document.getElementById('stats-data-layer')?.getAttribute('data-lang') === 'pt';
+                errorMsg.textContent = isPt 
+                    ? "O nome de exibição deve ter entre 2 e 25 caracteres." 
+                    : "Display name must be between 2 and 25 characters.";
+                errorMsg.classList.remove('hidden');
+                return;
+            }
+
+            // Desabilitar UI durante a requisição para evitar cliques simultâneos (Pilar 2)
+            input.disabled = true;
+            saveBtn.disabled = true;
+            cancelBtn.disabled = true;
+            saveBtn.textContent = '...';
+
+            try {
+                const res = await updateUsername(val);
+                if (res.success) {
+                    displayWrapper.classList.remove('hidden');
+                    editWrapper.classList.add('hidden');
+                    editWrapper.classList.remove('flex');
+                    errorMsg.classList.add('hidden');
+                } else {
+                    errorMsg.textContent = res.error || 'Erro.';
+                    errorMsg.classList.remove('hidden');
+                }
+            } catch (err: any) {
+                console.error("❌ [Profile] Erro ao salvar nickname:", err);
+                errorMsg.textContent = err.message || 'Erro inesperado.';
+                errorMsg.classList.remove('hidden');
+            } finally {
+                input.disabled = false;
+                saveBtn.disabled = false;
+                cancelBtn.disabled = false;
+                saveBtn.textContent = document.getElementById('stats-data-layer')?.getAttribute('data-lang') === 'pt' ? 'Salvar' : 'Save';
+            }
+        });
+    }
+
+    // Gerenciador interativo de edição e salvamento do nickname exclusivo
+    function initNicknameChangeEditor() {
+        const editBtn = document.getElementById('edit-nickname-btn');
+        const saveBtn = document.getElementById('save-nickname-btn');
+        const cancelBtn = document.getElementById('cancel-nickname-btn');
+        const input = document.getElementById('nickname-input') as HTMLInputElement;
+        
+        const displayWrapper = document.getElementById('nickname-display-wrapper');
+        const editWrapper = document.getElementById('nickname-edit-wrapper');
+        const errorMsg = document.getElementById('nickname-error-msg');
+
+        if (!editBtn || !saveBtn || !cancelBtn || !input || !displayWrapper || !editWrapper || !errorMsg) return;
+
+        // Sanitização proativa em tempo real enquanto o usuário digita (Pilar 2)
+        input.addEventListener('input', () => {
+            input.value = input.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+        });
+
+        // Clique em Editar
+        editBtn.addEventListener('click', () => {
+            const state = authStore.get();
+            input.value = state.nickname || '';
+            
+            displayWrapper.classList.add('hidden');
+            editWrapper.classList.remove('hidden');
+            editWrapper.classList.add('flex');
+            
+            errorMsg.classList.add('hidden');
+            errorMsg.textContent = '';
+            input.focus();
+        });
+
+        // Clique em Cancelar
+        cancelBtn.addEventListener('click', () => {
+            displayWrapper.classList.remove('hidden');
+            editWrapper.classList.add('hidden');
+            editWrapper.classList.remove('flex');
+            
+            errorMsg.classList.add('hidden');
+            errorMsg.textContent = '';
+        });
+
+        // Clique em Salvar
+        saveBtn.addEventListener('click', async () => {
+            const val = input.value.trim().toLowerCase();
+            const isPt = document.getElementById('stats-data-layer')?.getAttribute('data-lang') === 'pt';
+
+            if (val.length < 3 || val.length > 20) {
+                errorMsg.textContent = isPt 
+                    ? "O nickname deve ter entre 3 e 20 caracteres (apenas letras minúsculas, números e sublinhados)." 
+                    : "Nickname must be between 3 and 20 characters (a-z, 0-9, _).";
+                errorMsg.classList.remove('hidden');
+                return;
+            }
+
+            const state = authStore.get();
+            const changesCount = state.nicknameChanges;
+            const planLower = String(state.vipPlan || '').toLowerCase();
+            const isDiamond = state.isVIP && (planLower.includes('diamond') || planLower.includes('black'));
+            let limit = state.isVIP ? (isDiamond ? Infinity : 5) : 1;
+
+            if (changesCount >= limit) {
+                errorMsg.textContent = isPt 
+                    ? "Limite de alterações atingido para o seu plano." 
+                    : "Changes limit reached for your plan.";
+                errorMsg.classList.remove('hidden');
+                return;
+            }
+
+            // Desabilitar UI para prevenir cliques simultâneos (Pilar 2)
+            input.disabled = true;
+            saveBtn.disabled = true;
+            cancelBtn.disabled = true;
+            saveBtn.textContent = '...';
+
+            try {
+                const res = await updateNickname(val);
+                if (res.success) {
+                    displayWrapper.classList.remove('hidden');
+                    editWrapper.classList.add('hidden');
+                    editWrapper.classList.remove('flex');
+                    errorMsg.classList.add('hidden');
+                } else {
+                    errorMsg.textContent = res.error || 'Erro.';
+                    errorMsg.classList.remove('hidden');
+                }
+            } catch (err: any) {
+                console.error("❌ [Profile] Erro ao salvar nickname:", err);
+                errorMsg.textContent = err.message || 'Erro inesperado.';
+                errorMsg.classList.remove('hidden');
+            } finally {
+                input.disabled = false;
+                saveBtn.disabled = false;
+                cancelBtn.disabled = false;
+                saveBtn.textContent = isPt ? 'Salvar' : 'Save';
+            }
+        });
+    }
+
+    async function loadPublicProfile(searchUser) {
+        const isPt = document.getElementById('stats-data-layer')?.getAttribute('data-lang') === 'pt';
+        
+        const banner = document.getElementById('public-profile-banner');
+        const bannerText = document.getElementById('inspection-banner-text');
+        const loader = document.getElementById('public-profile-loading');
+        const errorFallback = document.getElementById('public-profile-error');
+        const loggedInContainer = document.getElementById('logged-in-container');
+        const loggedOutContainer = document.getElementById('logged-out-container');
+
+        // Hide all containers initially to build pristine state (Pilar 1)
+        loggedInContainer?.classList.add('hidden');
+        loggedOutContainer?.classList.add('hidden');
+        banner?.classList.add('hidden');
+        errorFallback?.classList.add('hidden');
+        loader?.classList.remove('hidden');
+        loader?.classList.add('flex');
+
+        try {
+            // Fetch secure profile (Pilar 2)
+            const res = await fetch(`/api/user/get-profile?u=${encodeURIComponent(searchUser)}&t=${Date.now()}`);
+            if (!res.ok) {
+                throw new Error("User not found");
+            }
+            const data = await res.json();
+            const profile = data.profile;
+
+            if (!profile) {
+                throw new Error("Invalid profile structure");
+            }
+
+            // Hide loader
+            loader?.classList.add('hidden');
+            loader?.classList.remove('flex');
+
+            // Show banner and update its text
+            if (banner && bannerText) {
+                bannerText.textContent = isPt 
+                    ? `Visualizando Perfil de ${profile.username}`
+                    : `Viewing ${profile.username}'s Profile`;
+                banner.classList.remove('hidden');
+            }
+
+            // Show dashboard container
+            loggedInContainer?.classList.remove('hidden');
+
+            // Protect actions/edits (Pilar 2)
+            document.getElementById('edit-username-btn')?.classList.add('hidden');
+            document.getElementById('edit-nickname-btn')?.classList.add('hidden');
+            document.getElementById('user-display-email')?.classList.add('hidden');
+            document.getElementById('logout-btn')?.classList.add('hidden');
+
+            const avatarWrapper = document.getElementById('user-profile-avatar-wrapper');
+            if (avatarWrapper) {
+                avatarWrapper.classList.remove('cursor-pointer', 'active:scale-95', 'group');
+                avatarWrapper.classList.add('cursor-default');
+                avatarWrapper.setAttribute('title', '');
+                avatarWrapper.style.pointerEvents = 'none';
+            }
+            document.getElementById('avatar-edit-overlay')?.classList.add('hidden');
+
+            // Populate public values onto elements (Pilar 1 & 2)
+            const userDisplayNameEl = document.getElementById('user-display-name');
+            if (userDisplayNameEl) {
+                userDisplayNameEl.textContent = profile.username;
+                userDisplayNameEl.className = "text-2xl sm:text-4xl font-black text-white tracking-tighter italic leading-none truncate";
+            }
+
+            const userNicknameEl = document.getElementById('user-nickname');
+            if (userNicknameEl) {
+                userNicknameEl.textContent = profile.nickname ? `@${profile.nickname}` : '@---';
+            }
+
+            const changesLeftEl = document.getElementById('nickname-changes-left');
+            if (changesLeftEl) {
+                changesLeftEl.classList.add('hidden');
+            }
+
+            const membershipBadge = document.getElementById('user-membership-badge');
+            if (membershipBadge) {
+                const badgeBase = "px-2.5 py-1 rounded-lg text-[11px] font-semibold select-none border";
+                if (profile.isVIP) {
+                    const planLower = String(profile.vipPlan || '').toLowerCase();
+                    if (planLower.includes('black')) {
+                        membershipBadge.textContent = "⚫ VIP Black";
+                        membershipBadge.className = `${badgeBase} bg-neutral-300/10 border-neutral-400/30 text-neutral-200`;
+                    } else if (planLower.includes('diamond')) {
+                        membershipBadge.textContent = "💎 VIP Diamond";
+                        membershipBadge.className = `${badgeBase} bg-cyan-500/10 border-cyan-400/30 text-cyan-400`;
+                    } else {
+                        membershipBadge.textContent = isPt ? "MultiCanaisHD VIP Básico" : "MultiCanaisHD VIP Basic";
+                        membershipBadge.className = `${badgeBase} bg-white/[0.06] border-white/15 text-gray-300`;
+                    }
+                } else {
+                    membershipBadge.textContent = isPt ? "Membro Standard" : "Standard Member";
+                    membershipBadge.className = `${badgeBase} bg-white/[0.04] border-white/[0.08] text-gray-500`;
+                }
+            }
+
+            // Sync custom or standard avatar
+            const avatarFallback = document.getElementById('avatar-fallback');
+            const avatarCustom = document.getElementById('avatar-custom');
+            avatarFallback?.classList.add('opacity-0');
+            if (avatarCustom) {
+                avatarCustom.classList.remove('opacity-0');
+                avatarCustom.classList.add('opacity-100');
+                avatarCustom.innerHTML = `<img src="${getAvatarPath(profile.avatar)}" class="w-full h-full rounded-full object-cover" alt="User Avatar" />`;
+                avatarCustom.style.background = 'none';
+
+                // Set avatar level border based on hours (Pilar 1)
+                const totalHours = (profile.activeSeconds || 0) / 3600;
+                avatarCustom.className = "absolute inset-0 rounded-full flex items-center justify-center text-white font-black text-3xl sm:text-4xl transition-all duration-500 opacity-100 border-[3px] select-none shadow-inner";
+                avatarCustom.style.boxShadow = 'none';
+                avatarCustom.style.borderColor = '';
+
+                if (totalHours >= 100) {
+                    avatarCustom.style.borderColor = '#8B5CF6';
+                } else if (totalHours >= 50) {
+                    avatarCustom.style.borderColor = '#EF4444';
+                } else if (totalHours >= 20) {
+                    avatarCustom.style.borderColor = '#10B981';
+                } else if (totalHours >= 5) {
+                    avatarCustom.style.borderColor = '#06B6D4';
+                } else {
+                    avatarCustom.style.borderColor = '#B45309';
+                }
+            }
+
+            const idBadge = document.getElementById('user-better-id-badge');
+            if (idBadge) {
+                idBadge.textContent = `#${profile.id}`;
+                idBadge.classList.remove('hidden');
+                idBadge.onclick = (e) => {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(profile.id).then(() => {
+                        const originalText = idBadge.textContent;
+                        idBadge.textContent = isPt ? 'Copiado!' : 'Copied!';
+                        idBadge.classList.add('text-emerald-400', 'border-emerald-500/50');
+                        setTimeout(() => {
+                            idBadge.textContent = originalText;
+                            idBadge.classList.remove('text-emerald-400', 'border-emerald-500/50');
+                        }, 2000);
+                    });
+                };
+            }
+
+            // Render VIP details
+            const statusText = document.getElementById('vip-status-text');
+            const vipActions = document.getElementById('vip-actions');
+            if (statusText && vipActions) {
+                if (profile.isVIP) {
+                    const activeLabel = profile.vipPlan ? `💎 ${formatVipPlan(profile.vipPlan, isPt ? 'pt' : 'en')}` : (isPt ? "BETTERVIP ATIVO" : "BETTERVIP ACTIVE");
+                    statusText.innerHTML = `<span class="text-white font-black tracking-tight">${activeLabel}</span>`;
+                    vipActions.innerHTML = `
+                        <div class="px-4 py-3 bg-white/[0.04] border border-white/[0.08] rounded-2xl text-gray-400 font-semibold text-[11px] text-center">
+                            Acesso VIP Ativo
+                        </div>
+                    `;
+                } else {
+                    statusText.textContent = isPt ? "Membro Standard sem assinatura ativa." : "Standard Member without active subscription.";
+                    vipActions.innerHTML = '';
+                }
+            }
+
+            // Populate static stats cards (Pilar 1)
+            const movieEl = document.getElementById('stat-movies');
+            const epEl = document.getElementById('stat-episodes');
+            if (movieEl) movieEl.innerText = profile.moviesCount.toString();
+            if (epEl) epEl.innerText = profile.episodesCount.toString();
+
+            // Total Hours & Level
+            const totalHours = (profile.activeSeconds || 0) / 3600;
+            const seasonHours = (profile.rankingActiveSeconds !== undefined && profile.rankingActiveSeconds !== null ? profile.rankingActiveSeconds : profile.activeSeconds || 0) / 3600;
+            
+            const hourEl = document.getElementById('stat-hours');
+            const seasonHourEl = document.getElementById('stat-season-hours');
+            
+            const formatBetterHours = (h) => {
+                const hrs = Math.floor(h);
+                const mins = Math.round((h - hrs) * 60);
+                if (hrs > 0 && mins > 0) return `${hrs}h ${mins}m`;
+                if (hrs > 0) return `${hrs}h`;
+                return `${mins}m`;
+            };
+            if (hourEl) hourEl.innerText = formatBetterHours(totalHours);
+            if (seasonHourEl) seasonHourEl.innerText = formatBetterHours(seasonHours);
+
+            const rankIcon = document.getElementById('rank-icon');
+            const rankName = document.getElementById('rank-name');
+            const rankProgress = document.getElementById('rank-progress');
+            const rankNext = document.getElementById('rank-next');
+            
+            let rank = { icon: '🐣', name: isPt ? 'Iniciante' : 'Beginner', next: 5, percent: 10 };
+            if (totalHours >= 100) rank = { icon: '👑', name: isPt ? 'Lenda' : 'Legend', next: 0, percent: 100 };
+            else if (totalHours >= 50) rank = { icon: '🔥', name: isPt ? 'Viciado' : 'Addict', next: 100 - totalHours, percent: (totalHours/100)*100 };
+            else if (totalHours >= 20) rank = { icon: '跑', name: isPt ? 'Maratonista' : 'Marathoner', next: 50 - totalHours, percent: (totalHours/50)*100 };
+            else if (totalHours >= 5) rank = { icon: '👀', name: isPt ? 'Espectador' : 'Spectator', next: 20 - totalHours, percent: (totalHours/20)*100 };
+            else rank = { icon: '🐣', name: isPt ? 'Iniciante' : 'Beginner', next: 5 - totalHours, percent: (totalHours/5)*100 };
+
+            if (rankIcon) rankIcon.innerText = rank.icon;
+            if (rankName) rankName.innerText = rank.name;
+            if (rankProgress) rankProgress.style.width = `${rank.percent}%`;
+            if (rankNext) rankNext.innerText = rank.next > 0 ? (isPt ? `Próximo nível em ${formatBetterHours(rank.next)}` : `Next level in ${formatBetterHours(rank.next)}`) : (isPt ? 'Nível Máximo Atingido!' : 'Max Level Reached!');
+
+            // Recent activities history grid (Pilar 1)
+            const recentSection = document.getElementById('recent-activity-section');
+            const recentGrid = document.getElementById('recent-grid');
+            if (recentSection && recentGrid) {
+                recentSection.classList.remove('hidden');
+                if (profile.history.length > 0) {
+                    recentGrid.innerHTML = profile.history.slice(0, 12).map(item => {
+                        const imgUrl = item.backdrop 
+                            ? (item.backdrop.startsWith('http') || item.backdrop.startsWith('/') ? item.backdrop : `https://image.tmdb.org/t/p/w780${item.backdrop}`)
+                            : (item.poster 
+                                ? (item.poster.startsWith('http') || item.poster.startsWith('/') ? item.poster : `https://image.tmdb.org/t/p/w500${item.poster}`)
+                                : `https://placehold.co/500x281/111/444?text=${isPt ? 'SEM IMAGEM' : 'NO IMAGE'}`);
+                        return `
+                            <a href="${item.url}" class="group relative aspect-video rounded-2xl overflow-hidden border border-white/5 bg-[#161B28] shadow-inner transition-all hover:scale-[1.03] hover:border-[#DF0912]/20 hover:shadow-xl duration-300">
+                                <img src="${imgUrl}" alt="${item.title}" class="w-full h-full object-cover opacity-40 transition-opacity group-hover:opacity-50" />
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent"></div>
+                                <div class="absolute bottom-3 left-4 right-4">
+                                     <p class="text-[11px] font-black text-white uppercase tracking-widest truncate mb-1">${item.title}</p>
+                                     <div class="flex flex-col gap-1">
+                                         <p class="text-[9px] text-gray-400 font-bold flex items-center gap-1.5">
+                                             <svg class="w-3.5 h-3.5 text-[#DF0912]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                             </svg>
+                                             <span>${formatTimeAgo(item.timestamp, isPt ? 'pt' : 'en')}</span>
+                                         </p>
+                                         <p class="text-[9px] text-gray-400 font-bold flex items-center gap-1.5">
+                                             <svg class="w-3.5 h-3.5 text-[#DF0912]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                             </svg>
+                                             <span>${formatWatchedTime(item.watched_seconds, isPt ? 'pt' : 'en')}</span>
+                                         </p>
+                                     </div>
+                                </div>
+                            </a>
+                        `;
+                    }).join('');
+                } else {
+                    const hasWatched = (profile.moviesCount || 0) > 0 || (profile.episodesCount || 0) > 0;
+                    recentGrid.innerHTML = `
+                        <div class="col-span-full bg-white/[0.01] backdrop-blur-md border border-white/5 p-8 rounded-2xl flex flex-col items-center justify-center text-center py-12 shadow-inner select-none w-full">
+                            <div class="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-gray-500 mb-4 border border-white/5">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </div>
+                            <p class="text-white text-sm font-bold uppercase tracking-wider mb-2">
+                                ${isPt ? 'Nenhuma Atividade Recente' : 'No Recent Activity'}
+                            </p>
+                            <p class="text-gray-400 text-xs max-w-sm leading-relaxed">
+                                ${hasWatched
+                                    ? (isPt 
+                                        ? 'Este usuário possui conteúdos assistidos em suas estatísticas, mas optou por limpar o histórico de reprodução ou as atividades recentes expiraram.' 
+                                        : 'This user has watched content in their statistics, but chose to clear their playback history or recent activities expired.')
+                                    : (isPt 
+                                        ? 'Este membro ainda não assistiu a nenhum conteúdo no MultiCanaisHD.' 
+                                        : 'This member has not watched any content on MultiCanaisHD yet.')}
+                            </p>
+                        </div>
+                    `;
+                }
+            }
+
+            // Genre vibe calculation
+            const genres = profile.history
+                .filter(i => i.genreName || i.genre)
+                .map(i => {
+                    const rawGenre = i.genreName || i.genre;
+                    return rawGenre.includes(',') ? rawGenre.split(',')[0].trim() : rawGenre.trim();
+                })
+                .filter(g => g && g !== 'N/A');
+
+            const genreCounts = genres.reduce((acc, g) => { acc[g] = (acc[g] || 0) + 1; return acc; }, {});
+            const topGenre = Object.entries(genreCounts).sort((a,b) => b[1] - a[1])[0]?.[0] || '---';
+            const genreEl = document.getElementById('stat-genre');
+            if (genreEl) {
+                genreEl.innerText = topGenre;
+                if (topGenre === '---') {
+                    genreEl.className = "text-[10px] font-black text-gray-500 bg-white/5 border border-white/10 px-3 py-0.5 rounded-lg truncate tracking-widest uppercase";
+                } else {
+                    genreEl.className = "text-[10px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-0.5 rounded-lg truncate tracking-widest uppercase";
+                }
+            }
+
+            // Favorites
+            const favEl = document.getElementById('stat-favorites');
+            if (favEl) favEl.innerText = (profile.favorites || []).length.toString();
+
+        } catch (err) {
+            console.error("❌ [Public Profile] Error loading public profile:", err);
+            loader?.classList.add('hidden');
+            loader?.classList.remove('flex');
+            errorFallback?.classList.remove('hidden');
+            errorFallback?.classList.add('flex');
+        }
+    }
+
+    // Inicialização unificada ao montar/trocar a página no Astro
+    document.addEventListener("astro:page-load", () => {
+        const dl = document.getElementById('stats-data-layer');
+        if (!dl) return; // Carrega script apenas na página de Perfil
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const searchUser = urlParams.get('u') || urlParams.get('username') || urlParams.get('user');
+
+        if (searchUser) {
+            // Modo Perfil Público (Inspeção)
+            loadPublicProfile(searchUser);
+        } else {
+            // Modo Normal (Meu Perfil)
+            document.getElementById('public-profile-banner')?.classList.add('hidden');
+            document.getElementById('public-profile-loading')?.classList.add('hidden');
+            document.getElementById('public-profile-error')?.classList.add('hidden');
+
+            // Restore dashboard control options
+            document.getElementById('edit-username-btn')?.classList.remove('hidden');
+            document.getElementById('edit-nickname-btn')?.classList.remove('hidden');
+            document.getElementById('user-display-email')?.classList.remove('hidden');
+            document.getElementById('logout-btn')?.classList.remove('hidden');
+
+            const avatarWrapper = document.getElementById('user-profile-avatar-wrapper');
+            if (avatarWrapper) {
+                avatarWrapper.classList.add('cursor-pointer', 'active:scale-95', 'group');
+                avatarWrapper.classList.remove('cursor-default');
+                avatarWrapper.style.pointerEvents = 'auto';
+            }
+            document.getElementById('avatar-edit-overlay')?.classList.remove('hidden');
+
+            syncProfileUI();
+            initAuth(true).finally(() => {
+                syncProfileUI();
+                updateDashboardData();
+            });
+            updateDashboardData();
+            initLogout();
+            initAvatarSelector();
+            initNicknameEditor();
+            initNicknameChangeEditor();
+
+            // Inscreve as stores para atualização reativa em tempo de execução
+            const unsubAuth = authStore.subscribe(() => {
+                syncProfileUI();
+                updateDashboardData();
+            });
+            const unsubFavs = favoritesStore.subscribe(updateDashboardData);
+            const unsubProfiles = profilesStore.subscribe(syncAccountProfilesCard);
+
+            // Desinscreve as assinaturas para evitar vazamento de memória nas transições SPA
+            document.addEventListener("astro:before-swap", () => {
+                unsubAuth();
+                unsubFavs();
+                unsubProfiles();
+            }, { once: true });
+        }
+    });
+</script>

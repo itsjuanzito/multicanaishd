@@ -1,0 +1,108 @@
+---
+// src/pages/components/BetterComments.astro
+import { getLangFromUrl, useTranslations } from "../../i18n/utils";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+
+const { contentId, title, isVIP = false } = Astro.props;
+---
+
+<div 
+    class="better-comments-container container mx-auto px-4 py-12" 
+    id="comments-section"
+    data-lang={lang}
+    data-content-id={contentId}
+    data-t-loading={t('comments.loading')}
+    data-t-empty={t('comments.empty')}
+    data-t-reply={t('comments.reply')}
+    data-t-responding={t('comments.responding_to')}
+    data-t-error={t('comments.error')}
+    data-t-send-error={t('comments.send_error')}
+    data-t-cancel={t('comments.cancel')}
+>
+    <div class="flex items-center gap-4 mb-10">
+        <div class="w-1.5 h-10 bg-gradient-to-b from-[#DF0912] to-[#AE070E] rounded-full"></div>
+        <h2 class="text-3xl font-black text-white uppercase tracking-tighter italic">
+            {t('comments.title')} <span class="text-[#DF0912] opacity-50 ml-2" id="comment-count-badge">...</span>
+        </h2>
+    </div>
+
+    <!-- Área de Interação -->
+    <div id="comment-interaction-area">
+        <div id="comment-form-container" class={isVIP ? "" : "hidden"}>
+            <div class="bg-white/[0.03] border border-white/10 rounded-3xl p-5 md:p-8 mb-12 backdrop-blur-xl transition-all hover:bg-white/[0.05] duration-500 shadow-2xl overflow-hidden">
+                <form id="comment-form" class="space-y-6">
+                    <input type="hidden" name="contentId" value={contentId} />
+                    <input type="text" name="hp" style="display:none !important" tabindex="-1" autocomplete="off" />
+                    
+                    <!-- Identidade de quem está comentando. Substitui o antigo campo de nome
+                         livre: o autor agora vem da conta logada, resolvido no servidor. -->
+                    <div id="comment-identity" class="flex items-center gap-3">
+                        <img
+                            id="comment-identity-avatar"
+                            src="/avatars/avatar_1.svg"
+                            alt=""
+                            class="w-10 h-10 rounded-full border border-white/10 object-cover bg-black/40"
+                        />
+                        <div class="min-w-0">
+                            <p id="comment-identity-name" class="text-sm font-bold text-white leading-tight truncate">---</p>
+                            <p id="comment-identity-nick" class="text-[11px] text-[#DF0912] font-semibold leading-tight truncate"></p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label for="comment-text" class="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">{t('comments.label_text')}</label>
+                        <textarea 
+                            id="comment-text"
+                            name="text" 
+                            required 
+                            placeholder={t('comments.placeholder_text')} 
+                            rows="4" 
+                            class="w-full bg-black/40 border border-white/5 rounded-3xl px-5 py-4 text-white focus:outline-none focus:border-[#DF0912]/30 focus:ring-2 focus:ring-[#DF0912]/10 transition-all placeholder:text-gray-600 font-medium resize-none text-sm"
+                        ></textarea>
+                    </div>
+
+                    <div class="flex flex-col md:flex-row items-center justify-between gap-6 pt-2">
+                        <p class="text-[10px] md:text-xs text-gray-500 italic max-w-xs text-center md:text-left order-2 md:order-1">
+                            {t('comments.disclaimer')}
+                        </p>
+                        <button 
+                            type="submit" 
+                            id="submit-btn"
+                            class="w-full md:w-auto order-1 md:order-2 group relative bg-[#DF0912] hover:bg-[#cf0811] text-white font-black py-4 px-10 rounded-2xl transition-all duration-300 transform hover:translate-y-[-2px] active:scale-95 flex items-center justify-center gap-3 overflow-hidden whitespace-nowrap text-sm shadow-none"
+                        >
+                            <span class="relative z-10 flex items-center gap-2">
+                                {t('comments.submit_btn')}
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform group-hover:translate-x-1" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                                </svg>
+                            </span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="comment-vip-cta" class={isVIP ? "hidden" : ""}>
+            <div class="bg-[#DF0912]/5 border border-[#DF0912]/20 rounded-3xl p-8 md:p-12 mb-12 text-center group hover:bg-[#DF0912]/10 transition-all duration-500 cursor-pointer" onclick="window.location.href='/vip';">
+                <div class="w-16 h-16 bg-[#DF0912]/20 rounded-2xl flex items-center justify-center text-[#DF0912] mx-auto mb-6 transform group-hover:scale-110 group-hover:rotate-12 transition-all duration-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-7.714 2.143L11 21l-2.286-6.857L1 12l7.714-2.143L11 3z"/></svg>
+                </div>
+                <h3 class="text-2xl font-black text-white uppercase tracking-tighter italic mb-3">{t('comments.vip_cta_title')} <span class="text-[#DF0912]">VIP</span></h3>
+                <p class="text-gray-400 text-sm font-medium mb-8 max-w-md mx-auto leading-relaxed">{t('comments.vip_cta_desc')}</p>
+                <button onclick="window.location.href='/vip'; event.stopPropagation();" class="bg-[#DF0912] hover:bg-[#be080f] text-white font-black py-4 px-12 rounded-2xl transition-all shadow-xl shadow-red-900/20 uppercase tracking-widest text-[10px]">
+                    {t('comments.vip_cta_btn')}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Comentários -->
+    <div id="comments-list" class="space-y-6 w-full min-h-[100px]">
+        <div class="animate-pulse text-gray-500 font-medium py-10">...</div>
+    </div>
+</div>
+
+<script>
+    import "../../scripts/BetterComments.js";
+</script>

@@ -1,0 +1,65 @@
+---
+// src/pages/components/DisqusComments.astro
+//
+// O shortname do Disqus é POR CONTA. O valor herdado do projeto de origem foi
+// trocado no rebrand por um shortname que não existe — o embed apontaria para um
+// fórum de outro site (ou para nada). Agora vem do ambiente
+// (`PUBLIC_DISQUS_SHORTNAME`); sem ele, o bloco de comentários não aparece, em
+// vez de deixar 400px de área vazia na página.
+import { getEnv } from '../../services/env-adapter.js';
+const { identifier, title, url } = Astro.props;
+const disqusShortname = getEnv('PUBLIC_DISQUS_SHORTNAME') || '';
+---
+<div class="disqus-container container mx-auto px-4 py-8" hidden={!disqusShortname}>
+    <div class="flex items-center gap-3 mb-6">
+        <span class="w-1 h-8 bg-[#DF0912]"></span>
+        <h2 class="text-xl font-black text-white uppercase tracking-tighter italic">
+            Comentários
+        </h2>
+    </div>
+    <div id="disqus_thread" class="bg-[#0E111A] rounded-2xl p-4 min-h-[400px]" data-id={identifier} data-title={title} data-shortname={disqusShortname}></div>
+</div>
+
+<script is:inline>
+    (function() {
+        /**
+         * Lógica para carregar ou resetar o Disqus
+         */
+        function initDisqus() {
+            var d = document, s = d.createElement('script');
+            var thread = d.getElementById('disqus_thread');
+            if (!thread) return;
+
+            var id = thread.getAttribute('data-id');
+            var t = thread.getAttribute('data-title');
+
+            window.disqus_config = function () {
+                this.page.url = window.location.href.split('#')[0]; 
+                this.page.identifier = id;
+                this.page.title = t || document.title;
+            };
+
+            if (window.DISQUS) {
+                window.DISQUS.reset({
+                    reload: true,
+                    config: window.disqus_config
+                });
+            } else {
+                var short = thread.getAttribute('data-shortname');
+                if (!short) return;
+                s.src = 'https://' + short + '.disqus.com/embed.js';
+                s.setAttribute('data-timestamp', +new Date());
+                (d.head || d.body).appendChild(s);
+            }
+        }
+
+        // Executa no carregamento inicial e em transições de página (ViewTransitions)
+        document.addEventListener('astro:page-load', initDisqus);
+    })();
+</script>
+
+<style>
+    .disqus-container :global(#disqus_thread) {
+        min-height: 400px;
+    }
+</style>

@@ -1,0 +1,317 @@
+---
+// src/components/SEO.astro
+
+export interface Props {
+  title?: string;
+  description?: string;
+  image?: string;
+  url?: string;
+  type?: string;
+  keywords?: string;
+  jsonLd?: string | object;
+  preloadImage?: string;
+  preloadImageSet?: string;
+  preloadImageSizes?: string;
+  robots?: string;
+  /**
+   * URLs absolutas de alternate, quando o slug do outro idioma NÃO é o mesmo path com /en.
+   * Páginas de conteúdo (/filme, /serie, episódio) têm slug canônico por idioma — PT usa o
+   * título traduzido, EN o nome em inglês — então o espelhamento padrão aponta para uma URL
+   * que responde 301. Quem sabe os dois slugs é a rota (services/contentSlugPairs.js).
+   * Ausente/null em um idioma = OMITE aquele alternate, mesmo critério do sitemap.
+   */
+  alternates?: { pt?: string | null; en?: string | null } | null;
+}
+
+const {
+  title,
+  description,
+  image,
+  url = Astro.url.href,
+  type = "website",
+  keywords,
+  jsonLd,
+  preloadImage,
+  preloadImageSet,
+  preloadImageSizes,
+  robots = "index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1",
+  alternates = null,
+} = Astro.props;
+
+import { getLangFromUrl, useTranslations } from "../../i18n/utils";
+import { getSiteUrl } from "../../services/env-adapter.js";
+import { resolverHreflang } from "../../utils/hreflang.js";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+
+// Sem t('meta.title'): essa chave não existe em nenhum dicionário e o useTranslations
+// devolve a própria chave como fallback — string truthy, então o "MultiCanaisHD" abaixo nunca
+// era alcançado e qualquer página que esquecesse de passar `title` renderizaria
+// <title>meta.title</title>. Hoje todas passam, mas o fallback precisa funcionar de fato.
+// (O mesmo erro já estava no ar no H1 da home, corrigido em 3050a4a.)
+const finalTitle = title || "MultiCanaisHD";
+let finalDescription = description || t('meta.description');
+const path = Astro.url.pathname;
+
+if (!finalDescription || finalDescription === t('meta.description') || finalDescription.trim() === '') {
+    const isPt = lang === 'pt';
+    if (path.includes('/filme/')) {
+        finalDescription = isPt
+            ? `Assistir ${finalTitle} Online Grátis. Aproveite o filme completo em HD com a melhor qualidade de som e imagem sem travamentos no MultiCanaisHD.`
+            : `Watch ${finalTitle} Online Free. Enjoy the full movie in HD quality with no ads and zero delay on MultiCanaisHD.`;
+    } else if (path.includes('/serie/')) {
+        finalDescription = isPt
+            ? `Assistir ${finalTitle} Completo Online. Acompanhe todos os episódios e temporadas em HD grátis no MultiCanaisHD.`
+            : `Watch ${finalTitle} Online Free. Stream all seasons and episodes in HD quality with no delay on MultiCanaisHD.`;
+    } else if (path.includes('/canal/')) {
+        finalDescription = isPt
+            ? `Assistir ${finalTitle} Ao Vivo em HD. Acompanhe a transmissão online de graça e sem travamentos no MultiCanaisHD TV.`
+            : `Watch ${finalTitle} Live Stream in HD. Enjoy the live channel online for free with zero delay on MultiCanaisHD TV.`;
+    }
+}
+
+// Sanitização de URL Canônica baseada no idioma atual
+const siteUrl = getSiteUrl(Astro.url);
+const finalImage = image || `${siteUrl}/og-image.jpg`;
+
+// og:image:width/height só podem ser declarados para a arte padrão, que é a única cujas
+// dimensões conhecemos aqui. Quando a página passa a própria imagem (o SeoLandingPage manda
+// um pôster do TMDB, que é 2:3), anunciar 1536x1024 entrega dimensão errada às redes sociais.
+// Omitir é seguro: elas medem a imagem ao buscá-la; declarar errado desalinha o card.
+const usandoImagemPadrao = !image;
+
+// Normaliza o path removendo o prefixo de idioma se existir
+const cleanPath = path.replace(/^\/en($|\/)/, '/');
+const normalizedPath = cleanPath === '/' ? '' : cleanPath;
+
+// --- ESTRATÉGIA DE CANONICAL LIMPA ---
+// Não canonizamos variações dinâmicas com query params em páginas de conteúdo.
+// Isso reduz URLs duplicadas no Search Console e concentra sinais na URL principal.
+const isContentPage = path.includes('/filme/') || path.includes('/serie/') || path.includes('/canal/');
+
+// LISTA DE PERMISSÃO, não de bloqueio. Antes isto era uma lista de params proibidos
+// (utm_*, fbclid, gclid...) e TUDO que não estivesse nela entrava no canonical — então
+// qualquer parâmetro inesperado (?ref=, ?aff=, ?cb=, o que as redes de anúncio anexarem)
+// criava uma URL canônica distinta, ou seja, uma duplicata. Adivinhar nomes de parâmetro
+// é uma corrida infinita; inverter fecha a categoria toda de uma vez.
+//
+// `page` é o único parâmetro que muda conteúdo indexável de verdade (/explorar e
+// /genero/*). Os demais são filtro de cliente, sessão ou tracking. /results usa ?q= mas
+// já é noindex pelo middleware, e páginas de conteúdo não levam param nenhum (abaixo).
+const allowedCanonicalParams = new Set(['page']);
+
+let queryString = '';
+if (!isContentPage) {
+    const searchParams = new URLSearchParams();
+    for (const [key, value] of Astro.url.searchParams.entries()) {
+        if (!allowedCanonicalParams.has(key)) continue;
+        searchParams.set(key, value);
+    }
+    queryString = searchParams.toString() ? `?${searchParams.toString()}` : '';
+}
+
+const ptUrl = `${siteUrl}${normalizedPath}${queryString}`;
+const enUrl = `${siteUrl}/en${normalizedPath}${queryString}`;
+
+// O canonical deve ser a URL do idioma atual (Sempre limpa para conteúdo)
+const finalCanonical = lang === 'en' ? enUrl : ptUrl;
+const locale = lang === 'pt' ? 'pt_BR' : 'en_US';
+const alternateLocale = lang === 'pt' ? 'en_US' : 'pt_BR';
+// Tracking/spam params que justificam noindex (não params de conteúdo como type, genreId)
+// Tracking/spam params that justify noindex (not content params like type, genreId)
+const trackingParams = new Set([
+    'fbclid', 'gclid', 'gclsrc', 'dclid', 'msclkid', 'debug'
+]);
+const hasTrackingParam = Array.from(Astro.url.searchParams.keys()).some((key) =>
+  trackingParams.has(key) || key.startsWith('utm_')
+);
+// Variantes ?season=/?episode= NÃO levam mais noindex — só o canonical.
+//
+// Elas continuam sendo duplicatas da URL canônica, mas `noindex` junto com um `canonical`
+// que aponta pra outra página é sinal contraditório: o canonical diz "indexe aquela", o
+// noindex diz "não indexe esta". O Google orienta escolher um dos dois, e há o risco de ele
+// propagar o noindex para o alvo do canonical — que é justamente a página de série que a
+// gente quer indexada. Com 4.5 mil variantes marcadas assim, não vale correr o risco pra
+// economizar rastreamento; o canonical sozinho já impede a indexação como URL separada.
+//
+// A cota de indexação, que era o outro motivo alegado, já está protegida na origem:
+// triggerInstantIndexing() descarta a query string antes de notificar.
+const shouldNoindexQueryVariant = hasTrackingParam;
+const finalRobots = shouldNoindexQueryVariant
+  ? "noindex, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1"
+  : robots;
+const isNoIndex = finalRobots && (finalRobots.includes("noindex") || finalRobots.includes("none"));
+// hreflang só em página indexável: as noindex não entram no índice de nenhum idioma, e
+// algumas delas (/moderacao, /perfis, /pagamento/*) nem têm versão /en — o alternate
+// apontava pra um 404 e poluía o relatório de hreflang do Search Console.
+const supportsEnglishAlternate = !isNoIndex;
+
+// Alternates explícitos (rotas de conteúdo) têm prioridade sobre o espelhamento de path.
+// A regra inteira — inclusive a diferença entre "rota não informou" (espelha) e "rota informou
+// que não sabe" (omite) — vive em utils/hreflang.js, que é testado.
+const { pt: hreflangPt, en: hreflangEn, xDefault: hreflangDefault } = resolverHreflang({
+  alternates,
+  ptUrl,
+  enUrl,
+  indexavel: supportsEnglishAlternate,
+});
+const noindexBotContent = finalRobots.includes("nofollow") || finalRobots.includes("none")
+  ? "noindex, nofollow"
+  : "noindex, follow";
+const googlebotContent = isNoIndex ? noindexBotContent : "index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1";
+const bingbotContent = isNoIndex ? noindexBotContent : "index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1";
+
+// Schema default para organização/website
+const defaultSchema = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": `${siteUrl}/#website`,
+      url: `${siteUrl}/`,
+      name: "MultiCanaisHD",
+      description: lang === 'pt' 
+        ? "Plataforma completa para assistir filmes, séries, animes e canais de TV online grátis e em alta qualidade (HD/4K)."
+        : "Complete platform to watch movies, series, anime and live TV channels online for free in high quality (HD/4K).",
+      inLanguage: lang === 'pt' ? "pt-BR" : "en-US",
+    },
+    {
+      "@type": "Organization",
+      "@id": `${siteUrl}/#organization`,
+      name: "MultiCanaisHD",
+      url: `${siteUrl}/`,
+      logo: {
+        "@type": "ImageObject",
+        url: `${siteUrl}/icon-512.png`,
+        width: 512,
+        height: 512,
+      },
+      sameAs: [
+        "https://t.me/+LzTPE6nAUoQwMGNh",
+        "https://twitter.com/multicanaishdapp",
+        "https://www.facebook.com/multicanaishd"
+      ],
+    },
+  ],
+};
+
+let finalJsonLd = defaultSchema;
+if (jsonLd) {
+    try {
+        const customObj = typeof jsonLd === 'string' ? JSON.parse(jsonLd) : jsonLd;
+        const customGraph = customObj['@graph'] ? customObj['@graph'] : [customObj];
+        
+        const cleanCustom = customGraph.map(item => {
+            const { '@context': _, ...rest } = item;
+            return rest;
+        });
+
+        finalJsonLd = {
+            "@context": "https://schema.org",
+            "@graph": [...defaultSchema['@graph'], ...cleanCustom]
+        };
+    } catch (e) {
+        console.error("Erro ao fazer merge de JSON-LD:", e);
+        finalJsonLd = jsonLd;
+    }
+}
+
+// Tokens de verificação de domínio no <head> (Google e Profiton/ads). São POR DOMÍNIO — o do
+// antigo multicanaishd.lol foi substituído pelo do multicanaishd.lol na migração, e não faz falta:
+// o .lol responde 301 desde então, ou seja, não renderiza HTML nenhum para ser verificado.
+// Duas tags com o mesmo `name` só criariam ambiguidade para o verificador.
+//
+// O token do Google merece atenção separada: se a propriedade do .homes for verificada por
+// DNS (TXT), ela cobre o domínio inteiro e sobrevive a troca de host sem depender desta tag.
+// Verificação por meta tag fica presa ao HTML, que é justamente o que a migração derrubou.
+---
+
+<!-- Essential Meta Tags -->
+<meta charset="UTF-8" />
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1.0"
+/>
+<meta name="theme-color" content="#0E111A" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="sitemap" href="/sitemap.xml" />
+<meta name="generator" content={Astro.generator} />
+
+<!-- Preconnects & DNS-Prefetch (Otimizado) -->
+<link rel="preconnect" href="https://image.tmdb.org" crossorigin />
+<link rel="dns-prefetch" href="https://image.tmdb.org" />
+
+<!-- Inter self-hospedada (@font-face em global.css): sem os saltos pro googleapis/gstatic.
+     Só o subset latin entra no preload — o latin-ext é buscado sob demanda pelo unicode-range. -->
+<link rel="preload" as="font" type="font/woff2" href="/fonts/inter-latin.woff2" crossorigin />
+
+{preloadImage && !preloadImageSet && <link rel="preload" as="image" href={preloadImage} fetchpriority="high" />}
+{preloadImageSet && <link rel="preload" as="image" imagesrcset={preloadImageSet} imagesizes={preloadImageSizes || "100vw"} fetchpriority="high" />}
+
+<!-- Scripts globais e Ads -->
+<!-- Analytics & Ads deferred -->
+
+<!-- Verificação de domínio: NÃO herdada do projeto de origem.
+     As tags `google-site-verification` e `profiton-domain-verification` eram do
+     do projeto de origem e não valem aqui — verificação é POR PROPRIEDADE, então copiá-las
+     não verifica este domínio e ainda esconde o fato de ele não estar verificado.
+     Ao configurar:
+       - Google: prefira verificação por DNS (TXT) na propriedade deste domínio —
+         cobre o domínio inteiro e não depende do HTML.
+       - ProfitOn: pegue o token emitido PARA este domínio no painel da rede. -->
+
+<!-- Canonical URL (Sanitized) -->
+<link rel="canonical" href={finalCanonical} />
+
+<!-- SEO Title & Description -->
+<title>{finalTitle}</title>
+<meta name="description" content={finalDescription} />
+<meta
+  name="robots"
+  content={finalRobots}
+/>
+<meta name="googlebot" content={googlebotContent} />
+<meta name="bingbot" content={bingbotContent} />
+<meta name="author" content="MultiCanaisHD" />
+
+{/* Hreflang Logic (sincronizado com canonical; alternates explícitos vencem o espelhamento) */}
+{hreflangPt && <link rel="alternate" hreflang="pt" href={hreflangPt} />}
+{hreflangEn && <link rel="alternate" hreflang="en" href={hreflangEn} />}
+{hreflangDefault && <link rel="alternate" hreflang="x-default" href={hreflangDefault} />}
+<!-- Open Graph / Facebook -->
+<meta property="og:type" content={type} />
+<meta property="og:url" content={finalCanonical} />
+<meta property="og:site_name" content="MultiCanaisHD" />
+<meta property="og:title" content={finalTitle} />
+<meta property="og:description" content={finalDescription} />
+<meta property="og:image" content={finalImage} />
+<meta property="og:image:alt" content={finalTitle} />
+<meta property="og:locale" content={locale} />
+{/* og:locale:alternate só quando as DUAS versões de idioma foram declaradas — anunciar um
+    idioma alternativo que não existe (ou que responde 301) desalinha o card social. */}
+{hreflangPt && hreflangEn && <meta property="og:locale:alternate" content={alternateLocale} />}
+{usandoImagemPadrao && (
+  <>
+    <meta property="og:image:width" content="1536" />
+    <meta property="og:image:height" content="1024" />
+  </>
+)}
+
+<!-- Twitter / X -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:site" content="@multicanaishdapp" />
+<meta name="twitter:creator" content="@multicanaishdapp" />
+<meta name="twitter:url" content={finalCanonical} />
+<meta name="twitter:title" content={finalTitle} />
+<meta name="twitter:description" content={finalDescription} />
+<meta name="twitter:image" content={finalImage} />
+<meta name="twitter:image:alt" content={finalTitle} />
+
+<!-- JSON-LD (Schema.org) -->
+<script
+  type="application/ld+json"
+  set:html={typeof finalJsonLd === "string"
+    ? finalJsonLd
+    : JSON.stringify(finalJsonLd)}
+/>

@@ -1,0 +1,198 @@
+---
+// src/pages/components/Top10Section.astro
+import "../../styles/global.css";
+import { fetchTrending } from '../../services/trendingService';
+// contentSlug em vez de cópia local de slugify: título não-latino virava slug vazio → link quebrado.
+import { contentSlug } from '../../utils/slugify.js';
+
+// i18n
+import { getLangFromUrl, useTranslations } from "../../i18n/utils";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+const langPrefix = isPt ? "" : `/${lang}`;
+
+const { initialItems = null } = Astro.props;
+
+let top10Items = [];
+if (initialItems) {
+    top10Items = initialItems;
+} else {
+    try {
+        const data = await fetchTrending('all', 'week', lang);
+        top10Items = (data || []).filter(i => i.poster_path).slice(0, 10);
+    } catch (e) {
+        console.error("Top 10 SSR Error:", e);
+    }
+}
+---
+
+<section class="py-14 w-full mx-auto relative group/section overflow-hidden bg-[#060911]">
+    <div class="flex items-center gap-4 mb-10 px-4 sm:px-6 lg:px-12">
+        <div class="w-1.5 h-10 bg-[#DF0912]"></div>
+        <div class="flex flex-col">
+            <h2 class="text-3xl sm:text-4xl font-black text-white tracking-tighter uppercase italic drop-shadow-2xl">
+                {t('home.top10_title')} <span class="text-[#DF0912]">Top 10</span>
+            </h2>
+            <p class="text-[9px] text-gray-600 font-black uppercase tracking-[0.4em] opacity-80">{t('home.top10_rank')}</p>
+        </div>
+    </div>
+    <div class="relative group/slider">
+        <button
+            id="top10-prev"
+            class="hidden sm:flex absolute -left-2 top-1/2 -translate-y-1/2 z-40 w-11 h-11 items-center justify-center opacity-0 group-hover/slider:opacity-100 transition-all duration-300 bg-black/95 hover:bg-[#DF0912] border border-white/5 shadow-2xl backdrop-blur-md transform hover:scale-110 pointer-events-none group-hover/slider:pointer-events-auto"
+            aria-label={isPt ? "Anterior" : "Previous"}
+        >
+            <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 19l-7-7 7-7"></path></svg>
+        </button>
+
+        <div
+            id="top10-content"
+            class="flex gap-4 sm:gap-10 overflow-x-auto snap-x snap-mandatory scrollbar-hide py-10 pl-6 sm:pl-32 pr-10 sm:pr-32 w-full"
+            style="scrollbar-width: none; -ms-overflow-style: none;"
+        >
+            {top10Items.map((item, idx) => {
+                const title = item.title || item.name;
+                const slug = contentSlug(title);
+                const mediaType = item.media_type || "movie";
+                const poster = `https://image.tmdb.org/t/p/w500${item.poster_path}`;
+                const rank = idx + 1;
+                const vote = item.vote_average ? item.vote_average.toFixed(1) : "N/A";
+
+                return (
+                    <a 
+                        href={`${langPrefix}/${mediaType === 'movie' ? 'filme' : 'serie'}/${item.id}-${slug}`}
+                        class={`bf-top10-card flex-shrink-0 snap-start relative group/card flex items-center transition-all duration-500 hover:z-30 ${rank === 10 ? "w-[260px] sm:w-[480px]" : "w-[210px] sm:w-[400px]"}`}
+                        draggable="false"
+                    >
+                        {/* 3D Impact Ranking Numbers - V6.1 Refinado */}
+                        <div class={`absolute left-0 top-0 bottom-0 z-0 flex items-center justify-center transition-all duration-500 pointer-events-none ${rank === 10 ? "w-[150px] sm:w-[300px]" : "w-[110px] sm:w-[220px]"}`}>
+                            <span class={`font-black leading-none select-none text-white/60 transition-all duration-1000 group-hover/card:text-[#DF0912] group-hover/card:scale-110 tracking-tighter drop-shadow-2xl ${rank === 10 ? "text-[140px] sm:text-[280px]" : "text-[160px] sm:text-[320px]"}`} 
+                                  style="font-family: 'Inter', 'Impact', sans-serif;">
+                                {rank}
+                            </span>
+                        </div>
+
+                        {/* High-Fidelity Poster Card - Sombra Removida conforme solicitado */}
+                        <div class={`relative h-full aspect-[3/4.5] rounded-none overflow-hidden border border-white/10 bg-[#0a0a0a] z-10 transition-all duration-700 group-hover/card:-translate-y-6 group-hover/card:border-[#DF0912]/50 ${rank === 10 ? "ml-[110px] sm:ml-[220px] w-[150px] sm:w-[260px]" : "ml-[70px] sm:ml-[140px] w-[140px] sm:w-[260px]"}`}>
+                            <img 
+                                src={`https://image.tmdb.org/t/p/w500${item.poster_path}`} 
+                                srcset={`
+                                    https://image.tmdb.org/t/p/w185${item.poster_path} 185w,
+                                    https://image.tmdb.org/t/p/w342${item.poster_path} 342w,
+                                    https://image.tmdb.org/t/p/w500${item.poster_path} 500w
+                                `}
+                                sizes="(max-width: 640px) 150px, 260px"
+                                alt={title}
+                                width="260"
+                                height="390"
+                                class="w-full h-full object-cover transition-transform duration-1000 group-hover/card:scale-110 opacity-95 group-hover/card:opacity-100"
+                                loading="lazy"
+                                decoding="async"
+                                onerror={`this.onerror=null; this.srcset=''; this.sizes=''; this.src='https://placehold.co/260x390/141414/FF5555?text=${encodeURIComponent(title)}';`}
+                            />
+                            
+                            {/* Ranking Info Overlay */}
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/30 group-hover/card:from-black/70 transition-all"></div>
+                            
+                            {/* Permanent Ranking Badge (Phase 13) */}
+                            <div class="absolute top-3 right-3 z-30 pointer-events-none">
+                                <div class="bg-[#DF0912] px-2 py-1 text-[10px] font-black text-white uppercase tracking-tighter shadow-2xl italic skew-x-[-12deg]">
+                                    TOP {rank}
+                                </div>
+                            </div>
+
+                            <div class="absolute top-4 right-4 z-20 opacity-0 group-hover/card:opacity-100 transition-opacity duration-500">
+                                <div class="bg-white px-2 py-0.5 text-[9px] font-black text-[#DF0912] uppercase tracking-widest shadow-xl italic">
+                                    {t('home.top10_cta')}
+                                </div>
+                            </div>
+
+                            <div class="absolute bottom-8 left-6 right-6 z-20 space-y-3 opacity-0 group-hover/card:opacity-100 transition-all duration-500 translate-y-4 group-hover/card:translate-y-0 text-center sm:text-left">
+                                <p class="text-white text-[10px] sm:text-sm font-black uppercase tracking-tighter line-clamp-2 drop-shadow-2xl leading-tight italic">{title}</p>
+                                <div class="flex items-center justify-center sm:justify-start gap-4">
+                                    <div class="h-[2px] w-8 bg-[#DF0912]"></div>
+                                    <span class="text-[10px] sm:text-xs text-[#FFCC00] font-black drop-shadow-md">★ {vote}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                );
+            })}
+        </div>
+
+        <button
+            id="top10-next"
+            class="hidden sm:flex absolute -right-2 top-1/2 -translate-y-1/2 z-40 w-11 h-11 items-center justify-center opacity-0 group-hover/slider:opacity-100 transition-all duration-300 bg-black/95 hover:bg-[#DF0912] border border-white/5 shadow-2xl backdrop-blur-md transform hover:scale-110 pointer-events-none group-hover/slider:pointer-events-auto"
+            aria-label={isPt ? "Próximo" : "Next"}
+        >
+            <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19l7-7-7-7"></path></svg>
+        </button>
+    </div>
+</section>
+
+<script>
+    function initTop10() {
+        const content = document.getElementById("top10-content");
+        const prevBtn = document.getElementById("top10-prev");
+        const nextBtn = document.getElementById("top10-next");
+        if (!content) return;
+        
+        if (content.getAttribute('data-init') === 'true') return;
+        content.setAttribute('data-init', 'true');
+
+        function updateBtns() {
+            if (!content) return;
+            const max = content.scrollWidth - content.clientWidth;
+            if (max <= 10) {
+                if (prevBtn) prevBtn.style.display = "none";
+                if (nextBtn) nextBtn.style.display = "none";
+            } else {
+                if (prevBtn) prevBtn.style.display = content.scrollLeft > 10 ? "flex" : "none";
+                if (nextBtn) nextBtn.style.display = content.scrollLeft < max - 10 ? "flex" : "none";
+            }
+        }
+
+        let ticking = false;
+        function onScrollOrResize() {
+            if (!ticking) {
+                window.requestAnimationFrame(() => {
+                    updateBtns();
+                    ticking = false;
+                });
+                ticking = true;
+            }
+        }
+
+        content.addEventListener("scroll", onScrollOrResize, { passive: true });
+        if (nextBtn) nextBtn.onclick = () => content.scrollBy({ left: content.clientWidth * 0.85, behavior: "smooth" });
+        if (prevBtn) prevBtn.onclick = () => content.scrollBy({ left: -content.clientWidth * 0.85, behavior: "smooth" });
+        
+        // Adia a medição inicial para evitar Forced Reflow no carregamento.
+        // Só mede dimensões de layout quando o usuário interage pela primeira vez com o slider.
+        // Defer initial layout measurement to avoid Forced Reflow on load.
+        // Measures carousel dimensions only on first user interaction (hover or touch).
+        const sliderEl = content.closest('.group\\/slider');
+        if (sliderEl) {
+            let initDone = false;
+            const initOnInteract = () => {
+                if (initDone) return;
+                initDone = true;
+                window.requestAnimationFrame(updateBtns);
+                sliderEl.removeEventListener('mouseenter', initOnInteract);
+                sliderEl.removeEventListener('touchstart', initOnInteract);
+            };
+            sliderEl.addEventListener('mouseenter', initOnInteract, { passive: true });
+            sliderEl.addEventListener('touchstart', initOnInteract, { passive: true });
+        }
+        
+        window.addEventListener("resize", onScrollOrResize);
+    }
+
+    initTop10();
+    document.addEventListener("astro:page-load", initTop10);
+</script>
+
+<style is:global>
+    #top10-content::-webkit-scrollbar { display: none; }
+</style>

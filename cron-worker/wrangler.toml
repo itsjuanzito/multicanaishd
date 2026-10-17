@@ -1,0 +1,40 @@
+name = "multicanaishd-cron"
+main = "src/index.js"
+compatibility_date = "2025-05-01"
+
+# Um trigger só, a cada 5 minutos. A cadência real de cada job vive em `HTTP_JOBS`
+# (src/index.js) — o plano free permite no máximo 3 Cron Triggers por Worker, e centralizar
+# no dispatcher evita gastar esse orçamento e deixa as cadências num lugar único.
+[triggers]
+crons = ["*/5 * * * *"]
+
+# Mesmo namespace KV usado pelo site (binding `SESSION`).
+#
+# PRECISA ser o namespace DESTE projeto. O valor herdado no rebrand era o do
+# projeto de origem (`d400aad8…`, o cache do projeto de origem) — e o cron do redecanais já
+# sofreu exatamente disso: apontava para o cache de outro site. Um job que
+# gravasse KV estaria escrevendo no cache alheio, e o `sitemap-warm` aqueceria o
+# sitemap errado.
+# O binding correspondente no projeto Pages (SESSION) tem que usar este mesmo id.
+# Pegue o id em: Cloudflare Dashboard > Storage & Databases > KV, ou `npx wrangler kv namespace list`.
+[[kv_namespaces]]
+binding = "SESSION"
+id = "19462e19afde4198975ec61e9cf8e3ad"
+
+# CRON_SECRET NÃO vai aqui — é segredo, definido com:
+#   npx wrangler secret put CRON_SECRET
+# Precisa ser exatamente o mesmo valor que o site usa, senão os endpoints internos devolvem 401.
+
+# Domínio que os jobs chamam. Fica aqui, e não chumbado no código, justamente para a próxima
+# troca de domínio ser uma edição de config.
+#
+# Por que isso importa: o código tinha `https://multicanaishd.lol` fixo, o domínio virou
+# NXDOMAIN na migração para `.lol`, e os QUATRO jobs deste Worker passaram a morrer no DNS
+# antes de chegar no site — em silêncio. O `enrich-catalog` parou de alimentar o catálogo do
+# sitemap, e `reconcile-payments` (crédito de VIP) e `notificar` pararam junto.
+#
+# O código lê `env.SITE_URL` com fallback `https://multicanaishd.lol`
+# (ver `resolverSiteUrl` em src/index.js) e loga `[Cron] alvo=...` a cada tick, para um alvo
+# errado aparecer no log em vez de virar quatro "fetch failed" genéricos.
+[vars]
+SITE_URL = "https://multicanaishd.lol"

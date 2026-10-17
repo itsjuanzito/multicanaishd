@@ -1,0 +1,440 @@
+---
+// src/pages/genero/[id].astro
+import "../../styles/global.css";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+export const prerender = false;
+
+import Navigation from "../components/Navigation.astro"; 
+import SearchWidget from "../components/SearchWidget.astro";
+import { descobrirPorGenero } from "../../services/tmdb";
+import { getSuperflixIds } from "../../services/superflix-ids";
+import { getGenreByIdOrSlug } from "../../utils/genres";
+import { contentSlug } from "../../utils/slugify.js";
+import { isKidsProfile, ehGeneroInfantil } from "../../services/kidsProfile.js";
+import { getEnv } from "../../services/env-adapter";
+import { upstreamUnavailableResponse } from "../../utils/upstreamUnavailable.js";
+
+// i18n
+import { getLangFromUrl, useTranslations } from "../../i18n/utils";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+const langPrefix = isPt ? "" : `/${lang}`;
+
+const { id } = Astro.params;
+const pageParam = Number(Astro.url.searchParams.get('page')) || 1;
+
+if (!id) return Astro.redirect('/');
+
+const currentGenre = getGenreByIdOrSlug(id);
+
+// Redirecionamento amigável (ID -> Slug)
+if (!isNaN(id) && currentGenre && currentGenre.slug) {
+    return Astro.redirect(`${langPrefix}/genero/${currentGenre.slug}`);
+}
+
+const genreName = currentGenre ? t(currentGenre.key) : (isPt ? "Gênero" : "Genre");
+const isAnimeMode = id === 'anime' || (currentGenre && currentGenre.id === 'anime');
+const finalId = currentGenre ? currentGenre.id : id;
+
+// Slug que não existe em utils/genres.js e não é um id numérico do TMDB: nenhuma URL de
+// gênero pode ser inventada (/genero/qualquer-coisa). Antes isso renderizava a página
+// completa com "Nenhum título encontrado" e status 200 — um soft 404 indexável, e a lista
+// de slugs adivinháveis é infinita.
+if (!currentGenre && !/^\d+$/.test(String(id))) {
+    Astro.response.status = 404;
+    return Astro.rewrite('/404');
+}
+
+// Perfil infantil: a página de um gênero fora da lista liberada nem chega a renderizar.
+// A busca já não oferece esses gêneros, mas a URL é adivinhável (/genero/terror).
+if (isKidsProfile(Astro) && !ehGeneroInfantil(finalId)) {
+    return Astro.redirect(`${langPrefix || "/"}`, 302);
+}
+const normalizedGenreName = genreName.toLowerCase();
+const seoTitle = isPt
+    ? `Assistir ${genreName} Online Grátis: Filmes e Séries em HD - MultiCanaisHD`
+    : `Watch ${genreName} Online Free: Movies and TV Shows in HD - MultiCanaisHD`;
+const seoDescription = isPt
+    ? `Encontre filmes de ${normalizedGenreName}, séries de ${normalizedGenreName}, animes e lançamentos para assistir online grátis em HD no MultiCanaisHD. Catálogo atualizado com opções dubladas e legendadas.`
+    : `Find ${normalizedGenreName} movies, ${normalizedGenreName} TV shows, anime and new releases to watch online in HD on MultiCanaisHD. Updated catalog with dubbed and subtitled options.`;
+const seoKeywords = isPt
+    ? `assistir ${normalizedGenreName} online, filmes de ${normalizedGenreName}, séries de ${normalizedGenreName}, ${normalizedGenreName} dublado, ${normalizedGenreName} legendado, assistir online grátis, multicanaishd`
+    : `watch ${normalizedGenreName} online, ${normalizedGenreName} movies, ${normalizedGenreName} tv shows, ${normalizedGenreName} streaming, watch online free, MultiCanaisHD`;
+
+let resultadosFiltrados = [];
+let resultadosRaw = [];
+let erroIDs = false;
+// Sem os Sets de disponibilidade o filtro abaixo rejeita TODO item (movies.has() em Set vazio
+// é sempre false) e a página sairia vazia por indisponibilidade do Redis/KV — não por o
+// gênero não ter títulos. Distinguir os dois casos é o que permite responder 404 só no
+// segundo, sem desindexar 25 páginas de gênero durante uma instabilidade de cache.
+let idsDisponiveisOk = false;
+
+try {
+    const apiKey = getEnv('KEY_API_TMDB') || getEnv('TMDB_API_KEY');
+    const idsDisponiveis = await getSuperflixIds();
+
+    if (!idsDisponiveis) throw new Error("Superflix IDs falharam");
+
+    const { movies, series, anime } = idsDisponiveis;
+    idsDisponiveisOk = (movies?.size || 0) + (series?.size || 0) + (anime?.size || 0) > 0;
+
+    if (isAnimeMode) {
+        const allAnimeIds = Array.from(anime).reverse();
+        const itemsPerPage = 20;
+        const startIndex = (pageParam - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const pageIds = allAnimeIds.slice(startIndex, endIndex);
+
+        const detailsPromises = pageIds.map(async (animeId) => {
+            try {
+                const res = await fetch(`https://api.themoviedb.org/3/tv/${animeId}?language=pt-BR`, {
+                    headers: { 
+                        'Authorization': `Bearer ${apiKey}`, 
+                        'Accept': 'application/json',
+                        'Accept-Encoding': 'identity'
+                    }
+                });
+                if (!res.ok) return null;
+                const data = await res.json();
+                return { ...data, media_type: 'tv', categoria: 'anime' };
+            } catch (e) { return null; }
+        });
+
+        const results = await Promise.all(detailsPromises);
+        resultadosFiltrados = results.filter(r => r !== null);
+    } 
+    else {
+        const startPageTMDB = pageParam === 1 ? 1 : ((pageParam - 1) * 5) + 1;
+        
+        try {
+            const responseTMDB = await descobrirPorGenero(finalId, startPageTMDB);
+            resultadosRaw = responseTMDB?.results || []; 
+        } catch (error) {
+            console.error("Erro ao buscar filmes:", error);
+        }
+
+        resultadosFiltrados = idsDisponiveisOk
+            ? resultadosRaw.filter(item => {
+                const contentId = Number(item.id);
+                if (item.media_type === 'movie') return movies.has(contentId);
+                if (item.media_type === 'tv') return series.has(contentId) || anime.has(contentId);
+                return false;
+            }).map(item => {
+                const contentId = Number(item.id);
+                let cat = 'movie';
+                if (item.media_type === 'tv') cat = anime.has(contentId) ? 'anime' : 'serie';
+                return { ...item, categoria: cat };
+            })
+            // Mesmo fallback "sem filtro" de api/explore.js:99-113 e api/discover.js:84-106.
+            // Filtrar contra Sets vazios rejeita TODO item e deixa a página vazia; melhor
+            // mostrar a lista do TMDB (o catálogo real veio de um cache frio, não de ausência
+            // de títulos) do que servir uma página sem conteúdo ao crawler.
+            : resultadosRaw.map(item => ({
+                ...item,
+                categoria: item.media_type === 'tv' ? 'serie' : 'movie'
+            }));
+    }
+
+} catch (e) {
+    console.error("Erro ao carregar gênero:", e);
+    erroIDs = true;
+}
+
+// Origem/cache indisponível: 200 + noindex, nunca 404. A URL do gênero é válida e está no
+// sitemap; um 404 por instabilidade a remove do índice e o dano sobrevive ao incidente
+// (mesmo raciocínio documentado em utils/upstreamUnavailable.js).
+//
+// O modo anime depende inteiramente do Set `anime` para montar a lista (genero/[id].astro:74-89),
+// então sem cache não há como renderizar nada — daí ele cair aqui e não no fallback acima.
+if (erroIDs || (isAnimeMode && !idsDisponiveisOk)) {
+    return upstreamUnavailableResponse(lang);
+}
+
+// Gênero (ou página de paginação) genuinamente sem títulos: a página renderizava "Nenhum
+// título encontrado" com status 200 e canonical própria — um soft 404 indexável para
+// qualquer /genero/xxx inventado. 404 real é o sinal correto.
+if (resultadosFiltrados.length === 0) {
+    Astro.response.status = 404;
+    return Astro.rewrite('/404');
+}
+
+// contentSlug (fonte única, utils/slugify.js) em vez de uma cópia local de slugify: para
+// título em script não-latino a cópia devolvia string vazia e o card linkava "/serie/123-",
+// obrigando a rota de destino a devolver 301 para o slug que ela mesma considera canônico.
+const collectionJsonLd = {
+    "@type": "CollectionPage",
+    "name": `${genreName} - MultiCanaisHD`,
+    "description": isPt 
+        ? `Confira os melhores títulos de ${genreName} disponíveis no MultiCanaisHD. Filmes, séries e animes em HD com áudio dublado e legendado.`
+        : `Check out the best ${genreName} titles available on MultiCanaisHD. Movies, series and anime in HD with dubbed and subtitled audio.`,
+    // origin + pathname, não href: com ?page=2 o schema declarava uma URL diferente do
+    // <link rel="canonical"> que a própria página emite (SEO.astro:103-107).
+    "url": `${Astro.url.origin}${Astro.url.pathname}`,
+    "mainEntity": {
+        "@type": "ItemList",
+        "numberOfItems": resultadosFiltrados.length,
+        "itemListElement": resultadosFiltrados.slice(0, 20).map((item, index) => ({
+            "@type": "ListItem",
+            "position": index + 1,
+            "url": `${Astro.url.origin}${langPrefix}/${item.categoria === 'movie' ? 'filme' : 'serie'}/${item.id}-${contentSlug(item.title || item.name)}`
+        }))
+    }
+};
+
+const breadcrumbSchema = {
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": t('nav.home'), "item": Astro.url.origin },
+        { "@type": "ListItem", "position": 2, "name": isPt ? "Gêneros" : "Genres", "item": `${Astro.url.origin}${isPt ? '' : '/en'}/explorar` },
+        { "@type": "ListItem", "position": 3, "name": genreName, "item": `${Astro.url.origin}${Astro.url.pathname}` }
+    ]
+};
+
+const finalJsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [collectionJsonLd, breadcrumbSchema]
+};
+---
+
+<BaseLayout 
+    title={seoTitle}
+    description={seoDescription}
+    keywords={seoKeywords}
+    jsonLd={finalJsonLd}
+>
+    <main class="container mx-auto px-4 py-8 flex-grow mt-24 sm:mt-28">
+        <!-- Breadcrumbs Centralizados -->
+        <nav class="flex items-center justify-center gap-2 mb-8 text-[10px] font-black uppercase tracking-widest overflow-x-auto whitespace-nowrap hide-scrollbar" aria-label="Breadcrumb">
+            <div class="flex items-center gap-2 bg-[#161B28]/50 backdrop-blur-md px-4 py-2 rounded-full border border-white/5 shadow-xl">
+                <a href={isPt ? "/" : "/en"} class="text-gray-500 hover:text-white transition-colors">{t('nav.home')}</a>
+                <span class="text-white/10">/</span>
+                <a href={isPt ? "/explorar" : "/en/explorar"} class="text-gray-500 hover:text-white transition-colors">{isPt ? 'Gêneros' : 'Genres'}</a>
+                <span class="text-white/10">/</span>
+                <span class="text-[#DF0912]">{genreName}</span>
+            </div>
+        </nav>
+
+        <div class="mb-8 border-b border-white/5 pb-6">
+            <h1 class="text-3xl font-bold text-white mb-2">
+                {isPt ? `Assistir ${genreName} online` : `Watch ${genreName} online`}
+            </h1>
+            <h2 class="text-lg font-medium text-gray-300 mb-2">
+                {isPt ? `Catálogo completo de filmes e séries de ${normalizedGenreName} em HD` : `Complete catalog of ${normalizedGenreName} movies and TV shows in HD`}
+            </h2>
+            <p class="text-gray-400 text-sm max-w-3xl leading-relaxed">
+                {isPt
+                    ? `Explore filmes, séries e animes de ${normalizedGenreName} em uma lista atualizada para encontrar rapidamente o que assistir em HD, com opções dubladas e legendadas no MultiCanaisHD.`
+                    : `Explore ${normalizedGenreName} movies, series and anime in an updated list built to help you quickly find what to watch in HD on MultiCanaisHD.`}
+            </p>
+            <p class="text-gray-500 text-xs font-bold uppercase tracking-wider mt-3">
+                {resultadosFiltrados.length} {isPt ? 'títulos encontrados nesta categoria.' : 'titles found in this category.'}
+            </p>
+        </div>
+
+        {erroIDs && (
+            <div class="bg-red-900/20 border border-red-500/30 text-red-200 p-6 rounded-xl text-center mb-8">
+                <h3 class="text-xl font-bold mb-2">{isPt ? 'Ops! Algo deu errado' : 'Oops! Something went wrong'}</h3>
+                <p>{isPt ? 'O sistema de verificação de disponibilidade está instável. Tente recarregar a página.' : 'The availability verification system is unstable. Try reloading the page.'}</p>
+            </div>
+        )}
+
+        {!erroIDs && resultadosFiltrados.length === 0 && (
+            <div class="text-center py-20 bg-[#161B28] rounded-2xl border border-dashed border-white/10">
+                <div class="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <svg class="w-10 h-10 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                </div>
+                <h3 class="text-xl font-bold text-white mb-2">{isPt ? 'Nenhum título encontrado' : 'No titles found'}</h3>
+                <p class="text-gray-400 max-w-sm mx-auto mb-8">{isPt ? 'Não encontramos títulos disponíveis para este gênero no momento. Tente explorar outras categorias.' : 'We found no available titles for this genre at the moment. Try exploring other categories.'}</p>
+                <a href={isPt ? "/explorar" : "/en/explorar"} class="inline-flex items-center justify-center px-6 py-3 bg-[#DF0912] hover:bg-[#be080f] text-white font-bold rounded-lg transition-colors shadow-lg shadow-red-900/20">{t('watchlist.explore')}</a>
+            </div>
+        )}
+
+        <div id="resultsGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
+            {resultadosFiltrados.map((item) => {
+                const title = item.title || item.name;
+                const imgUrl = item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null;
+                if(!imgUrl) return null;
+
+                const type = item.categoria === 'movie' ? 'movie' : 'tv';
+                const label = item.categoria === 'serie' ? t('nav.series') : (item.categoria === 'anime' ? t('genre.anime') : t('home.hero_genre'));
+
+                return (
+                    <a href={`${langPrefix}/${type === 'movie' ? 'filme' : 'serie'}/${item.id}-${contentSlug(title)}`} class="bf-card group relative flex flex-col bg-[#161B28] rounded-xl overflow-hidden transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl hover:shadow-red-900/10">
+                        <div class="aspect-[2/3] relative overflow-hidden">
+                            <img src={imgUrl} alt={isPt ? `Pôster de ${title} - Assistir ${genreName} online grátis HD` : `Poster of ${title} - Watch ${genreName} online free HD`} loading="lazy" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                            <div class="absolute top-2 left-2 px-2 py-0.5 bg-black/60 backdrop-blur-md rounded text-[10px] font-bold uppercase border border-white/10 text-white z-10">{label}</div>
+                            <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                                <div class="w-12 h-12 rounded-full bg-[#DF0912] flex items-center justify-center transform scale-0 group-hover:scale-100 transition-transform duration-300 shadow-lg">
+                                    <svg class="w-6 h-6 text-white fill-current ml-1" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-4 flex flex-col flex-grow border-t border-white/5">
+                            <h3 class="text-sm font-bold text-white line-clamp-2 group-hover:text-[#DF0912] transition-colors leading-tight">{title}</h3>
+                        </div>
+                    </a>
+                );
+            })}
+        </div>
+        
+        {!erroIDs && resultadosFiltrados.length > 0 && (
+            <div class="mt-16 flex justify-center">
+                {/*
+                    <a> com href, não <button>: o SSR já sabia paginar (?page=N), mas o único
+                    controle era um botão SEM href, então o Googlebot enxergava 20 títulos por
+                    gênero e o resto do catálogo dependia 100% do sitemap. Com o href o
+                    crawler segue para a página 2+; o handler abaixo dá preventDefault e
+                    carrega via API, então a experiência do usuário continua a mesma.
+
+                    data-step existe porque as duas metades da página paginam em unidades
+                    DIFERENTES: a lista de anime fatia 20 ids por página (passo 1), enquanto
+                    filme/série avança 5 páginas do TMDB por página (passo 5). O valor estava
+                    fixo em 6, o que só estava certo na página 1 — da página 2 em diante o
+                    "Carregar mais" repetia o mesmo bloco, e em anime pulava 4 blocos.
+                */}
+                <a
+                    id="loadMoreBtn" 
+                    href={`?page=${pageParam + 1}`}
+                    rel="next"
+                    data-genre={id} 
+                    data-next-page={isAnimeMode ? pageParam + 1 : (pageParam - 1) * 5 + 6} 
+                    data-step={isAnimeMode ? 1 : 5}
+                    data-t-searching={isPt ? 'Buscando...' : 'Searching...'}
+                    data-t-end={isPt ? 'Fim dos resultados' : 'End of results'}
+                    data-t-error={isPt ? 'Erro ao carregar' : 'Error loading'}
+                    data-lang={lang}
+                    class="px-10 py-4 bg-[#161B28] border border-white/10 hover:border-[#DF0912] hover:text-[#DF0912] text-white font-bold rounded-full transition-all flex items-center gap-3 group shadow-xl hover:shadow-red-900/10 active:scale-95 cursor-pointer"
+                >
+                    <span id="btnText">{isPt ? 'Carregar Mais Títulos' : 'Load More Titles'}</span>
+                    <svg id="btnIcon" class="w-5 h-5 group-hover:translate-y-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    <svg id="btnLoading" class="w-5 h-5 animate-spin hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                </a>
+            </div>
+        )}
+    </main>
+</BaseLayout>
+
+<script>
+    // @ts-nocheck
+    function initGenrePage() {
+        const btn = document.getElementById('loadMoreBtn');
+        const grid = document.getElementById('resultsGrid');
+        const icon = document.getElementById('btnIcon');
+        const loading = document.getElementById('btnLoading');
+        const btnText = document.getElementById('btnText');
+
+        if (!btn || !grid) return;
+
+        // Agora é um <a> (o crawler precisa do href): o preventDefault mantém o carregamento
+        // por API para o usuário, sem recarregar a página. `data-busy` substitui o
+        // `btn.disabled`, que não existe em âncora — sem ele, dois cliques disparavam dois
+        // fetches concorrentes e os cards entravam duplicados.
+        btn.onclick = async (e) => {
+            e.preventDefault();
+            if (btn.dataset.busy === '1') return;
+            btn.dataset.busy = '1';
+            if (icon) icon.classList.add('hidden');
+            if (loading) loading.classList.remove('hidden');
+            const originalText = btnText ? btnText.textContent : "Load More";
+            if (btnText) btnText.textContent = btn.dataset.tSearching || "Searching...";
+
+            const genreId = btn.dataset.genre;
+            const nextPageStart = parseInt(btn.dataset.nextPage);
+            const step = parseInt(btn.dataset.step) || 5;
+
+            try {
+                const res = await fetch(`/api/discover?genreId=${genreId}&nextPage=${nextPageStart}`);
+                if(!res.ok) throw new Error('Erro na API');
+                
+                const data = await res.json();
+
+                if (data && data.length > 0) {
+                    btn.dataset.nextPage = nextPageStart + step;
+                    // O href passa a apontar para a próxima página do SSR: se o usuário
+                    // recarregar ou compartilhar o link depois de carregar mais, cai numa
+                    // página que o servidor sabe montar (e o crawler segue a mesma cadeia).
+                    const proximaPagina = parseInt(new URL(btn.href).searchParams.get('page') || '1', 10) + 1;
+                    btn.href = `?page=${proximaPagina}`;
+                    if (btnText) btnText.textContent = originalText;
+
+                    const isPt = btn.dataset.lang === 'pt';
+                    const seriesLabel = isPt ? 'Série' : 'TV Show';
+                    const animeLabel = isPt ? 'Anime' : 'Anime';
+                    const movieLabel = isPt ? 'Filme' : 'Movie';
+
+                    data.forEach(item => {
+                        const title = item.title || item.name;
+                        const imgUrl = item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null;
+                        if (!imgUrl) return;
+
+                        const type = item.categoria === 'movie' ? 'movie' : 'tv';
+                        const label = item.categoria === 'serie' ? seriesLabel : (item.categoria === 'anime' ? animeLabel : movieLabel);
+                        const slug = title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "-").replace(/[^\w\-]+/g, "");
+
+                        const card = document.createElement('a');
+                        const langPrefix = isPt ? '' : '/en';
+                        card.href = `${langPrefix}/${type === 'movie' ? 'filme' : 'serie'}/${item.id}-${slug}`;
+                        card.className = 'bf-card group relative flex flex-col bg-[#161B28] rounded-xl overflow-hidden transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl hover:shadow-red-900/10 animate-fade-in';
+                        card.innerHTML = `
+                            <div class="aspect-[2/3] relative overflow-hidden">
+                                <img src="${imgUrl}" alt="${title}" loading="lazy" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                                <div class="absolute top-2 left-2 px-2 py-0.5 bg-black/60 backdrop-blur-md rounded text-[10px] font-bold uppercase border border-white/10 text-white z-10">${label}</div>
+                                <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                                    <div class="w-12 h-12 rounded-full bg-[#DF0912] flex items-center justify-center transform scale-0 group-hover:scale-100 transition-transform duration-300 shadow-lg">
+                                        <svg class="w-6 h-6 text-white fill-current ml-1" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="p-4 flex flex-col flex-grow border-t border-white/5">
+                                <h3 class="text-sm font-bold text-white line-clamp-2 group-hover:text-[#DF0912] transition-colors leading-tight">${title}</h3>
+                            </div>
+                        `;
+                        grid.appendChild(card);
+                    });
+                } else {
+                    if (btnText) btnText.textContent = btn.dataset.tEnd || "End";
+                    // Fim da lista: remove o href para o crawler não seguir para uma página que
+                    // só responde 404. O SSR já terminaria a cadeia sozinho, mas assim o link
+                    // some do HTML em vez de apontar para o vazio.
+                    btn.removeAttribute('href');
+                    return;
+                }
+
+            } catch (err) {
+                console.error(err);
+                if (btnText) btnText.textContent = btn.dataset.tError || "Error";
+            } finally {
+                btn.dataset.busy = '0';
+                // O spinner era escondido só quando a lista NÃO tinha acabado, então no fim
+                // ele ficava girando ao lado de "Fim dos resultados".
+                if (loading) loading.classList.add('hidden');
+                const terminou = btnText && (
+                    btnText.textContent === (btn.dataset.tEnd || "End") ||
+                    btnText.textContent === (btn.dataset.tError || "Error")
+                );
+                if (!terminou && icon) icon.classList.remove('hidden');
+            }
+        };
+    }
+
+    document.addEventListener("astro:page-load", initGenrePage);
+</script>
+
+<style>
+    @reference 'tailwindcss';
+    .line-clamp-2 {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in {
+        animation: fadeIn 0.5s ease-out forwards;
+    }
+</style>

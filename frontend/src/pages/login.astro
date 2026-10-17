@@ -1,0 +1,516 @@
+---
+// src/pages/login.astro
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { getLangFromUrl, useTranslations } from "../i18n/utils";
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+
+export const prerender = false;
+---
+
+<BaseLayout title={t('auth.login_title')} robots="noindex, nofollow">
+    <main 
+        id="login-main"
+        data-lang={lang}
+        data-t-login-btn={t('login.btn')}
+        data-t-signup-btn={t('auth.signup_cta')}
+        data-t-login-toggle={t('auth.login_now')}
+        data-t-signup-toggle={t('auth.create_free')}
+        data-t-no-account={t('auth.no_account')}
+        data-t-already-member={t('auth.already_member')}
+        data-t-wait={t('auth.wait')}
+        data-t-success-activation={t('auth.signup_success_activation')}
+        data-t-success-login={t('auth.signup_success_login')}
+        data-t-error-credentials={t('auth.login_error_credentials')}
+        data-t-error-generic={t('auth.login_error_generic')}
+        data-t-verifying-vip={t('auth.login_verifying_vip')}
+        data-t-enter-password={t('auth.login_enter_password')}
+        data-t-magic-sent={t('auth.magic_link_sent')}
+        data-t-magic-sending={t('auth.magic_link_sending')}
+        data-t-social-google={t('auth.login_google')}
+        data-t-social-magic={t('auth.login_magic')}
+        class="min-h-[100dvh] flex items-center justify-center p-4 pt-20 pb-8 relative overflow-hidden bg-[#060911]"
+    >
+        <!-- Background Decor -->
+        <div class="absolute top-0 right-0 w-[500px] h-[500px] bg-[#DF0912]/10 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/2"></div>
+        <div class="absolute bottom-0 left-0 w-[500px] h-[500px] bg-[#5865F2]/10 rounded-full blur-[120px] translate-y-1/2 -translate-x-1/2"></div>
+
+        <div class="relative max-w-4xl w-full flex flex-col lg:flex-row items-center justify-center gap-10 lg:gap-14 z-10 px-4">
+
+            <!-- Vantagens: coluna de apoio, sem "card" próprio, pra não competir com o formulário -->
+            <div class="order-2 lg:order-1 w-full max-w-[380px] lg:max-w-[320px] animate-in fade-in slide-in-from-bottom lg:slide-in-from-left duration-1000">
+                <h2 class="text-xl lg:text-2xl font-black text-white/90 tracking-tighter uppercase italic leading-none mb-6 text-center lg:text-left">
+                    {t('auth.advantages_title')} <br/>
+                    <span class="text-[#DF0912]">{t('auth.advantages_span')}</span>
+                </h2>
+
+                <ul class="flex flex-col gap-4">
+                    <!-- Retomar Player -->
+                    <li class="flex items-start gap-3.5">
+                        <div class="shrink-0 w-9 h-9 rounded-xl bg-white/[0.04] border border-white/5 flex items-center justify-center">
+                            <svg class="w-[17px] h-[17px] text-[#DF0912]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        </div>
+                        <div>
+                            <h3 class="text-[13px] font-black text-white/90 uppercase italic tracking-tight leading-none mb-1.5">{t('auth.benefit_resume')}</h3>
+                            <p class="text-[11px] text-gray-500 font-medium leading-snug">{t('login.benefit_history')}</p>
+                        </div>
+                    </li>
+
+                    <!-- Minha Maratona -->
+                    <li class="flex items-start gap-3.5">
+                        <div class="shrink-0 w-9 h-9 rounded-xl bg-white/[0.04] border border-white/5 flex items-center justify-center">
+                            <svg class="w-[17px] h-[17px] text-[#5865F2]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                        </div>
+                        <div>
+                            <h3 class="text-[13px] font-black text-white/90 uppercase italic tracking-tight leading-none mb-1.5">{t('auth.benefit_marathon')}</h3>
+                            <p class="text-[11px] text-gray-500 font-medium leading-snug">{t('auth.benefit_marathon_desc')}</p>
+                        </div>
+                    </li>
+
+                    <!-- Minha Lista -->
+                    <li class="flex items-start gap-3.5">
+                        <div class="shrink-0 w-9 h-9 rounded-xl bg-white/[0.04] border border-white/5 flex items-center justify-center">
+                            <svg class="w-[17px] h-[17px] text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+                        </div>
+                        <div>
+                            <h3 class="text-[13px] font-black text-white/90 uppercase italic tracking-tight leading-none mb-1.5">{t('nav.my_list')}</h3>
+                            <p class="text-[11px] text-gray-500 font-medium leading-snug">{t('login.benefit_list')}</p>
+                        </div>
+                    </li>
+
+                    <!-- Seja VIP -->
+                    <li class="flex items-start gap-3.5">
+                        <div class="shrink-0 w-9 h-9 rounded-xl bg-white/[0.04] border border-white/5 flex items-center justify-center">
+                            <svg class="w-[17px] h-[17px] text-[#DF0912]" fill="currentColor" viewBox="0 0 24 24"><path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3a1 1 0 01-1 1H6a1 1 0 010-2h12a1 1 0 011 1z"/></svg>
+                        </div>
+                        <div>
+                            <h3 class="text-[13px] font-black text-white/90 uppercase italic tracking-tight leading-none mb-1.5">{isPt ? 'Seja VIP' : 'Go VIP'}</h3>
+                            <p class="text-[11px] text-gray-500 font-medium leading-snug">{isPt ? 'Acesso total ao catálogo sem anúncios e recursos exclusivos.' : 'Full catalog access, no ads, and exclusive premium features.'}</p>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Card de Login (Formulário) - No Mobile vem em primeiro -->
+            <div class="order-1 lg:order-2 relative w-full max-w-[380px] shrink-0 bg-[#0E111A]/85 backdrop-blur-3xl border border-white/10 p-6 sm:p-8 rounded-[32px] shadow-[0_0_120px_rgba(0,0,0,0.65)] animate-in fade-in zoom-in duration-700">
+                <div class="text-center mb-6">
+                    <a href="/" class="inline-flex items-center gap-2 mb-4 group">
+                        <span class="text-lg font-black text-white tracking-tighter uppercase group-hover:text-[#DF0912] transition-colors">
+                            Multi<span class="text-[#DF0912]">CanaisHD</span>
+                        </span>
+                    </a>
+                    <h1 class="text-xl font-black text-white tracking-tighter uppercase italic leading-none">{t('auth.welcome_back')}<span class="text-[#DF0912]">{t('auth.welcome_back_span')}</span></h1>
+                    <p class="text-[10px] text-gray-500 font-black uppercase tracking-[0.3em] mt-2">{t('auth.access_account')}</p>
+                </div>
+
+                <form id="login-form" class="space-y-3">
+                    <div class="space-y-1">
+                        <label class="text-[9px] text-gray-500 font-black uppercase tracking-widest ml-4">{t('auth.email_label')}</label>
+                        <input
+                            type="email"
+                            id="email"
+                            required
+                            placeholder="pessoa@exemplo.com"
+                            class="w-full bg-white/5 border border-white/5 rounded-2xl px-4 py-2.5 text-white text-sm placeholder:text-gray-700 focus:outline-none focus:border-[#DF0912]/30 focus:bg-white/[0.07] transition-all"
+                        />
+                    </div>
+
+                    <!-- Campos exclusivos do cadastro / Signup-only fields -->
+                    <div id="signup-fields" class="hidden space-y-3">
+                        <!-- Nome de exibição / Display name -->
+                        <div class="space-y-1">
+                            <label class="text-[9px] text-gray-500 font-black uppercase tracking-widest ml-4">
+                                {isPt ? 'Nome de exibição' : 'Display name'}
+                            </label>
+                            <input
+                                type="text"
+                                id="display-name"
+                                maxlength="25"
+                                placeholder={isPt ? 'Como você quer ser chamado' : 'How you want to be called'}
+                                class="w-full bg-white/5 border border-white/5 rounded-2xl px-4 py-2.5 text-white text-sm placeholder:text-gray-700 focus:outline-none focus:border-[#DF0912]/30 focus:bg-white/[0.07] transition-all"
+                            />
+                        </div>
+                        <!-- Nickname único / Unique nickname -->
+                        <div class="space-y-1">
+                            <label class="text-[9px] text-gray-500 font-black uppercase tracking-widest ml-4">
+                                {isPt ? 'Seu @username (único)' : 'Your @username (unique)'}
+                            </label>
+                            <div class="relative">
+                                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-black text-sm select-none">@</span>
+                                <input
+                                    type="text"
+                                    id="signup-nickname"
+                                    maxlength="20"
+                                    placeholder="seunick"
+                                    class="w-full bg-white/5 border border-white/5 rounded-2xl pl-8 pr-4 py-2.5 text-white text-sm placeholder:text-gray-700 focus:outline-none focus:border-[#DF0912]/30 focus:bg-white/[0.07] transition-all lowercase"
+                                />
+                            </div>
+                            <p id="nickname-check-msg" class="text-[9px] font-black uppercase tracking-widest ml-4 hidden"></p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-1" id="password-field">
+                        <label class="text-[9px] text-gray-500 font-black uppercase tracking-widest ml-4">{t('auth.password_label')}</label>
+                        <div class="relative group/pass">
+                            <input
+                                type="password"
+                                id="password"
+                                placeholder="••••••••"
+                                class="w-full bg-white/5 border border-white/5 rounded-2xl px-4 py-2.5 pr-12 text-white text-sm placeholder:text-gray-700 focus:outline-none focus:border-[#DF0912]/30 focus:bg-white/[0.07] transition-all"
+                            />
+                            <button 
+                                type="button" 
+                                id="toggle-password" 
+                                class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 hover:text-white transition-colors"
+                                aria-label={t('auth.show_password')}
+                            >
+                                <svg id="eye-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                <svg id="eye-off-icon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-end px-2">
+                        <a href={lang === 'pt' ? "/forgot-password" : "/en/forgot-password"} class="text-[10px] font-black text-gray-600 hover:text-[#DF0912] uppercase tracking-widest transition-colors">
+                            {t('login.forgot_pass')}
+                        </a>
+                    </div>
+
+                    <p id="auth-status-msg" class="text-center text-[10px] font-black uppercase tracking-[0.1em] leading-relaxed hidden px-4 py-2.5 rounded-xl border border-white/5 mb-3"></p>
+
+                    <div class="pt-1 space-y-2.5">
+                        <button
+                            type="submit"
+                            id="submit-btn"
+                            class="w-full bg-white text-black hover:bg-[#DF0912] hover:text-white font-black py-3 rounded-2xl transition-all transform active:scale-95 shadow-xl uppercase text-xs tracking-tighter"
+                        >
+                            {t('login.btn')}
+                        </button>
+
+                        <div class="relative flex items-center justify-center py-1">
+                            <div class="flex-grow border-t border-white/5"></div>
+                            <span class="flex-shrink mx-4 text-[9px] text-gray-700 font-black uppercase tracking-widest">{t('auth.or_continue')}</span>
+                            <div class="flex-grow border-t border-white/5"></div>
+                        </div>
+
+                        <button
+                            type="button"
+                            id="google-login-btn"
+                            class="w-full bg-white flex items-center justify-center gap-3 py-2.5 rounded-2xl transition-all transform active:scale-95 shadow-lg group"
+                        >
+                            <svg class="w-5 h-5" viewBox="0 0 24 24">
+                                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-1 .67-2.28 1.07-3.71 1.07-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                <path fill="#FBBC05" d="M5.84 14.11c-.22-.66-.35-1.36-.35-2.11s.13-1.45.35-2.11V7.05H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.95l3.66-2.84z"/>
+                                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.05l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                            </svg>
+                            <span class="text-black font-black text-xs uppercase tracking-tighter">{t('auth.login_google')}</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            id="magic-link-btn"
+                            class="w-full border border-white/5 hover:bg-white/5 text-gray-500 hover:text-white py-2.5 rounded-2xl transition-all text-[10px] font-black uppercase tracking-widest"
+                        >
+                            {isPt ? 'Entrar com link no e-mail' : 'Login with Magic Link'}
+                        </button>
+                    </div>
+                </form>
+
+                <div class="mt-5 text-center">
+                    <button id="toggle-signup" class="text-gray-600 hover:text-[#DF0912] text-[10px] font-black uppercase tracking-widest transition-colors">
+                        {t('auth.no_account')} <span class="text-[#DF0912]">{t('auth.create_free')}</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        import { supabase } from "../services/supabase";
+        import { authStore, initAuth } from "../store/authStore";
+
+        async function initLogin() {
+            const { navigate } = await import("astro:transitions/client");
+
+            console.log("🔐 [Login] Inicializando componentes de autenticação...");
+
+            // Redirecionamento automático apenas em eventos reais de login (ex: retorno do Google)
+            // Isso evita o loop causado pelo estado otimista da store no carregamento inicial.
+            const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+                if (event === 'SIGNED_IN' && session) {
+                    // [FIX] Apenas redireciona se o usuário ainda estiver na página de login
+                    // Isso evita que ouvintes antigos (vazamento de memória) redirecionem o usuário em outras telas
+                    if (window.location.pathname.includes('/login')) {
+                        console.log("🚀 [Auth] Login detectado via evento, redirecionando para Home...");
+                        navigate('/');
+                    }
+                }
+            });
+
+            const form = document.getElementById('login-form');
+            const submitBtn = document.getElementById('submit-btn');
+            const googleLoginBtn = document.getElementById('google-login-btn');
+            const magicLinkBtn = document.getElementById('magic-link-btn');
+            const authStatusMsg = document.getElementById('auth-status-msg');
+            const toggleSignup = document.getElementById('toggle-signup');
+
+            // `isPt`/`t()` sao do frontmatter e NAO existem neste bundle client-side; ler o
+            // idioma do data-lang e a unica forma de nao estourar ReferenceError aqui.
+            const isPt = document.getElementById('login-main')?.dataset.lang === 'pt';
+
+            let isSignUp = false;
+
+            if (!form) return;
+
+            function showStatus(text, type = 'info') {
+                console.log(`[Status] ${type}: ${text}`);
+                if (!authStatusMsg) return;
+                authStatusMsg.textContent = text;
+                authStatusMsg.classList.remove('hidden', 'text-red-500', 'text-emerald-500', 'bg-red-500/10', 'bg-emerald-500/10', 'border-red-500/50', 'border-emerald-500/50');
+                authStatusMsg.style.display = 'block';
+                
+                if (type === 'error') {
+                    authStatusMsg.classList.add('text-red-500', 'bg-red-500/20', 'border-red-500/50');
+                } else {
+                    authStatusMsg.classList.add('text-emerald-500', 'bg-emerald-500/20', 'border-emerald-500/50');
+                }
+            }
+
+            // Check for common config errors
+            const url = import.meta.env.PUBLIC_SUPABASE_URL;
+            if (!url || url.includes('seu_url')) {
+                showStatus("⚠️ SUPABASE_URL MISSING", "error");
+            }
+
+            const signupFields = document.getElementById('signup-fields');
+            const signupNicknameInput = document.getElementById('signup-nickname');
+            const displayNameInput = document.getElementById('display-name');
+            const nicknameCheckMsg = document.getElementById('nickname-check-msg');
+
+            // Sanitização em tempo real do nickname
+            // Real-time nickname sanitization
+            signupNicknameInput?.addEventListener('input', () => {
+                signupNicknameInput.value = signupNicknameInput.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+            });
+
+            // Verificação de unicidade ao sair do campo (debounced)
+            // Uniqueness check on blur (debounced)
+            let nickCheckTimeout = null;
+            signupNicknameInput?.addEventListener('blur', async () => {
+                const nick = signupNicknameInput.value.trim();
+                if (nick.length < 3 || !nicknameCheckMsg) return;
+                clearTimeout(nickCheckTimeout);
+                nickCheckTimeout = setTimeout(async () => {
+                    try {
+                        const res = await fetch(`/api/auth/check-nickname?nickname=${encodeURIComponent(nick)}`);
+                        const data = await res.json();
+                        nicknameCheckMsg.classList.remove('hidden', 'text-emerald-400', 'text-red-400');
+                        if (data.available) {
+                            nicknameCheckMsg.textContent = '✓ Disponível';
+                            nicknameCheckMsg.classList.add('text-emerald-400');
+                        } else {
+                            nicknameCheckMsg.textContent = '✗ Já está em uso';
+                            nicknameCheckMsg.classList.add('text-red-400');
+                        }
+                    } catch { /* silent */ }
+                }, 400);
+            });
+
+            if (toggleSignup) {
+                const main = document.getElementById('login-main');
+                toggleSignup.onclick = () => {
+                    isSignUp = !isSignUp;
+                    if (submitBtn) submitBtn.textContent = isSignUp ? main?.dataset.tSignupBtn : main?.dataset.tLoginBtn;
+                    toggleSignup.innerHTML = isSignUp 
+                        ? `${main?.dataset.tAlreadyMember} <span class='text-[#DF0912]'>${main?.dataset.tLoginToggle}</span>` 
+                        : `${main?.dataset.tNoAccount} <span class='text-[#DF0912]'>${main?.dataset.tSignupToggle}</span>`;
+                    if (authStatusMsg) authStatusMsg.classList.add('hidden');
+                    // Mostrar/esconder campos de cadastro
+                    // Show/hide signup fields
+                    if (signupFields) {
+                        signupFields.classList.toggle('hidden', !isSignUp);
+                        if (displayNameInput) displayNameInput.required = isSignUp;
+                        if (signupNicknameInput) signupNicknameInput.required = isSignUp;
+                    }
+                };
+            }
+
+            // --- Login com Google ---
+            if (googleLoginBtn) {
+                googleLoginBtn.onclick = async () => {
+                    console.log("🚀 [Google Login] Solicitando OAuth...");
+                    try {
+                        const { error } = await supabase.auth.signInWithOAuth({
+                            provider: 'google',
+                            options: {
+                                redirectTo: `${window.location.origin}/login`,
+                            }
+                        });
+
+                        if (error) throw error;
+                    } catch (err) {
+                        console.error("❌ [Google Login] Erro:", err);
+                        showStatus(err.message, "error");
+                    }
+                };
+            }
+
+            form.onsubmit = async (e) => {
+                e.preventDefault();
+                console.log("Tentativa de login iniciada...");
+                
+                const emailInput = document.getElementById('email');
+                const passwordInput = document.getElementById('password');
+                const email = emailInput?.value || '';
+                const password = passwordInput?.value || '';
+                const main = document.getElementById('login-main');
+
+                if (!isSignUp && !password) return showStatus(main?.dataset.tEnterPassword || "Por favor, digite sua senha.", "error");
+
+                if (submitBtn) {
+                    const main = document.getElementById('login-main');
+                    submitBtn.disabled = true;
+                    submitBtn.style.opacity = '0.5';
+                    submitBtn.textContent = main?.dataset.tWait || "Aguarde...";
+                }
+                if (authStatusMsg) authStatusMsg.classList.add('hidden');
+
+                try {
+                    if (isSignUp) {
+                        const displayName = displayNameInput?.value.trim() || '';
+                        const nickname = signupNicknameInput?.value.trim().toLowerCase() || '';
+
+                        // Validações dos campos de cadastro
+                        // Signup field validations
+                        if (!displayName || displayName.length < 2) {
+                            return showStatus(isPt ? 'Nome de exibição é obrigatório (mín. 2 caracteres).' : 'Display name is required (min 2 chars).', 'error');
+                        }
+                        if (!nickname || nickname.length < 3) {
+                            return showStatus(isPt ? '@username é obrigatório (mín. 3 caracteres, apenas a-z, 0-9, _).' : '@username is required (min 3 chars, a-z, 0-9, _ only).', 'error');
+                        }
+
+                        // Checa unicidade do nickname antes de criar conta
+                        // Check nickname uniqueness before creating account
+                        const checkRes = await fetch(`/api/auth/check-nickname?nickname=${encodeURIComponent(nickname)}`);
+                        const checkData = await checkRes.json();
+                        if (!checkData.available) {
+                            return showStatus(isPt ? 'Este @username já está em uso. Escolha outro.' : 'This @username is already taken. Choose another.', 'error');
+                        }
+
+                        const { data, error } = await supabase.auth.signUp({ 
+                            email, 
+                            password,
+                            options: {
+                                data: {
+                                    display_name: displayName,
+                                    nickname: nickname
+                                }
+                            }
+                        });
+                        if (error) throw error;
+
+                        // Salva display name e nickname no perfil
+                        // Save display name and nickname to profile
+                        if (data?.user) {
+                            await supabase.from('profiles').upsert({
+                                id: data.user.id,
+                                username: displayName,
+                                watched_episodes: {
+                                    _nickname: nickname,
+                                    _nickname_changes_count: '0',
+                                    _vip_nickname_changes_count: '0'
+                                }
+                            }, { onConflict: 'id' });
+                        }
+
+                        if (data?.session) {
+                            showStatus(main?.dataset.tSuccessLogin || "Conta criada!", "success");
+                            await initAuth(true, data.session);
+                            navigate('/');
+                        } else {
+                            showStatus(main?.dataset.tSuccessActivation || "Sucesso! Verifique e-mail.", "success");
+                        }
+                    } else {
+                        console.log("🚀 [Login] Chamando signInWithPassword...");
+                        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                        
+                        if (error) {
+                            if (error.message.includes("Invalid login credentials")) throw new Error(main?.dataset.tErrorCredentials || "Incorretos");
+                            throw error;
+                        }
+                        
+                        showStatus(main?.dataset.tVerifyingVip || "Verificando...", "success");
+                        await initAuth(true, data.session);
+                        navigate('/');
+                    }
+                } catch (err) {
+                    showStatus(err.message || main?.dataset.tErrorGeneric || "Erro.", "error");
+                } finally {
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.style.opacity = '1';
+                        submitBtn.textContent = isSignUp ? (main?.dataset.tSignupBtn || "Sign Up") : (main?.dataset.tLoginBtn || "Login");
+                    }
+                }
+            };
+
+            if (magicLinkBtn) {
+                magicLinkBtn.onclick = async () => {
+                    const emailInput = document.getElementById('email');
+                    const email = emailInput?.value || '';
+                    const main = document.getElementById('login-main');
+                    magicLinkBtn.textContent = main?.dataset.tWait || "Enviando...";
+                    try {
+                        const { error } = await supabase.auth.signInWithOtp({ 
+                            email,
+                            options: { emailRedirectTo: window.location.origin }
+                        });
+                        if (error) throw error;
+                        showStatus(main?.dataset.tMagicSent || "Link enviado!", "success");
+                    } catch (err) {
+                        showStatus(err.message, "error");
+                    } finally {
+                        magicLinkBtn.textContent = main?.dataset.tSocialMagic || (isPt ? 'Entrar com link no e-mail' : 'Login with Magic Link');
+                    }
+                };
+            }
+
+            // Password Toggle Logic
+            const togglePassword = document.getElementById('toggle-password');
+            const passwordInput = document.getElementById('password');
+            const eyeIcon = document.getElementById('eye-icon');
+            const eyeOffIcon = document.getElementById('eye-off-icon');
+
+            if (togglePassword && passwordInput) {
+                togglePassword.onclick = () => {
+                    const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                    passwordInput.setAttribute('type', type);
+                    
+                    if (type === 'text') {
+                        if (eyeIcon) eyeIcon.style.display = 'none';
+                        if (eyeOffIcon) eyeOffIcon.style.display = 'block';
+                    } else {
+                        if (eyeIcon) eyeIcon.style.display = 'block';
+                        if (eyeOffIcon) eyeOffIcon.style.display = 'none';
+                    }
+                };
+            }
+
+            // Limpa o subscription ao sair da página (evita memory leaks com View Transitions)
+            document.addEventListener("astro:before-preparation", () => {
+                subscription.unsubscribe();
+            }, { once: true });
+        }
+
+        // Inicialização via ciclo de vida do Astro View Transitions
+        document.addEventListener("astro:page-load", initLogin);
+    </script>
+</BaseLayout>

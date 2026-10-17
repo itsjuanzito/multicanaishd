@@ -1,0 +1,165 @@
+---
+// src/pages/status.astro
+import "../styles/global.css";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { checkSystemStatus } from "../services/statusService.js";
+
+// i18n
+import { getLangFromUrl, useTranslations } from "../i18n/utils";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+
+export const prerender = false;
+
+// Cache no navegador de 30 segundos (evita sobrecarga se o usuário ficar apertando F5 rapidamente)
+Astro.response.headers.set(
+    "Cache-Control",
+    "public, max-age=30, stale-while-revalidate=60",
+);
+
+let services = {};
+try {
+    services = await checkSystemStatus();
+} catch (e) {
+    console.error("[StatusPage] Falha ao checar status do sistema:", e.message);
+}
+
+// Mapeamento das chaves retornadas pelo statusService.js
+const dbStatus = services.supabase || { status: 'offline', latency: 0 };
+const tmdbStatus = services.tmdb || { status: 'offline', latency: 0 };
+
+const streambetterStatus = services.streambetter || { status: 'offline', latency: 0 }; // Embed único de player (StreamBetter)
+const canaisStatus = services.canais || { status: 'offline', latency: 0 };
+
+// Calcula status geral do sistema
+const servicesList = Object.values(services);
+const hasOffline = servicesList.some(s => s.status === 'offline');
+const hasInstavel = servicesList.some(s => s.status === 'instavel');
+
+let systemStatusText = isPt ? "Todos os sistemas operacionais" : "All systems operational";
+let systemStatusColor = "text-emerald-400";
+let systemStatusBg = "bg-emerald-500/5 border-emerald-500/10";
+let systemStatusShadow = "shadow-[0_0_40px_rgba(16,185,129,0.03)]";
+
+if (hasOffline) {
+    systemStatusText = isPt ? "Instabilidade detectada em alguns serviços" : "Outage detected in some services";
+    systemStatusColor = "text-[#DF0912]";
+    systemStatusBg = "bg-[#DF0912]/5 border-[#DF0912]/10";
+    systemStatusShadow = "shadow-[0_0_40px_rgba(223,9,18,0.03)]";
+} else if (hasInstavel) {
+    systemStatusText = isPt ? "Alguns serviços apresentando lentidão" : "Some services experiencing slowdown";
+    systemStatusColor = "text-amber-400";
+    systemStatusBg = "bg-amber-500/5 border-amber-500/10";
+    systemStatusShadow = "shadow-[0_0_40px_rgba(245,158,11,0.03)]";
+}
+
+const pageTitle = isPt ? "Status do Sistema - MultiCanaisHD" : "System Status - MultiCanaisHD";
+const pageDesc = isPt ? "Verifique o status em tempo real das conexões e servidores de streaming do MultiCanaisHD." : "Check real-time status of MultiCanaisHD video servers and APIs.";
+---
+
+<BaseLayout
+    title={pageTitle}
+    description={pageDesc}
+    image="/icon-512.png"
+    type="website"
+>
+    <main class="flex-grow container mx-auto px-4 py-8 mt-24 sm:mt-28 max-w-3xl">
+        <!-- Cabeçalho de Status Geral -->
+        <div class={`rounded-3xl p-8 border ${systemStatusBg} ${systemStatusShadow} mb-8 text-center transition-all duration-300 backdrop-blur-md`}>
+            <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-white/5 border border-white/5 mb-4">
+                <span class="relative flex h-3 w-3">
+                    <span class={`relative inline-flex rounded-full h-3 w-3 ${systemStatusColor.replace("text", "bg")}`}></span>
+                </span>
+            </div>
+            <h1 class={`text-lg md:text-xl font-black uppercase italic tracking-tight leading-none ${systemStatusColor}`}>
+                {systemStatusText}
+            </h1>
+            <p class="text-gray-500 text-[10px] font-bold uppercase tracking-wider mt-2.5">
+                {isPt ? "Monitoramento automático atualizado em tempo real" : "Automated monitoring updated in real-time"}
+            </p>
+        </div>
+
+        <!-- Lista de Status Simplificada e Premium -->
+        <div class="space-y-6">
+            <!-- Bloco Único de Servidores e Players -->
+            <div class="bg-[#0E111A]/60 border border-white/5 backdrop-blur-md rounded-[32px] p-6 sm:p-8 shadow-xl">
+                <h2 class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-6">
+                    {isPt ? "Servidores de Transmissão" : "Streaming Servers"}
+                </h2>
+                
+                <div class="divide-y divide-white/5">
+                    <!-- Player StreamBetter (embed único: filme, série, canal, jogo e evento) -->
+                    <div class="flex items-center justify-between py-4 first:pt-0 last:pb-0">
+                        <div class="flex flex-col pr-4">
+                            <span class="text-white font-black text-sm uppercase italic tracking-tight">{isPt ? "Player de Streaming" : "Streaming Player"}</span>
+                            <span class="text-gray-400 text-xs mt-1.5 leading-relaxed">{isPt ? "Transmissão de filmes, séries, canais, jogos e eventos" : "Streaming for movies, shows, channels, games and events"}</span>
+                        </div>
+                        <div class="flex items-center gap-3 shrink-0">
+                            <span class="text-gray-500 text-xs font-mono font-medium">{streambetterStatus.status === 'offline' ? '—' : `${streambetterStatus.latency}ms`}</span>
+                            <span class={`h-2.5 w-2.5 rounded-full ${streambetterStatus.status === 'online' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : (streambetterStatus.status === 'instavel' ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.4)]' : 'bg-[#DF0912] shadow-[0_0_10px_rgba(223,9,18,0.4)]')}`}></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- APIs e Serviços Auxiliares -->
+            <div class="bg-[#0E111A]/60 border border-white/5 backdrop-blur-md rounded-[32px] p-6 sm:p-8 shadow-xl">
+                <h2 class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-6">
+                    {isPt ? "APIs e Bancos de Dados" : "APIs & Databases"}
+                </h2>
+                
+                <div class="divide-y divide-white/5">
+                    <!-- Banco de Dados -->
+                    <div class="flex items-center justify-between py-4 first:pt-0 last:pb-0">
+                        <div class="flex flex-col pr-4">
+                            <span class="text-white font-black text-sm uppercase italic tracking-tight">{isPt ? "Banco de Dados" : "Database"}</span>
+                            <span class="text-gray-400 text-xs mt-1.5 leading-relaxed">{isPt ? "Sincronização de perfis, progresso e autenticação" : "Profiles synchronization, progress, and authentication"}</span>
+                        </div>
+                        <div class="flex items-center gap-3 shrink-0">
+                            <span class="text-gray-500 text-xs font-mono font-medium">{dbStatus.status === 'offline' ? '—' : `${dbStatus.latency}ms`}</span>
+                            <span class={`h-2.5 w-2.5 rounded-full ${dbStatus.status === 'online' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : (dbStatus.status === 'instavel' ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.4)]' : 'bg-[#DF0912] shadow-[0_0_10px_rgba(223,9,18,0.4)]')}`}></span>
+                        </div>
+                    </div>
+
+                    <!-- API de Metadados -->
+                    <div class="flex items-center justify-between py-4 first:pt-0 last:pb-0">
+                        <div class="flex flex-col pr-4">
+                            <span class="text-white font-black text-sm uppercase italic tracking-tight">{isPt ? "API de Metadados" : "Metadata API"}</span>
+                            <span class="text-gray-400 text-xs mt-1.5 leading-relaxed">{isPt ? "Informações de títulos, capas e sinopses de filmes/séries" : "Movie/show titles information, covers and synopses"}</span>
+                        </div>
+                        <div class="flex items-center gap-3 shrink-0">
+                            <span class="text-gray-500 text-xs font-mono font-medium">{tmdbStatus.status === 'offline' ? '—' : `${tmdbStatus.latency}ms`}</span>
+                            <span class={`h-2.5 w-2.5 rounded-full ${tmdbStatus.status === 'online' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : (tmdbStatus.status === 'instavel' ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.4)]' : 'bg-[#DF0912] shadow-[0_0_10px_rgba(223,9,18,0.4)]')}`}></span>
+                        </div>
+                    </div>
+
+                    <!-- API de Canais de TV -->
+                    <div class="flex items-center justify-between py-4 first:pt-0 last:pb-0">
+                        <div class="flex flex-col pr-4">
+                            <span class="text-white font-black text-sm uppercase italic tracking-tight">{isPt ? "API de Canais de TV" : "TV Channels API"}</span>
+                            <span class="text-gray-400 text-xs mt-1.5 leading-relaxed">{isPt ? "Sinal de canais e programação esportiva" : "Channels signal and sports programming"}</span>
+                        </div>
+                        <div class="flex items-center gap-3 shrink-0">
+                            <span class="text-gray-500 text-xs font-mono font-medium">{canaisStatus.status === 'offline' ? '—' : `${canaisStatus.latency}ms`}</span>
+                            <span class={`h-2.5 w-2.5 rounded-full ${canaisStatus.status === 'online' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : (canaisStatus.status === 'instavel' ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.4)]' : 'bg-[#DF0912] shadow-[0_0_10px_rgba(223,9,18,0.4)]')}`}></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rodapé da página -->
+        <div class="mt-12 text-center">
+            <a 
+                href={isPt ? "/" : "/en"} 
+                class="inline-flex items-center text-[#DF0912] hover:text-[#cf0811] transition-colors font-bold text-xs tracking-wider uppercase"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                {isPt ? "Voltar para o MultiCanaisHD" : "Back to MultiCanaisHD"}
+            </a>
+        </div>
+    </main>
+</BaseLayout>

@@ -1,0 +1,805 @@
+---
+// src/pages/components/TorrentModal.astro
+// @ts-nocheck
+import { getLangFromUrl } from "../../i18n/utils";
+const lang = getLangFromUrl(Astro.url);
+const isPt = lang === "pt";
+---
+
+<div id="torrent-modal" class="fixed inset-0 z-[100] flex items-center justify-center opacity-0 pointer-events-none transition-all duration-500 bg-[#060911]/80 backdrop-blur-xl">
+    <!-- Close Layer -->
+    <div id="torrent-close-bg" class="absolute inset-0 cursor-crosshair"></div>
+
+    <!-- Modal Content -->
+    <div class="relative w-full max-w-2xl mx-4 bg-[#0E111A]/90 backdrop-blur-md rounded-3xl overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/5 transform scale-95 transition-all duration-500 ease-out flex flex-col max-h-[85vh]" id="torrent-content">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between p-5 sm:p-6 border-b border-white/5 bg-black/40">
+            <div>
+                <h3 id="torrent-title" class="text-white text-base sm:text-lg font-black uppercase tracking-wide"></h3>
+                <p id="torrent-subtitle" class="text-gray-400 text-[10px] sm:text-xs mt-1"></p>
+            </div>
+            <!-- Close Button -->
+            <button id="torrent-close-btn" aria-label={isPt ? "Fechar" : "Close"} class="w-9 h-9 sm:w-10 sm:h-10 bg-white/5 hover:bg-[#DF0912] text-white rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 group shadow-lg">
+                <svg class="w-4 h-4 sm:w-5 sm:h-5 transition-transform group-hover:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Scrollable Body -->
+        <div class="flex-1 overflow-y-auto p-5 sm:p-6 scroll-smooth min-h-[300px] flex flex-col justify-start">
+            
+            <!-- Loader -->
+            <div id="torrent-loader" class="flex flex-col items-center justify-center py-12 flex-1">
+                <div class="relative w-12 h-12">
+                    <div class="absolute inset-0 border-4 border-white/5 rounded-full"></div>
+                    <div class="absolute inset-0 border-4 border-[#DF0912] border-t-transparent rounded-full animate-spin"></div>
+                </div>
+                <p id="torrent-searching-text" class="text-[10px] font-black uppercase tracking-[0.4em] text-white/30 mt-5 italic animate-pulse"></p>
+            </div>
+
+            <!-- Empty State / Error -->
+            <div id="torrent-empty" class="hidden flex-col items-center justify-center py-12 text-center flex-1 animate-fade-in">
+                <div class="w-14 h-14 rounded-full bg-[#DF0912]/10 border border-[#DF0912]/20 flex items-center justify-center mb-4">
+                    <svg class="w-6 h-6 text-[#DF0912]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </div>
+                <h4 id="torrent-empty-title" class="text-white text-sm font-black uppercase tracking-wider mb-2"></h4>
+                <p id="torrent-empty-desc" class="text-gray-400 text-xs max-w-sm leading-relaxed"></p>
+            </div>
+
+            <!-- Download Direto (VIP Diamond) -->
+            <div id="direct-download-card" class="hidden mb-5 p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+                <div class="flex items-start gap-3">
+                    <div class="w-9 h-9 shrink-0 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-300">
+                        <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    </div>
+                    <div>
+                        <p id="direct-download-title" class="text-white text-xs font-black uppercase tracking-wider"></p>
+                        <p id="direct-download-desc" class="text-gray-400 text-[11px] mt-0.5"></p>
+                    </div>
+                </div>
+                <button id="direct-download-btn" class="shrink-0 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all duration-300 transform hover:scale-[1.03] active:scale-95 cursor-pointer"></button>
+            </div>
+
+            <!-- Download Direto Indisponível -->
+            <div id="direct-download-unavailable" class="hidden mb-5 p-4 rounded-2xl bg-white/5 border border-white/10 flex items-start gap-3.5">
+                <div class="w-9 h-9 shrink-0 rounded-xl bg-white/5 flex items-center justify-center text-gray-400">
+                    <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4M4 4l16 16"/></svg>
+                </div>
+                <div>
+                    <p id="direct-download-unavailable-title" class="text-white text-xs font-black uppercase tracking-wider"></p>
+                    <p id="direct-download-unavailable-desc" class="text-gray-400 text-[11px] mt-0.5 leading-relaxed"></p>
+                </div>
+            </div>
+
+            <!-- Notice / Aviso -->
+            <div id="torrent-notice" class="hidden mb-5 bg-[#DF0912]/10 border border-[#DF0912]/20 p-4 rounded-2xl flex items-start gap-3.5 text-left">
+                <div class="text-[#DF0912] shrink-0 mt-0.5">
+                    <svg class="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </div>
+                <div class="space-y-1">
+                    <h5 id="torrent-notice-title" class="text-white text-xs font-black uppercase tracking-wider"></h5>
+                    <p id="torrent-notice-desc" class="text-gray-300 text-[11px] sm:text-xs leading-relaxed font-medium"></p>
+                </div>
+            </div>
+
+            <!-- List of Torrent Cards -->
+            <h4 id="torrent-section-title" class="hidden text-white/50 text-[10px] font-black uppercase tracking-[0.3em] mb-3"></h4>
+            <div id="torrent-list" class="hidden space-y-3.5 w-full">
+                <!-- Cards injected dynamically -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    #torrent-modal.active {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    #torrent-modal.active #torrent-content {
+        transform: scale(1);
+    }
+
+    /* Scrollbar estilizada para o modal */
+    #torrent-content div::-webkit-scrollbar {
+        width: 6px;
+    }
+    #torrent-content div::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: 10px;
+    }
+    #torrent-content div::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+    }
+    #torrent-content div::-webkit-scrollbar-thumb:hover {
+        background: #DF0912;
+    }
+</style>
+
+<script is:inline>
+    // i18n Tradução do Modal (Pilar 3: DRY & Tradução)
+    const t = {
+        pt: {
+            title: "Central de Downloads",
+            subtitle: "Baixe diretamente ou selecione uma opção via torrent no seu reprodutor local.",
+            searching: "Buscando Torrents na Rede...",
+            empty_title: "Nenhum Torrent Encontrado",
+            empty_desc: "Infelizmente, não conseguimos encontrar fontes de torrent para este título no momento.",
+            torrent_section_title: "Via Torrent",
+            app_local: "Abrir Magnet",
+            vip_direct: "Download Direto 💎",
+            click_step2: "Liberar Magnet (Passo 2/2) 🔗",
+            downloading: "Iniciando Torrent...",
+            error_fetch: "Erro ao buscar links de torrent. Tente novamente mais tarde.",
+            error_imdb: "ID do IMDb ausente ou inválido.",
+            notice_title: "Aviso Importante",
+            notice_desc: "Caso você não saiba mexer com arquivos Torrent, <strong>por favor não baixe</strong>. Para realizar o download, é obrigatório possuir um cliente/gerenciador de torrents instalado no seu dispositivo (como o <strong class=\"text-[#DF0912]\">qBittorrent</strong>, <strong class=\"text-[#DF0912]\">uTorrent</strong> ou similar).",
+            direct_download_title: "Download Direto (Sem Torrent)",
+            direct_download_desc: "Baixe o arquivo .mp4 diretamente, sem precisar de cliente de torrent.",
+            direct_download_btn: "Download Direto 💎",
+            direct_download_locked: "Exclusivo MultiCanaisHD VIP Diamond 💎",
+            direct_download_starting: "Iniciando...",
+            direct_download_unavailable_title: "Download Direto Indisponível",
+            direct_download_unavailable_desc: "Não encontramos um arquivo para download direto deste título no momento. Você ainda pode baixar via Torrent abaixo."
+        },
+        en: {
+            title: "Download Center",
+            subtitle: "Download directly or pick a torrent option to open in your local torrent player.",
+            searching: "Searching Torrents in the Network...",
+            empty_title: "No Torrents Found",
+            empty_desc: "Unfortunately, we couldn't find any torrent sources for this title at the moment.",
+            torrent_section_title: "Via Torrent",
+            app_local: "Open Magnet",
+            vip_direct: "Direct Download 💎",
+            click_step2: "Unlock Magnet (Step 2/2) 🔗",
+            downloading: "Starting Torrent...",
+            error_fetch: "Error fetching torrent links. Please try again later.",
+            error_imdb: "Missing or invalid IMDb ID.",
+            notice_title: "Important Notice",
+            notice_desc: "If you do not know how to use Torrent files, <strong>please do not download</strong>. To download, you must have a torrent client/manager installed on your device (such as <strong class=\"text-[#DF0912]\">qBittorrent</strong>, <strong class=\"text-[#DF0912]\">uTorrent</strong> or similar).",
+            direct_download_title: "Direct Download (No Torrent)",
+            direct_download_desc: "Download the .mp4 file directly, no torrent client needed.",
+            direct_download_btn: "Direct Download 💎",
+            direct_download_locked: "MultiCanaisHD VIP Diamond Exclusive 💎",
+            direct_download_starting: "Starting...",
+            direct_download_unavailable_title: "Direct Download Unavailable",
+            direct_download_unavailable_desc: "We couldn't find a direct download file for this title right now. You can still download it via Torrent below."
+        }
+    };
+
+    function initTorrentModal() {
+        const modal = document.getElementById('torrent-modal');
+        const content = document.getElementById('torrent-content');
+        const closeBtn = document.getElementById('torrent-close-btn');
+        const closeBg = document.getElementById('torrent-close-bg');
+        
+        const mTitle = document.getElementById('torrent-title');
+        const mSubtitle = document.getElementById('torrent-subtitle');
+        const mLoader = document.getElementById('torrent-loader');
+        const mSearchingText = document.getElementById('torrent-searching-text');
+        const mEmpty = document.getElementById('torrent-empty');
+        const mEmptyTitle = document.getElementById('torrent-empty-title');
+        const mEmptyDesc = document.getElementById('torrent-empty-desc');
+        const mNotice = document.getElementById('torrent-notice');
+        const mNoticeTitle = document.getElementById('torrent-notice-title');
+        const mNoticeDesc = document.getElementById('torrent-notice-desc');
+        const mList = document.getElementById('torrent-list');
+        const mDirectCard = document.getElementById('direct-download-card');
+        const mDirectTitle = document.getElementById('direct-download-title');
+        const mDirectDesc = document.getElementById('direct-download-desc');
+        const mDirectBtn = document.getElementById('direct-download-btn');
+        const mDirectUnavailable = document.getElementById('direct-download-unavailable');
+        const mDirectUnavailableTitle = document.getElementById('direct-download-unavailable-title');
+        const mDirectUnavailableDesc = document.getElementById('direct-download-unavailable-desc');
+        const mTorrentSectionTitle = document.getElementById('torrent-section-title');
+
+        if (!modal) return;
+
+        // Mapa de cliques dos botões para usuários gratuitos
+        const clickCounts = {};
+
+        // URL Oficial de Smartlink do MultiCanaisHD
+        const configEl = document.getElementById("nuclear-config");
+        const SMARTLINK_URL = configEl?.dataset.smartlink || "";
+
+        // Recupera o idioma da página de forma dinâmica
+        const lang = document.documentElement.lang === 'en' ? 'en' : 'pt';
+        const txt = t[lang];
+
+        // Traduz textos estáticos na inicialização
+        if (mTitle) mTitle.textContent = txt.title;
+        if (mSubtitle) mSubtitle.textContent = txt.subtitle;
+        if (mSearchingText) mSearchingText.textContent = txt.searching;
+        if (mNoticeTitle) mNoticeTitle.textContent = txt.notice_title;
+        if (mNoticeDesc) mNoticeDesc.innerHTML = txt.notice_desc;
+        if (mDirectTitle) mDirectTitle.textContent = txt.direct_download_title;
+        if (mDirectDesc) mDirectDesc.textContent = txt.direct_download_desc;
+        if (mDirectUnavailableTitle) mDirectUnavailableTitle.textContent = txt.direct_download_unavailable_title;
+        if (mDirectUnavailableDesc) mDirectUnavailableDesc.textContent = txt.direct_download_unavailable_desc;
+        if (mTorrentSectionTitle) mTorrentSectionTitle.textContent = txt.torrent_section_title;
+
+        function closeTorrentModal() {
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        if (closeBtn) closeBtn.onclick = closeTorrentModal;
+        if (closeBg) closeBg.onclick = closeTorrentModal;
+
+        // Ouvinte de clique nos cards de Torrent (Pilar 1: Micro-interações & Pilar 2: À Prova de Falhas)
+        if (mList) {
+            mList.onclick = (e) => {
+                const btn = e.target.closest('.torrent-download-btn');
+                if (!btn) return;
+
+                const hash = btn.dataset.hash;
+                const magnet = decodeURIComponent(btn.dataset.magnet);
+                const btnText = btn.querySelector('.btn-text');
+
+                // Verifica se o usuário é VIP (através do AuthStore global exposto no window)
+                const isVip = window._authStore?.get()?.isVIP === true;
+
+                if (isVip) {
+                    if (btnText) btnText.textContent = txt.downloading;
+                    window.open(magnet, '_blank');
+                    setTimeout(() => {
+                        if (btnText) btnText.textContent = txt.vip_direct;
+                    }, 3500);
+                    return;
+                }
+
+                // Usuário gratuito: Lógica de 2 Cliques com Smartlink
+                if (!clickCounts[hash]) {
+                    clickCounts[hash] = 0;
+                }
+
+                clickCounts[hash]++;
+
+                if (clickCounts[hash] === 1) {
+                    // Primeiro Clique: Abre smartlink em nova aba e altera texto
+                    try {
+                        if (SMARTLINK_URL) window.open(SMARTLINK_URL, '_blank');
+                    } catch (err) {}
+                    
+                    if (btnText) btnText.textContent = txt.click_step2;
+                    
+                    // Altera o visual do botão para indicar progresso (Tom Laranja/Dourado)
+                    btn.classList.remove('bg-[#DF0912]', 'hover:bg-[#cf0811]', 'shadow-[#DF0912]/20');
+                    btn.classList.add('bg-amber-500', 'hover:bg-amber-600', 'shadow-amber-500/20');
+                } 
+                else if (clickCounts[hash] === 2) {
+                    // Segundo Clique: Abre smartlink novamente e libera download real
+                    try {
+                        if (SMARTLINK_URL) window.open(SMARTLINK_URL, '_blank');
+                    } catch (err) {}
+                    
+                    if (btnText) btnText.textContent = txt.downloading;
+
+                    // Sucesso: Altera para verde de confirmação
+                    btn.classList.remove('bg-amber-500', 'hover:bg-amber-600', 'shadow-amber-500/20');
+                    btn.classList.add('bg-emerald-500', 'hover:bg-emerald-600', 'shadow-emerald-500/20');
+
+                    // Dispara o torrent real
+                    window.open(magnet, '_blank');
+
+                    // Salva estado de liberação completa para este torrent
+                    clickCounts[hash] = 'unlocked';
+
+                    setTimeout(() => {
+                        if (btnText) btnText.textContent = txt.app_local;
+                        btn.classList.remove('bg-emerald-500', 'hover:bg-emerald-600', 'shadow-emerald-500/20');
+                        btn.classList.add('bg-[#DF0912]', 'hover:bg-[#cf0811]', 'shadow-[#DF0912]/20');
+                    }, 4000);
+                }
+                else if (clickCounts[hash] === 'unlocked') {
+                    // Já liberado nas tentativas anteriores
+                    if (btnText) btnText.textContent = txt.downloading;
+                    window.open(magnet, '_blank');
+                    setTimeout(() => {
+                        if (btnText) btnText.textContent = txt.app_local;
+                    }, 3000);
+                }
+            };
+        }
+
+        // ESC para fechar
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeTorrentModal();
+        });
+
+        // Ouvinte do evento customizado (Pilar 3: Arquitetura Desacoplada)
+        document.addEventListener('multicanaishd:open-torrent', async (e) => {
+            const { id, tmdbId, imdbId, title, type, season, episode } = e.detail;
+
+            // Abrir modal e travar rolagem da página
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+
+            // Resetar estados internos
+            mLoader?.classList.remove('hidden');
+            mLoader?.classList.add('flex');
+            mEmpty?.classList.add('hidden');
+            mEmpty?.classList.remove('flex');
+            mList?.classList.add('hidden');
+            mNotice?.classList.add('hidden');
+            mDirectCard?.classList.add('hidden');
+            mDirectUnavailable?.classList.add('hidden');
+            mTorrentSectionTitle?.classList.add('hidden');
+            if (mList) mList.innerHTML = '';
+
+            // Download Direto (VIP Diamond) — fail-safe e não bloqueia a busca de torrents
+            if (type === 'movie' && (tmdbId || id)) {
+                loadDirectDownload({ type: 'movie', tmdbId: tmdbId || id });
+            } else if (type === 'tv' && (tmdbId || id) && season && episode) {
+                loadDirectDownload({ type: 'tv', tmdbId: tmdbId || id, season, episode });
+            } else {
+                mDirectUnavailable?.classList.remove('hidden');
+            }
+
+            // Try/Catch Master (Pilar 2: À Prova de Falhas)
+            try {
+                if (!imdbId) {
+                    throw new Error('missing_imdb');
+                }
+
+                // Definir os endpoints com base em indexadores BR (Pilar 5: Filtro de Região Estrito)
+                const endpoints = [
+                    // 1. Mico Leão Dublado (Focado em PT-BR)
+                    type === 'tv'
+                        ? `https://27a5b2bfe3c0-stremio-brazilian-addon.baby-beamup.club/stream/series/${imdbId}:${season}:${episode}.json`
+                        : `https://27a5b2bfe3c0-stremio-brazilian-addon.baby-beamup.club/stream/movie/${imdbId}.json`,
+                    // 2. Brazuca Torrents (Focado em PT-BR)
+                    type === 'tv'
+                        ? `https://94c8cb9f702d-brazuca-torrents.baby-beamup.club/stream/series/${imdbId}:${season}:${episode}.json`
+                        : `https://94c8cb9f702d-brazuca-torrents.baby-beamup.club/stream/movie/${imdbId}.json`,
+                    // 3. Torrentio BR (Agregação de todos os indexadores incluindo Comando, LaPumia, BluDV e rastreadores mundiais)
+                    type === 'tv'
+                        ? `https://torrentio.strem.fun/stream/series/${imdbId}:${season}:${episode}.json`
+                        : `https://torrentio.strem.fun/stream/movie/${imdbId}.json`
+                ];
+
+                console.log(`📡 [TorrentModal] Buscando de forma paralela nos indexadores para: ${title}`);
+                
+                // Busca em paralelo com limite de tempo e resiliência (Promise.allSettled).
+                // fetch() sozinho não tem timeout: se um dos addons travar a conexão sem
+                // responder, o Promise.allSettled nunca resolve e o loader fica infinito.
+                // Por isso cada requisição usa seu próprio AbortController com teto de 10s.
+                const TORRENT_FETCH_TIMEOUT_MS = 10000;
+                const results = await Promise.allSettled(
+                    endpoints.map(url => {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), TORRENT_FETCH_TIMEOUT_MS);
+                        return fetch(url, { signal: controller.signal })
+                            .then(res => {
+                                if (!res.ok) throw new Error();
+                                return res.json();
+                            })
+                            .catch(() => ({ streams: [] })) // Fallback silencioso por endpoint
+                            .finally(() => clearTimeout(timeoutId));
+                    })
+                );
+
+                let combinedStreams = [];
+                results.forEach((result, idx) => {
+                    if (result.status === 'fulfilled' && result.value?.streams) {
+                        const mapped = result.value.streams.map(s => {
+                            let sourceLabel = idx === 0 ? 'Mico Leão' : (idx === 1 ? 'Brazuca' : 'Comunidade BR');
+                            if (sourceLabel === 'Comunidade BR') {
+                                const titleLower = (s.title || '').toLowerCase();
+                                if (titleLower.includes('comandotorrent')) sourceLabel = 'Comando Torrent';
+                                else if (titleLower.includes('bludv')) sourceLabel = 'BluDV';
+                                else if (titleLower.includes('torrentsnacionais')) sourceLabel = 'Torrents Nacionais';
+                                else if (titleLower.includes('torrentlatino')) sourceLabel = 'Torrent Latino';
+                                else if (titleLower.includes('lapumia')) sourceLabel = 'La Pumia';
+                                else if (titleLower.includes('thepiratebay') || titleLower.includes('piratebay')) sourceLabel = 'The Pirate Bay';
+                                else if (titleLower.includes('1337x')) sourceLabel = '1337x';
+                                else if (titleLower.includes('yts')) sourceLabel = 'YTS';
+                                else if (titleLower.includes('torrentgalaxy')) sourceLabel = 'TorrentGalaxy';
+                                else if (titleLower.includes('rutracker')) sourceLabel = 'RuTracker';
+                                else if (titleLower.includes('limetorrents')) sourceLabel = 'LimeTorrents';
+                            }
+                            return {
+                                ...s,
+                                defaultSource: sourceLabel
+                            };
+                        });
+                        combinedStreams = combinedStreams.concat(mapped);
+                    }
+                });
+
+                if (combinedStreams.length === 0) {
+                    showEmptyState(txt.empty_title, txt.empty_desc);
+                    return;
+                }
+
+                // De-duplicar por infoHash para evitar listagem duplicada
+                const seenHash = new Set();
+                const uniqueStreams = [];
+                combinedStreams.forEach(stream => {
+                    if (!stream.infoHash) return;
+                    const hash = stream.infoHash.toLowerCase();
+                    if (!seenHash.has(hash)) {
+                        seenHash.add(hash);
+                        uniqueStreams.push(stream);
+                    }
+                });
+
+                if (uniqueStreams.length === 0) {
+                    showEmptyState(txt.empty_title, txt.empty_desc);
+                    return;
+                }
+
+                // Filtrar rigorosamente para manter APENAS arquivos brasileiros (dublados, legendados PT-BR ou de trackers BR)
+                const isBrProvider = (stream) => {
+                    const source = (stream.defaultSource || '').toLowerCase();
+                    const title = (stream.title || '').toLowerCase();
+                    const name = (stream.name || '').toLowerCase();
+                    
+                    return (
+                        source.includes('mico') || 
+                        source.includes('brazuca') || 
+                        title.includes('comandotorrent') || 
+                        title.includes('bludv') || 
+                        title.includes('torrentsnacionais') || 
+                        title.includes('torrentlatino') || 
+                        title.includes('lapumia') ||
+                        name.includes('comandotorrent') || 
+                        name.includes('bludv') || 
+                        name.includes('torrentsnacionais') || 
+                        name.includes('torrentlatino') || 
+                        name.includes('lapumia')
+                    );
+                };
+
+                const hasBrKeywords = (stream) => {
+                    const low = ((stream.title || '') + ' ' + (stream.name || '')).toLowerCase();
+                    
+                    // Palavras-chave altamente específicas de conteúdo dublado ou PT-BR
+                    const hasDubOrPt = (
+                        low.includes('dublado') || 
+                        low.includes('nacional') || 
+                        low.includes('brazuca') || 
+                        low.includes('ptbr') || 
+                        low.includes('pt-br') || 
+                        low.includes('pt br') || 
+                        low.includes('pt_br') ||
+                        low.includes('legendado pt') ||
+                        low.includes('leg pt') ||
+                        (low.includes('dual') && (low.includes('audio') || low.includes('áudio') || low.includes('lat') || low.includes('por')))
+                    );
+                    
+                    // Evita falso-positivos de releases gringos contendo "double" ou "multi" sem áudio PT-BR real
+                    const isGringoFalsePositive = (
+                        low.includes('double.feature') ||
+                        (low.includes('multi') && !low.includes('dub') && !low.includes('pt') && !low.includes('nacional') && !low.includes('por'))
+                    );
+                    
+                    return hasDubOrPt && !isGringoFalsePositive;
+                };
+
+                const brOnlyStreams = uniqueStreams.filter(stream => isBrProvider(stream) || hasBrKeywords(stream));
+
+                if (brOnlyStreams.length === 0) {
+                    showEmptyState(txt.empty_title, txt.empty_desc);
+                    return;
+                }
+
+                // Algoritmo de Ranqueamento Inteligente PT-BR (Pilar 4: Otimização Extrema)
+                brOnlyStreams.sort((a, b) => {
+                    const getSeeds = (stream) => {
+                        const titleLines = (stream.title || '').split('\n');
+                        const rawStats = titleLines[1] || '';
+                        const match = rawStats.match(/👤\s*(\d+)/) || stream.title.match(/👤\s*(\d+)/);
+                        return match ? parseInt(match[1], 10) : 0;
+                    };
+
+                    let scoreA = getSeeds(a);
+                    let scoreB = getSeeds(b);
+
+                    // Adicionar um leve boost para os trackers de comunidade especializados
+                    const isBrAddon = (stream) => stream.defaultSource === 'Mico Leão' || stream.defaultSource === 'Brazuca' || isBrProvider(stream);
+                    if (isBrAddon(a)) scoreA += 500;
+                    if (isBrAddon(b)) scoreB += 500;
+
+                    return scoreB - scoreA;
+                });
+
+                // Renderiza os cards de torrent já ranqueados
+                renderTorrentCards(brOnlyStreams, title);
+
+            } catch (err) {
+                console.error('❌ [TorrentModal] Erro ao carregar torrents:', err);
+                if (err.message === 'missing_imdb') {
+                    showEmptyState(txt.empty_title, txt.error_imdb);
+                } else {
+                    showEmptyState(txt.empty_title, txt.error_fetch);
+                }
+            }
+        });
+
+        // Download Direto (VIP Diamond) via StreamBetter — falha silenciosa (Pilar 2: À Prova de Falhas).
+        //
+        // O navegador do visitante chama a StreamBetter direto, com a chave pública do
+        // embed: o limite de downloads dela é por IP, então chamar do nosso servidor
+        // juntaria todos os VIPs num IP só e estouraria o teto em minutos. A chave só
+        // sai da página pra quem é Diamond (mesma regra do iframe do player), e a trava
+        // de domínio da chave garante que só este site consegue ler a resposta.
+        //
+        // O link vem do R2, assinado e com Content-Disposition: attachment (abre o
+        // gerenciador de download). Título sem cópia no R2 não tem download. O link é
+        // pedido de novo no clique se já passou do tempo seguro.
+        const DIRECT_LINK_MAX_AGE_MS = 8 * 60 * 1000;
+
+        async function fetchStreamBetterLink({ type, tmdbId, season, episode }) {
+            const dl = document.getElementById('slug-data-layer');
+            const base = dl?.dataset.embedBase || '';
+            const key = dl?.dataset.embedKey || '';
+            if (!base || !key) return { status: 'unavailable' };
+            const params = new URLSearchParams({ tmdb_id: String(tmdbId), type, key });
+            if (type === 'tv') {
+                params.set('season', String(season));
+                params.set('episode', String(episode));
+            }
+            const res = await fetch(`${base}/api/download-link?${params}`);
+            const data = await res.json().catch(() => ({}));
+            if (res.status === 429) return { status: 'limit', message: data.error || '' };
+            if (!res.ok || !data.available || !data.url) return { status: 'unavailable' };
+            return { status: 'ok', url: data.url, filename: data.filename || '', at: Date.now() };
+        }
+
+        function startDownload(link) {
+            const a = document.createElement('a');
+            a.href = link.url;
+            a.rel = 'noopener noreferrer';
+            a.referrerPolicy = 'no-referrer';
+            // Link do R2 vem com Content-Disposition: attachment — baixa sem trocar a página.
+            if (link.filename) a.download = link.filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        }
+
+        function isDiamondViewer() {
+            const authState = window._authStore?.get();
+            const planLower = (authState?.vipPlan || '').toLowerCase();
+            return authState?.isVIP === true && (planLower.includes('diamond') || planLower.includes('black') || planLower === 'vitalicio');
+        }
+
+        // Quem não é Diamond só vê o card travado: nenhuma chamada nem chave sai.
+        function showLockedDirectCard() {
+            mDirectBtn.textContent = txt.direct_download_locked;
+            mDirectBtn.onclick = () => {
+                window.location.href = document.documentElement.lang === 'en' ? '/en/vip' : '/vip';
+            };
+            mDirectCard.classList.remove('hidden');
+        }
+
+        function bindDirectDownloadButton(request, firstLink) {
+            let link = firstLink;
+            mDirectBtn.textContent = txt.direct_download_btn;
+            mDirectBtn.onclick = async () => {
+                mDirectBtn.textContent = txt.direct_download_starting;
+                if (Date.now() - link.at > DIRECT_LINK_MAX_AGE_MS) {
+                    const fresh = await fetchStreamBetterLink(request).catch(() => ({ status: 'unavailable' }));
+                    if (fresh.status !== 'ok') {
+                        mDirectBtn.textContent = txt.direct_download_btn;
+                        mDirectUnavailable?.classList.remove('hidden');
+                        return;
+                    }
+                    link = fresh;
+                }
+                startDownload(link);
+                setTimeout(() => { mDirectBtn.textContent = txt.direct_download_btn; }, 3500);
+            };
+            mDirectCard.classList.remove('hidden');
+        }
+
+        async function loadDirectDownload(request) {
+            try {
+                if (!mDirectCard || !mDirectBtn) return;
+                if (!isDiamondViewer()) return showLockedDirectCard();
+                const link = await fetchStreamBetterLink(request);
+                if (link.status !== 'ok') return mDirectUnavailable?.classList.remove('hidden');
+                bindDirectDownloadButton(request, link);
+            } catch (err) {
+                mDirectUnavailable?.classList.remove('hidden');
+            }
+        }
+
+        function showEmptyState(titleText, descText) {
+            mLoader?.classList.add('hidden');
+            mLoader?.classList.remove('flex');
+            mList?.classList.add('hidden');
+            
+            if (mEmpty && mEmptyTitle && mEmptyDesc) {
+                mEmptyTitle.textContent = titleText;
+                mEmptyDesc.textContent = descText;
+                mEmpty.classList.remove('hidden');
+                mEmpty.classList.add('flex');
+            }
+        }
+
+        // Detector de Qualidade de Vídeo
+        function getQualityBadge(titleStr) {
+            const lower = titleStr.toLowerCase();
+            if (lower.includes('2160p') || lower.includes('4k') || lower.includes('uhd')) {
+                return { label: '4K', classes: 'bg-purple-500/10 text-purple-400 border-purple-500/20' };
+            }
+            if (lower.includes('1080p') || lower.includes('1080i')) {
+                return { label: '1080p', classes: 'bg-amber-500/10 text-amber-400 border-amber-500/20' };
+            }
+            if (lower.includes('720p') || lower.includes('720i')) {
+                return { label: '720p', classes: 'bg-blue-500/10 text-blue-400 border-blue-500/20' };
+            }
+            if (lower.includes('480p') || lower.includes('480i')) {
+                return { label: '480p', classes: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20' };
+            }
+            if (lower.includes('cam') || lower.includes('ts') || lower.includes('tc') || lower.includes('hdts') || lower.includes('camrip')) {
+                return { label: 'CAM', classes: 'bg-red-500/10 text-red-400 border-red-500/20' };
+            }
+            return { label: 'HD', classes: 'bg-white/5 text-gray-300 border-white/10' };
+        }
+
+        // Detector Inteligente de Idiomas e Legendas (Pilar 3: DRY / Manutenabilidade)
+        function getLanguageAndSubtitleBadges(stream) {
+            const low = ((stream.title || '') + ' ' + (stream.name || '')).toLowerCase();
+            const badges = [];
+
+            // 2. Detecção de Áudio (Idioma)
+            if (low.includes('dublado') || low.includes('nacional') || low.includes('brazuca')) {
+                badges.push({
+                    label: 'Áudio: Português 🇧🇷',
+                    classes: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                });
+            } else if (low.includes('dual') || low.includes('multi')) {
+                badges.push({
+                    label: 'Dual Áudio 🇧🇷/🇺🇸',
+                    classes: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                });
+            } else if (low.includes('legendado') || low.includes('subbed') || low.includes('leg pt') || low.includes('pt-br') || low.includes('ptbr')) {
+                badges.push({
+                    label: 'Áudio: Original 🇺🇸',
+                    classes: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'
+                });
+            } else {
+                badges.push({
+                    label: 'Áudio: Original 🇺🇸',
+                    classes: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'
+                });
+            }
+
+            // 3. Detecção de Legendas (Subtitles)
+            if (low.includes('legendado') || low.includes('legpt') || low.includes('leg pt') || low.includes('pt-br') || low.includes('subtitles') || low.includes('subs')) {
+                badges.push({
+                    label: 'Legenda Embutida 📝',
+                    classes: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20'
+                });
+            } else if (low.includes('dual') || low.includes('multi')) {
+                // Filmes dual/multi quase sempre vêm com legendas embutidas em formato MKV/MP4
+                badges.push({
+                    label: 'Legenda Embutida 📝',
+                    classes: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20'
+                });
+            }
+
+            return badges;
+        }
+
+        function renderTorrentCards(streams, movieTitle) {
+            if (!mList) return;
+
+            streams.forEach((stream) => {
+                // Parseador de metadados do torrent (Pilar 2 & 3: Optional Chaining / Flat Code)
+                const titleLines = (stream.title || '').split('\n');
+                const rawName = titleLines[0] || stream.name || 'Torrent Stream';
+                const rawStats = titleLines[1] || '';
+
+                const fileName = rawName.trim();
+                let seeds = '0';
+                let size = 'N/A';
+                let source = stream.defaultSource || 'Mico Leão';
+
+                // Extração de sementes (👤)
+                const seedsMatch = rawStats.match(/👤\s*(\d+)/) || stream.title.match(/👤\s*(\d+)/);
+                if (seedsMatch) seeds = seedsMatch[1];
+
+                // Extração de tamanho (💾)
+                const sizeMatch = rawStats.match(/💾\s*([\d\.]+\s*(?:GB|MB|KB|B|gb|mb))/i) || stream.title.match(/💾\s*([\d\.]+\s*(?:GB|MB|KB|B|gb|mb))/i);
+                if (sizeMatch) size = sizeMatch[1];
+
+                const quality = getQualityBadge(fileName);
+                const extraBadges = getLanguageAndSubtitleBadges(stream);
+                const extraBadgesHtml = extraBadges.map(b => `
+                    <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase border ${b.classes}">${b.label}</span>
+                `).join('');
+
+                // Lista de rastreadores públicos de alto desempenho (Pilar 4: Otimização Extrema)
+                const bestTrackers = [
+                    'udp://tracker.opentrackr.org:1337/announce',
+                    'udp://open.demonii.com:1337/announce',
+                    'udp://open.stealth.si:80/announce',
+                    'udp://wepzone.net:6969/announce',
+                    'udp://vito-tracker.space:6969/announce',
+                    'udp://tracker.torrent.eu.org:451/announce',
+                    'udp://tracker.srv00.com:6969/announce',
+                    'udp://tracker.qu.ax:6969/announce',
+                    'udp://tracker.opentorrent.top:6969/announce',
+                    'udp://tracker.fnix.net:6969/announce',
+                    'udp://tracker.filemail.com:6969/announce'
+                ];
+                const trString = bestTrackers.map(tr => `&tr=${encodeURIComponent(tr)}`).join('');
+
+                const magnetLink = `magnet:?xt=urn:btih:${stream.infoHash}&dn=${encodeURIComponent(fileName)}${trString}`;
+
+                // Card Template com CSS Premium e Micro-interações (Pilar 1: Design Premium)
+                const card = document.createElement('div');
+                card.className = 'flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-white/10 hover:bg-white/[0.08] transition-all duration-300 group';
+                card.innerHTML = `
+                    <!-- Detalhes do Torrent -->
+                    <div class="flex-1 min-w-0 space-y-2">
+                        <!-- Badges Line -->
+                        <div class="flex flex-wrap items-center gap-2.5 text-[11px] font-black tracking-tight text-gray-400">
+                            <!-- Qualidade -->
+                            <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase border ${quality.classes}">${quality.label}</span>
+                            
+                            <!-- Idiomas, Legendas e Index -->
+                            ${extraBadgesHtml}
+                            
+                            <!-- Seeders -->
+                            <span class="flex items-center gap-1 bg-white/5 border border-white/5 px-2 py-0.5 rounded">
+                                <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                                ${seeds}
+                            </span>
+
+                            <!-- Tamanho -->
+                            <span class="flex items-center gap-1 bg-white/5 border border-white/5 px-2 py-0.5 rounded">
+                                <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                                ${size}
+                            </span>
+
+                            <!-- Fonte Tracker -->
+                            <span class="flex items-center gap-1 bg-white/5 border border-white/5 px-2 py-0.5 rounded capitalize">
+                                <svg class="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                ${source}
+                            </span>
+                        </div>
+                        
+                        <!-- Nome Completo do Arquivo -->
+                        <p class="text-xs text-white/75 font-bold truncate max-w-[280px] sm:max-w-[350px] md:max-w-[420px] group-hover:text-white transition-colors" title="${fileName}">${fileName}</p>
+                    </div>
+
+                    <!-- Botão de Ação -->
+                    <div class="flex items-center gap-2 sm:self-center shrink-0">
+                        <!-- App Local com 2-Cliques Smartlink (Grátis) ou Direto (VIP) -->
+                        <button 
+                            data-hash="${stream.infoHash}" 
+                            data-magnet="${encodeURIComponent(magnetLink)}"
+                            class="torrent-download-btn flex items-center justify-center gap-1.5 px-4 py-2.5 ${window._authStore?.get()?.isVIP ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-[#DF0912] hover:bg-[#cf0811]'} text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all duration-300 transform hover:scale-[1.03] active:scale-95 cursor-pointer"
+                        >
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                            <span class="btn-text">${window._authStore?.get()?.isVIP ? txt.vip_direct : txt.app_local}</span>
+                        </button>
+                    </div>
+                `;
+                mList.appendChild(card);
+            });
+
+            mLoader?.classList.add('hidden');
+            mLoader?.classList.remove('flex');
+            mNotice?.classList.remove('hidden');
+            mTorrentSectionTitle?.classList.remove('hidden');
+            mList.classList.remove('hidden');
+        }
+    }
+
+    // Registra o ciclo de vida do Astro SPA
+    document.addEventListener('astro:page-load', initTorrentModal);
+</script>

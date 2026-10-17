@@ -1,0 +1,513 @@
+---
+// src/pages/components/VipModal.astro
+import { getLangFromUrl, useTranslations } from "../../i18n/utils";
+import { CRYPTO_CURRENCIES, DEFAULT_CRYPTO_CURRENCY, cryptoOptionLabel } from "../../services/cryptoCurrencies.js";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+---
+
+<div id="vip-buy-modal" data-lang={lang} class="fixed inset-0 z-[210] flex items-center justify-center p-4 sm:p-6 opacity-0 pointer-events-none transition-all duration-500 overflow-hidden">
+    <!-- Backdrop: Mais escuro e neutro -->
+    <div id="vip-buy-backdrop" class="absolute inset-0 bg-[#060911]/98 backdrop-blur-md"></div>
+
+    <!-- Modal Container: Mais estreito e limpo -->
+    <div 
+        class="relative w-full max-w-md bg-[#0E111A] border border-white/5 rounded-[32px] shadow-2xl overflow-hidden transform scale-95 transition-all duration-500" 
+        id="vip-buy-container"
+        data-t-processing={t('vip.processing')}
+        data-t-support-title={t('vip.support_modal_title')}
+        data-t-support-desc={t('vip.support_modal_desc')}
+    >
+        
+        <div class="relative p-6 sm:p-10 overflow-y-auto max-h-[90vh] scrollbar-hide">
+            <!-- Close Button: Discreto -->
+            <button id="close-vip-buy" class="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-all" aria-label={t('common.close') || 'Fechar'}>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-white/5">
+                    <svg class="w-8 h-8 text-[#DF0912]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-7.714 2.143L11 21l-2.286-6.857L1 12l7.714-2.143L11 3z"/></svg>
+                </div>
+                <h2 class="text-3xl font-black text-white uppercase tracking-tighter italic mb-2">MultiCanaisHD<span class="text-[#DF0912]"> VIP</span></h2>
+                <p class="text-gray-500 text-[10px] font-black uppercase tracking-[0.2em]">{t('vip.modal_subtitle')}</p>
+            </div>
+
+            <!-- Benefits -->
+            <div class="grid grid-cols-1 gap-2.5 mb-8">
+                <div class="flex items-center gap-4 p-4 bg-white/[0.02] hover:bg-white/[0.04] rounded-2xl border border-white/[0.03] transition-colors">
+                    <div class="flex-shrink-0 w-10 h-10 bg-[#DF0912]/10 rounded-xl flex items-center justify-center text-[#DF0912]">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    </div>
+                    <div>
+                        <p class="text-white text-[11px] font-black uppercase tracking-wider">{t('vip.benefit_tv_title')}</p>
+                        <p class="text-gray-400 text-[9px] font-medium">{t('vip.benefit_tv_desc')}</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-4 p-4 bg-white/[0.02] hover:bg-white/[0.04] rounded-2xl border border-white/[0.03] transition-colors">
+                    <div class="flex-shrink-0 w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-400">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <div>
+                        <p class="text-white text-[11px] font-black uppercase tracking-wider">{t('vip.benefit_player_title')}</p>
+                        <p class="text-gray-400 text-[9px] font-medium">{t('vip.benefit_player_desc')}</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-4 p-4 bg-white/[0.02] hover:bg-white/[0.04] rounded-2xl border border-white/[0.03] transition-colors">
+                    <div class="flex-shrink-0 w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+                    </div>
+                    <div>
+                        <p class="text-white text-[11px] font-black uppercase tracking-wider">{t('vip.benefit_community_title')}</p>
+                        <p class="text-gray-400 text-[9px] font-medium">{t('vip.benefit_community_desc')}</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-4 p-4 bg-white/[0.02] hover:bg-white/[0.04] rounded-2xl border border-white/[0.03] transition-colors">
+                    <div class="flex-shrink-0 w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-400">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                    </div>
+                    <div>
+                        <p class="text-white text-[11px] font-black uppercase tracking-wider">{t('vip.benefit_ads_title')}</p>
+                        <p class="text-gray-400 text-[9px] font-medium">{t('vip.benefit_ads_desc')}</p>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Pricing & Action with Gateway Selection -->
+            <div id="vip-checkout-section" class="flex flex-col gap-5 bg-white/5 p-5 sm:p-6 rounded-[24px] border border-white/5 mt-auto transition-all duration-300">
+                
+                <!-- 1. Plan Selector -->
+                <div class="text-left">
+                    <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 leading-none">
+                        {lang === 'pt' ? '1. Escolha a Duração do seu VIP' : '1. Choose your VIP Duration'}
+                    </p>
+                </div>
+                
+                <div class="grid grid-cols-3 gap-3">
+                    <!-- Plano Mensal -->
+                    <button 
+                        type="button"
+                        id="plan-mensal"
+                        class="relative flex flex-col items-center justify-center py-5 px-2 bg-[#DF0912]/10 border-2 border-[#DF0912] rounded-2xl text-center cursor-pointer transition-all duration-300 group hover:scale-[1.02] shadow-[0_0_15px_rgba(223,9,18,0.1)]"
+                        data-amount="1000"
+                    >
+                        <p class="text-white text-[10px] font-black uppercase tracking-widest mb-1">{lang === 'pt' ? '1 Mês' : '1 Month'}</p>
+                        <p class="text-white text-lg font-black italic">R$ 10</p>
+                        <p class="text-gray-400 text-[8.5px] font-black uppercase mt-1.5 leading-none">{lang === 'pt' ? 'R$ 10/mês' : '$4.50/mo'}</p>
+                    </button>
+
+                    <!-- Plano Trimestral -->
+                    <button 
+                        type="button"
+                        id="plan-trimestral"
+                        class="relative flex flex-col items-center justify-center py-5 px-2 bg-white/[0.02] border-2 border-white/5 rounded-2xl text-center cursor-pointer transition-all duration-300 group hover:scale-[1.02]"
+                        data-amount="2500"
+                    >
+                        <span class="absolute -top-3.5 left-1/2 -translate-x-1/2 px-2.5 py-1 bg-[#DF0912] text-white rounded-full text-[8px] font-black uppercase tracking-wider whitespace-nowrap leading-none shadow-lg border border-red-400/20">
+                            {lang === 'pt' ? 'Popular' : 'Popular'}
+                        </span>
+                        <p class="text-white text-[10px] font-black uppercase tracking-widest mb-1">{lang === 'pt' ? '3 Meses' : '3 Months'}</p>
+                        <p class="text-white text-lg font-black italic">R$ 25</p>
+                        <p class="text-gray-400 text-[8.5px] font-black uppercase mt-1.5 leading-none">{lang === 'pt' ? 'R$ 8,33/mês' : '$4.00/mo'}</p>
+                    </button>
+
+                    <!-- Plano Anual -->
+                    <button 
+                        type="button"
+                        id="plan-anual"
+                        class="relative flex flex-col items-center justify-center py-5 px-2 bg-white/[0.02] border-2 border-white/5 rounded-2xl text-center cursor-pointer transition-all duration-300 group hover:scale-[1.02]"
+                        data-amount="8000"
+                    >
+                        <span class="absolute -top-3.5 left-1/2 -translate-x-1/2 px-2.5 py-1 bg-emerald-600 text-white rounded-full text-[8px] font-black uppercase tracking-wider whitespace-nowrap leading-none shadow-lg border border-emerald-400/20">
+                            -33% OFF
+                        </span>
+                        <p class="text-white text-[10px] font-black uppercase tracking-widest mb-1">{lang === 'pt' ? '1 Ano' : '1 Year'}</p>
+                        <p class="text-white text-lg font-black italic">R$ 80</p>
+                        <p class="text-gray-400 text-[8.5px] font-black uppercase mt-1.5 leading-none">{lang === 'pt' ? 'R$ 6,66/mês' : '$2.91/mo'}</p>
+                    </button>
+                </div>
+
+                <!-- 2. Gateway Selector Title -->
+                <div class="text-left">
+                    <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 leading-none">
+                        {lang === 'pt' ? '2. Escolha o Método de Pagamento' : '2. Choose Payment Method'}
+                    </p>
+                </div>
+
+                <!-- Cards Grid -->
+                <div class="grid grid-cols-2 gap-3">
+                    
+                    <!-- Pix Card (Brasil) -->
+                    <button
+                        id="gateway-pix-card"
+                        class="relative flex flex-col items-center justify-center p-4 bg-[#DF0912]/10 border-2 border-[#DF0912] rounded-2xl text-center cursor-pointer transition-all duration-300 group hover:scale-[1.02] shadow-[0_0_15px_rgba(223,9,18,0.1)]"
+                        data-gateway="pix"
+                    >
+                        <!-- Check Badge -->
+                        <span id="pix-check-badge" class="absolute top-2 right-2 w-4 h-4 bg-[#DF0912] text-white rounded-full flex items-center justify-center text-[8px] font-black">
+                            ✓
+                        </span>
+                        
+                        <!-- Icon -->
+                        <div class="w-10 h-10 bg-[#DF0912]/10 rounded-xl flex items-center justify-center text-[#DF0912] mb-2.5">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                            </svg>
+                        </div>
+                        
+                        <p class="text-white text-[10px] font-black uppercase tracking-wider mb-0.5">PIX (Brasil)</p>
+                        <p id="pix-price-display" class="text-[#DF0912] text-xs font-black italic">R$ 10,00</p>
+                        <p class="text-gray-500 text-[8px] font-bold uppercase mt-1 leading-none">Instantâneo</p>
+                    </button>
+
+                    <!-- Crypto Card -->
+                    <button
+                        id="gateway-crypto-card"
+                        class="relative flex flex-col items-center justify-center p-4 bg-white/[0.02] border-2 border-white/5 rounded-2xl text-center cursor-pointer transition-all duration-300 group hover:scale-[1.02]"
+                        data-gateway="crypto"
+                    >
+                        <!-- Check Badge (Hidden by default) -->
+                        <span id="crypto-check-badge" class="hidden absolute top-2 right-2 w-4 h-4 bg-emerald-500 text-white rounded-full flex items-center justify-center text-[8px] font-black">
+                            ✓
+                        </span>
+
+                        <!-- Icon -->
+                        <div class="w-10 h-10 bg-white/5 text-gray-400 group-hover:text-emerald-400 rounded-xl flex items-center justify-center mb-2.5 transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+
+                        <p class="text-white text-[10px] font-black uppercase tracking-wider mb-0.5">Crypto</p>
+                        <p id="crypto-price-display" class="text-[#DF0912]/90 text-xs font-black italic">R$ 10,00</p>
+                        <p class="text-gray-500 text-[8px] font-bold uppercase mt-1 leading-none">BTC / USDT / +30</p>
+                    </button>
+
+                </div>
+
+                <!-- Crypto Currency Picker: só aparece com Crypto selecionado -->
+                <div id="crypto-currency-picker" class="hidden text-left">
+                    <label for="crypto-currency-select" class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 leading-none block">
+                        {lang === 'pt' ? 'Moeda' : 'Currency'}
+                    </label>
+                    <select
+                        id="crypto-currency-select"
+                        class="w-full py-3 px-4 bg-white/[0.03] border border-white/10 rounded-xl text-white text-xs font-bold"
+                    >
+                        {CRYPTO_CURRENCIES.map((c) => (
+                            <option value={c.code} data-min={c.minCents} selected={c.code === DEFAULT_CRYPTO_CURRENCY}>{cryptoOptionLabel(c)}</option>
+                        ))}
+                    </select>
+                    <p class="mt-2 text-[10px] leading-snug text-gray-400">
+                        {lang === 'pt' ? 'A maioria das criptomoedas só aceita pagamentos a partir de uns R$ 70. Para elas, escolha um plano de valor maior (a lista já mostra só as que servem pro plano escolhido). USDT (BNB Smart Chain) e Litecoin aceitam qualquer plano, a partir de R$ 10.' : 'Most cryptocurrencies only accept payments from about R$ 70. For those, pick a higher-priced plan (the list only shows the ones that fit the selected plan). USDT (BNB Smart Chain) and Litecoin accept any plan, from R$ 10.'}
+                    </p>
+                </div>
+
+                <!-- CTA Button -->
+                <button
+                    id="vip-buy-confirm"
+                    class="w-full py-4 bg-[#DF0912] hover:bg-[#922328] text-white font-black uppercase text-[10px] tracking-[0.2em] rounded-xl transition-all shadow-xl shadow-red-900/20 active:scale-95 flex items-center justify-center gap-2"
+                    data-selected-gateway="pix"
+                >
+                    {lang === 'pt' ? 'Ativar VIP com Pix - R$ 10' : 'Activate VIP with Pix - R$ 10'}
+                </button>
+            </div>
+
+            <!-- Login Required State (Hidden by default) -->
+            <div id="vip-login-required" class="hidden bg-black/40 p-8 rounded-[24px] border border-[#DF0912]/20 text-center animate-in fade-in zoom-in duration-300">
+                <div class="w-12 h-12 bg-[#DF0912]/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-[#DF0912]/20">
+                    <svg class="w-6 h-6 text-[#DF0912]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                </div>
+                <h3 class="text-white text-xs font-black uppercase tracking-widest mb-3 italic">{t('vip.login_required_title')}</h3>
+                <p class="text-gray-400 text-[10px] font-medium leading-relaxed mb-6">{t('vip.login_required_desc')}</p>
+                <a href={lang === 'pt' ? '/login' : '/en/login'} class="block w-full py-3 bg-white text-black font-black uppercase text-[9px] tracking-[0.2em] rounded-xl hover:bg-gray-200 transition-all">
+                    {t('vip.login_cta')}
+                </a>
+            </div>
+            
+            <p class="mt-6 text-center text-[8px] text-gray-700 font-bold uppercase tracking-[0.2em] leading-relaxed">
+                {t('vip.pix_notice')}
+            </p>
+
+            <!-- Botão de Suporte Unificado -->
+            <div class="mt-8 flex justify-center">
+                <button id="vip-support-btn" class="w-full flex items-center justify-center gap-3 px-6 py-4 bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 hover:text-white transition-all group/support">
+                    <svg class="w-4 h-4 text-gray-500 group-hover/support:text-[#DF0912] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                    {t('vip.support_btn')}
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<style is:global>
+    #vip-buy-container .scrollbar-hide::-webkit-scrollbar { display: none; }
+    #vip-buy-container .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* color-scheme: dark sozinho não garante que o POPUP do <select> siga o
+       tema em todo navegador (testado em outro projeto irmão: Chrome
+       renderiza com fundo branco do SO mesmo com o hint presente) — estilo
+       de <option> é o que garante o contraste de verdade. */
+    #crypto-currency-select {
+        color-scheme: dark;
+    }
+    #crypto-currency-select option {
+        background: #0E111A;
+        color: #fff;
+    }
+</style>
+
+<script>
+    import { authStore, initAuth } from "../../store/authStore";
+    import { getSupabase } from "../../services/supabase";
+    import { syncCryptoOptions } from "../../services/cryptoCurrencies.js";
+
+    // Expor função de abertura globalmente com ativação síncrona imediata (Pilar 2)
+    window.openVipBuyModal = () => {
+        const m = document.getElementById('vip-buy-modal');
+        const c = document.getElementById('vip-buy-container');
+        if (m && c) {
+            m.classList.remove('opacity-0', 'pointer-events-none');
+            c.classList.remove('scale-95');
+        }
+        document.dispatchEvent(new CustomEvent('multicanaishd:open-vip'));
+    };
+
+    async function initVipBuyModal() {
+        const modal = document.getElementById('vip-buy-modal');
+        const container = document.getElementById('vip-buy-container');
+        if (!modal || !container) return;
+        
+        // Remove listener antigo global para não acumular pilhas de execução
+        document.removeEventListener('multicanaishd:open-vip', window._openVipHandler);
+        window._openVipHandler = () => {
+            const m = document.getElementById('vip-buy-modal');
+            const c = document.getElementById('vip-buy-container');
+            if (m && c) {
+                m.classList.remove('opacity-0', 'pointer-events-none');
+                c.classList.remove('scale-95');
+            }
+        };
+        document.addEventListener('multicanaishd:open-vip', (window as any)._openVipHandler);
+
+        const backdrop = document.getElementById('vip-buy-backdrop');
+        const closeBtn = document.getElementById('close-vip-buy');
+        const buyBtn = document.getElementById('vip-buy-confirm') as HTMLButtonElement;
+        const supportBtn = document.getElementById('vip-support-btn');
+
+        async function getCheckoutToken() {
+            try {
+                const supabase = getSupabase();
+                const { data } = await supabase.auth.getSession();
+                if (data?.session?.access_token) {
+                    const current = authStore.get();
+                    authStore.set({
+                        ...current,
+                        user: data.session.user,
+                        token: data.session.access_token,
+                        loading: false,
+                        initialized: true
+                    });
+                    initAuth(true, data.session).catch((err) => console.warn("[VipModal] Falha ao sincronizar perfil antes do checkout:", err));
+                    return data.session.access_token;
+                }
+            } catch (err) {
+                console.warn("[VipModal] Nao foi possivel recuperar sessao fresca:", err);
+            }
+
+            const currentToken = authStore.get()?.token;
+            if (currentToken) return currentToken;
+
+            try {
+                await initAuth(true);
+                return authStore.get()?.token || "";
+            } catch (err) {
+                console.warn("[VipModal] Falha ao inicializar auth antes do checkout:", err);
+                return "";
+            }
+        }
+
+        if (supportBtn) {
+            supportBtn.onclick = () => {
+                document.dispatchEvent(new CustomEvent('multicanaishd:open-community', { 
+                    detail: { 
+                        title: container.dataset.tSupportTitle, 
+                        description: container.dataset.tSupportDesc 
+                    } 
+                }));
+            };
+        }
+
+        const closeFunc = () => {
+            const m = document.getElementById('vip-buy-modal');
+            const c = document.getElementById('vip-buy-container');
+            if (m && c) {
+                m.classList.add('opacity-0', 'pointer-events-none');
+                c.classList.add('scale-95');
+            }
+        };
+
+        closeBtn?.addEventListener('click', closeFunc);
+        backdrop?.addEventListener('click', closeFunc);
+
+        // Lógica dos Planos Reativos
+        const planMensal = document.getElementById('plan-mensal');
+        const planTrimestral = document.getElementById('plan-trimestral');
+        const planAnual = document.getElementById('plan-anual');
+        
+        const pixPriceDisplay = document.getElementById('pix-price-display');
+        const cryptoPriceDisplay = document.getElementById('crypto-price-display');
+
+        let selectedAmount = 1000; // Padrão: 1000 centavos (R$ 10)
+        syncCryptoOptions(document.getElementById('crypto-currency-select') as HTMLSelectElement | null, selectedAmount);
+
+        const plans = [planMensal, planTrimestral, planAnual];
+        const lang = modal.dataset.lang || 'pt';
+
+        function updateGatewayDisplays() {
+            const displayValue = `R$ ${(selectedAmount / 100).toFixed(2).replace('.', ',')}`;
+            if (pixPriceDisplay) pixPriceDisplay.textContent = displayValue;
+            if (cryptoPriceDisplay) cryptoPriceDisplay.textContent = displayValue;
+            syncCryptoOptions(document.getElementById('crypto-currency-select') as HTMLSelectElement | null, selectedAmount);
+
+            const selectedGateway = buyBtn?.dataset.selectedGateway || "pix";
+            if (buyBtn) {
+                if (selectedGateway === "pix") {
+                    buyBtn.textContent = lang === 'pt'
+                        ? `Ativar VIP com Pix - ${displayValue}`
+                        : `Activate VIP with Pix - ${displayValue}`;
+                } else {
+                    buyBtn.textContent = lang === 'pt'
+                        ? `Pagar com Criptomoedas - ${displayValue}`
+                        : `Pay with Cryptocurrencies - ${displayValue}`;
+                }
+            }
+        }
+
+        plans.forEach(planBtn => {
+            if (!planBtn) return;
+            planBtn.onclick = () => {
+                // Atualizar classes ativas dos planos
+                plans.forEach(p => {
+                    if (p) p.className = "relative flex flex-col items-center justify-center py-5 px-2 bg-white/[0.02] border-2 border-white/5 rounded-2xl text-center cursor-pointer transition-all duration-300 group hover:scale-[1.02]";
+                });
+                planBtn.className = "relative flex flex-col items-center justify-center py-5 px-2 bg-[#DF0912]/10 border-2 border-[#DF0912] rounded-2xl text-center cursor-pointer transition-all duration-300 group hover:scale-[1.02] shadow-[0_0_15px_rgba(223,9,18,0.1)]";
+
+                selectedAmount = parseInt(planBtn.dataset.amount || "1000", 10);
+
+                updateGatewayDisplays();
+            };
+        });
+
+        // Lógica de alternância de Gateway interativa
+        const pixCard = document.getElementById('gateway-pix-card');
+        const cryptoCard = document.getElementById('gateway-crypto-card');
+        const pixCheck = document.getElementById('pix-check-badge');
+        const cryptoCheck = document.getElementById('crypto-check-badge');
+        const cryptoCurrencyPicker = document.getElementById('crypto-currency-picker');
+
+        if (pixCard && cryptoCard && buyBtn) {
+            pixCard.onclick = () => {
+                pixCard.className = "relative flex flex-col items-center justify-center p-4 bg-[#DF0912]/10 border-2 border-[#DF0912] rounded-2xl text-center cursor-pointer transition-all duration-300 group hover:scale-[1.02] shadow-[0_0_15px_rgba(223,9,18,0.1)]";
+                cryptoCard.className = "relative flex flex-col items-center justify-center p-4 bg-white/[0.02] border-2 border-white/5 rounded-2xl text-center cursor-pointer transition-all duration-300 group hover:scale-[1.02]";
+
+                pixCheck?.classList.remove('hidden');
+                cryptoCheck?.classList.add('hidden');
+                cryptoCurrencyPicker?.classList.add('hidden');
+
+                buyBtn.dataset.selectedGateway = "pix";
+                updateGatewayDisplays();
+            };
+
+            cryptoCard.onclick = () => {
+                cryptoCard.className = "relative flex flex-col items-center justify-center p-4 bg-emerald-500/10 border-2 border-emerald-500 rounded-2xl text-center cursor-pointer transition-all duration-300 group hover:scale-[1.02]";
+                pixCard.className = "relative flex flex-col items-center justify-center p-4 bg-white/[0.02] border-2 border-white/5 rounded-2xl text-center cursor-pointer transition-all duration-300 group hover:scale-[1.02]";
+
+                cryptoCheck?.classList.remove('hidden');
+                pixCheck?.classList.add('hidden');
+                cryptoCurrencyPicker?.classList.remove('hidden');
+
+                buyBtn.dataset.selectedGateway = "crypto";
+                updateGatewayDisplays();
+            };
+        }
+
+        // Remove listener antigo do botão se o botão for persistente (mesmo ID em nova página)
+        if (buyBtn && !buyBtn.dataset.listener) {
+            buyBtn.dataset.listener = "true";
+            buyBtn.addEventListener('click', async () => {
+                console.log("💳 [VipModal] Iniciando checkout VIP...");
+                const originalText = buyBtn.innerHTML;
+                buyBtn.innerHTML = `<span class="animate-spin inline-block w-4 h-4 border-2 border-white/20 border-t-white rounded-full mr-2"></span> ${container.dataset.tProcessing}`;
+                buyBtn.disabled = true;
+
+                try {
+                    const token = await getCheckoutToken();
+
+                    if (!token) {
+                        const checkoutSection = document.getElementById('vip-checkout-section');
+                        const loginRequired = document.getElementById('vip-login-required');
+                        if (checkoutSection && loginRequired) {
+                            checkoutSection.classList.add('hidden');
+                            loginRequired.classList.remove('hidden');
+                        }
+                        buyBtn.innerHTML = originalText;
+                        buyBtn.disabled = false;
+                        return;
+                    }
+
+                    const selectedGateway = buyBtn.dataset.selectedGateway || "pix";
+                    const cryptoCurrencySelect = document.getElementById('crypto-currency-select') as HTMLSelectElement | null;
+
+                    // A VeloraPay não redireciona pra um checkout hospedado por ela —
+                    // o destino é a NOSSA própria página /pagamento/[reference], então
+                    // não há motivo pra abrir aba nova (isso só era necessário no
+                    // gateway antigo, que redirecionava pra fora do site). Navegar na
+                    // mesma aba evita o problema de popup bloqueado/travado no about:blank.
+                    const response = await fetch('/api/vip/checkout', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            gateway: selectedGateway,
+                            amount: selectedAmount,
+                            ...(selectedGateway === 'crypto' ? { payCurrency: cryptoCurrencySelect?.value } : {})
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.checkoutUrl) {
+                        console.log("🚀 [VipModal] Redirecionando para:", data.checkoutUrl);
+                        window.location.href = data.checkoutUrl;
+                        closeFunc();
+                    } else {
+                        const errorMsg = data.error || `Falha inesperada (HTTP ${response.status}).`;
+                        console.error("❌ [VipModal] Erro no Checkout:", errorMsg);
+                        alert("Não foi possível gerar o link de pagamento: " + errorMsg);
+                    }
+                } catch (e: any) {
+                    console.error("❌ [VipModal] Erro de Conexão:", e);
+                    alert("Erro de conexão: " + (e.message || "Tente novamente."));
+                } finally {
+                    buyBtn.innerHTML = originalText;
+                    buyBtn.disabled = false;
+                }
+            });
+        }
+    }
+
+    document.addEventListener("astro:page-load", initVipBuyModal);
+    document.addEventListener("DOMContentLoaded", initVipBuyModal);
+    initVipBuyModal();
+</script>

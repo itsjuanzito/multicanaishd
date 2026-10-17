@@ -1,0 +1,693 @@
+---
+// index.astro
+import "../styles/global.css";
+import { isMobileUA as checkMobileUA, getHomePreloadImageSet, getBackdropSizes } from "../utils/mobile";
+export const prerender = false;
+
+// Fase 16: Otimização de Requests (CDN)
+// Faz o Worker rodar menos vezes ao cachear a página na borda da Cloudflare
+Astro.response.headers.set(
+    "Cache-Control",
+    "public, s-maxage=300, stale-while-revalidate=60"
+);
+
+// 1. Redireção de Idioma (Detecção Dinâmica, Paralela e Resiliente)
+import { detectLocale, applyLocaleCookie } from "../utils/localeDetection.js";
+
+const isCleaning = Astro.url.searchParams.has('reset_lang');
+if (isCleaning) {
+    Astro.cookies.delete('multicanaishd_locale', { path: '/' });
+    Astro.cookies.delete('multicanaishd_locale_manual', { path: '/' });
+}
+
+const userAgent = Astro.request.headers.get('user-agent') || '';
+const isMobileUA = checkMobileUA(userAgent);
+
+const { activeLocale, isCrawler, isManual, isRewrittenEn, isBrowserNavigation, shouldSetCookie } = detectLocale(Astro);
+const isEnPath = Astro.url.pathname.startsWith('/en');
+
+if (shouldSetCookie || isCleaning) {
+    applyLocaleCookie(Astro, activeLocale);
+}
+
+// Redirecionamento Final (Apenas para humanos em caminhos errados)
+if (!isManual && !isRewrittenEn && !isCrawler && isBrowserNavigation) {
+    if (activeLocale === 'en' && !isEnPath) {
+        // Redirect dependente de cookie/país nunca pode ser cacheado na borda — a chave de
+        // cache da Cloudflare é só a URL, então um 302 cacheado aqui prenderia todo mundo
+        // no idioma do primeiro visitante que passou.
+        Astro.response.headers.set("Cache-Control", "private, no-store");
+        return Astro.redirect('/en');
+    } else if (activeLocale === 'pt' && isEnPath) {
+        Astro.response.headers.set("Cache-Control", "private, no-store");
+        return Astro.redirect('/');
+    }
+}
+
+// 2. Cache
+if (Astro.response) {
+    Astro.response.headers.set("Cache-Control", "public, s-maxage=3600, stale-while-revalidate=86400");
+    Astro.response.headers.set("Vary", "cf-ipcountry");
+}
+
+import LayoutCardsStreaming from "../layouts/LayoutCardsStreaming.astro";
+import LayoutCardTV from "../layouts/LayoutCardTV.astro";
+import HeroCarousel from "./components/HeroCarousel.astro";
+import ContinueWatching from "./components/ContinueWatching.astro";
+import Top10Section from "./components/Top10Section.astro";
+import BannerAd from "./components/ads/BannerAd.astro";
+import RecentEpisodes from "./components/RecentEpisodes.astro";
+import LiveGamesSection from "./components/LiveGamesSection.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { fetchTrending } from "../services/trendingService";
+import { fetchCanais, fetchVipChannels } from "../services/channelsService.js";
+import { contentSlug } from "../utils/slugify.js";
+import { axiomService } from "../services/axiom-service.js";
+import { getSiteUrl } from "../services/env-adapter.js";
+
+// i18n Props
+import { getLangFromUrl, useTranslations } from "../i18n/utils";
+let lang = getLangFromUrl(Astro.url);
+
+// [SEO] Crawler na home PT recebe português, pra garantir que o preview em redes sociais
+// nunca saia em inglês.
+//
+// O teste NÃO pode olhar só o pathname: /en/ é servido por um rewrite pra /?lang=en
+// (ver pages/en/index.astro), então nesse caso o pathname já chega como "/" e o Googlebot
+// caía aqui e recebia a home em PORTUGUÊS na URL /en/. Resultado: o Google via /en/ como
+// duplicata da home PT e a descartava ("Página alternativa com tag canônica adequada"),
+// enquanto o usuário real via inglês na mesma URL.
+const isEnRequest = Astro.url.pathname.startsWith('/en') || isRewrittenEn;
+if (isCrawler && !isEnRequest) {
+    lang = 'pt';
+}
+
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+const langPrefix = isPt ? "" : "/en";
+
+// Perfil infantil: a home perde as fileiras de conteúdo ao vivo e a de terror. A decisão
+// é tomada aqui no servidor porque esconder no cliente causaria um flash do conteúdo
+// adulto antes da hidratação.
+const isKids = isKidsProfile(Astro);
+
+// 3. Parallel Data Fetching (Master Parallelization)
+import { descobrirPorGenero } from "../services/tmdb";
+import { getContentList } from "../services/content-lists.js";
+import { isKidsProfile, filtrarItensInfantis } from "../services/kidsProfile.js";
+import { reforcarComClassificacao } from "../services/contentRating.js";
+import { fetchTodayRelevantGames } from "../services/liveGamesService.js";
+
+let trendingAll = [], canaisTVData = [], liveGamesData = [], vipIdsData = [];
+let listAction = [], listAnime = [], listComedy = [], listHorror = [], listDorama = [], listFamily = [];
+
+try {
+    const dataPromises = [
+        fetchTrending("all", "week", isPt ? "pt" : "en"),
+        fetchCanais(),
+        fetchVipChannels(),
+        fetchTodayRelevantGames().catch(() => []),
+        // A primeira prateleira é Ação; no perfil infantil ela vira Animação, porque uma
+        // fileira de ação filtrada sobraria quase vazia.
+        descobrirPorGenero(isKids ? "16" : "28", 1, 2, lang),
+        // Da segunda prateleira em diante o SSR só busca para o crawler: o usuário recebe a
+        // casca e os cards chegam sob demanda no scroll (ver `lazyApi` abaixo). Isso tira 5
+        // chamadas ao TMDB do caminho crítico do TTFB de toda visita humana.
+        ...(isCrawler ? [
+            getContentList('animes', lang),
+            descobrirPorGenero("35", 1, 2, lang),
+            descobrirPorGenero("27", 1, 2, lang),
+            getContentList('doramas', lang),
+            descobrirPorGenero("10751", 1, 2, lang)
+        ] : [])
+    ];
+
+    // Teto de segurança POR FONTE, não global: cada serviço já tem seu próprio timeout
+    // interno, mas se algum deles não o respeitar num caso de borda (ex: abort que não
+    // corta a leitura do corpo), o Promise.allSettled abaixo travaria a home inteira até o
+    // Cloudflare matar a requisição por timeout (524).
+    //
+    // Aqui era um Promise.race contra o allSettled inteiro, e isso era pior que o problema
+    // que resolvia: uma única fonte lenta (a API de jogos, que travava indefinidamente na
+    // leitura do corpo via proxy) fazia o race descartar TAMBÉM os 9 resultados que já
+    // tinham chegado. A home saía 100% vazia — sem hero, sem nenhuma prateleira — e o
+    // s-maxage abaixo fixava esse HTML vazio na borda por uma hora.
+    // Com o teto por fonte, só a fonte que estourou vem vazia; o resto renderiza normal.
+    // 7s, não 9s: com o orçamento total do TMDB em 6s (ver trendingService), 9s só servia
+    // pra absorver o retry que estourava sozinho — e virava TTFB de 9s pro Googlebot.
+    const PER_SOURCE_TIMEOUT_MS = 7000;
+    const comTeto = (promise) => Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(
+            () => reject(new Error('home_fetch_timeout')),
+            PER_SOURCE_TIMEOUT_MS
+        ))
+    ]);
+    const results = await Promise.allSettled(dataPromises.map(comTeto));
+
+    // [DIAGNÓSTICO] Desabilitado em produção — use o dashboard de erros do servidor
+    // Diagnostic logs disabled — use server error dashboard instead
+    // Extração segura dos resultados
+    trendingAll = results[0].status === 'fulfilled' ? (results[0].value || []) : [];
+    const canaisRes   = results[1].status === 'fulfilled' ? (results[1].value || []) : [];
+    const vipRes      = results[2].status === 'fulfilled' ? (results[2].value || []) : [];
+    const freshGames  = results[3].status === 'fulfilled' ? (results[3].value || []) : [];
+    
+    // Listas Estáticas
+    listAction = results[4].status === 'fulfilled' ? (results[4].value?.results || []) : [];
+    // results[5..9] só existem no render do crawler; para o usuário essas prateleiras
+    // ficam vazias de propósito e são preenchidas no cliente.
+    const listaOpcional = (i) => results[i]?.status === 'fulfilled' ? (results[i].value?.results || []) : [];
+    listAnime  = listaOpcional(5);
+    listComedy = listaOpcional(6);
+    listHorror = listaOpcional(7);
+    listDorama = listaOpcional(8);
+    listFamily = listaOpcional(9);
+
+    if (isKids) {
+        // As duas peneiras (gênero + classificação) rodam em paralelo entre si — são
+        // listas independentes, então não há motivo pra pagar o orçamento de tempo de
+        // uma depois da outra.
+        [listAction, listFamily] = await Promise.all([
+            reforcarComClassificacao(filtrarItensInfantis(listAction)),
+            reforcarComClassificacao(filtrarItensInfantis(listFamily))
+        ]);
+    }
+
+    // Processamento de Canais e Jogos
+    const canaisBrutos = canaisRes.filter(c => c.categoria !== '⚽ Jogos Ao Vivo');
+    const jogosFromCanais = canaisRes.filter(c => c.categoria === '⚽ Jogos Ao Vivo');
+    
+    // Normalização de freshGames para o formato esperado pelo layout de TV
+    const normalizeTimestamp = (ts) => {
+        if (!ts) return 0;
+        const num = Number(ts);
+        return num > 9999999999 ? Math.floor(num / 1000) : num;
+    };
+    const jogosFormatados = freshGames.map(j => {
+        const gameId = j.id || `jogo_${j.title?.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/ /g, '-').replace(/[^\w-]/g, '') || Math.random()}`;
+        return {
+            id: gameId,
+            nome: j.title || j.nome,
+            title: j.title || j.nome,
+            imagem: j.image || j.imagem || "/placeholder.jpg",
+            image: j.image || j.imagem || "/placeholder.jpg",
+            categoria: "⚽ Jogos Ao Vivo",
+            url: Array.isArray(j.players) ? j.players[0] : (j.players || j.url || ""),
+            hora_inicio: j.data?.timer?.start ? normalizeTimestamp(j.data.timer.start) : null,
+            hora_fim: j.data?.timer?.end ? normalizeTimestamp(j.data.timer.end) : null,
+            data: j.data || j
+        };
+    });
+
+    const normalizeGameId = (value) => String(value || '').trim().toLowerCase();
+
+    const fallbackJogosFormatados = jogosFromCanais.map((j) => {
+        const gameId = j.id || `jogo_${j.title?.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/ /g, '-').replace(/[^\w-]/g, '') || Math.random()}`;
+        return {
+            id: gameId,
+            nome: j.title || j.nome,
+            title: j.title || j.nome,
+            imagem: j.image || j.imagem || "/placeholder.jpg",
+            image: j.image || j.imagem || "/placeholder.jpg",
+            categoria: "⚽ Jogos Ao Vivo",
+            url: j.url || "",
+            hora_inicio: j.hora_inicio ?? (j.data?.timer?.start ? normalizeTimestamp(j.data.timer.start) : null),
+            hora_fim: j.hora_fim ?? (j.data?.timer?.end ? normalizeTimestamp(j.data.timer.end) : null),
+            data: j.data || j
+        };
+    });
+
+    // SSR fail-safe: quando a lista freshGames vier incompleta,
+    // completamos com os jogos já retornados por fetchCanais para manter 4 cards estáveis na Home.
+    const mergedJogos = [...jogosFormatados];
+    const seenIds = new Set(mergedJogos.map((g) => normalizeGameId(g.id)));
+    for (const game of fallbackJogosFormatados) {
+        const key = normalizeGameId(game.id);
+        if (!key || seenIds.has(key)) continue;
+        seenIds.add(key);
+        mergedJogos.push(game);
+    }
+
+    canaisTVData = [...canaisBrutos, ...mergedJogos];
+    liveGamesData = mergedJogos.slice(0, 8);
+    vipIdsData = vipRes || [];
+
+    // Log apenas de falhas para debug em produção
+    results.forEach((res, index) => {
+        if (res.status === 'rejected') console.error(`⚠️ Home Data Part ${index} failed:`, res.reason);
+    });
+
+} catch (e) {
+    console.error("Critical SSR Data Fetch Error:", e);
+    const logPromise = axiomService.logError(e, { rota: "/index" });
+    if (Astro.locals.runtime?.waitUntil) {
+        Astro.locals.runtime.waitUntil(logPromise);
+    } else {
+        logPromise.catch(() => {});
+    }
+}
+
+// 3.1 Guarda de cache: um render degradado (sem trending = sem hero e sem Top 10) NÃO pode
+// ficar uma hora na borda da Cloudflare. A chave de cache é só a URL, então um único
+// isolate frio que falhou nos fetches serviria a home vazia pra todo mundo até expirar.
+// Meio minuto ainda protege contra rajada, mas o próximo visitante já reidrata.
+// Vale o mesmo pros canais: a grade de TV vazia é sempre falha de fonte, nunca uma grade
+// realmente sem canais — não pode ficar 1h fixada na borda.
+if (trendingAll.length === 0 || canaisTVData.filter(c => c.categoria !== '⚽ Jogos Ao Vivo').length === 0) {
+    Astro.response.headers.set("Cache-Control", "public, s-maxage=30, stale-while-revalidate=60");
+}
+
+// Perfil infantil: o hero e o Top 10 saem da mesma lista de tendências, que é o catálogo
+// adulto inteiro. Filtrar aqui, uma vez, cobre os dois de uma só vez.
+if (isKids) {
+    trendingAll = await reforcarComClassificacao(filtrarItensInfantis(trendingAll));
+}
+
+// 4. Hero Slides
+const genresMap = {
+    28: t('genre.action'), 12: t('genre.adventure'), 16: t('genre.animation'), 
+    35: t('genre.comedy'), 18: t('genre.drama'), 27: t('genre.horror'),
+    878: t('genre.science_fiction'), 10770: t('genre.tv_movie'),
+    10759: t('genre.action_adventure'), 10765: t('genre.scifi_fantasy')
+};
+
+const heroSlides = trendingAll.slice(0, 5).map((item) => ({
+    id: item.id,
+    title: item.title || item.name,
+    overview: item.overview,
+    backdrop_path: item.backdrop_path, // Passamos apenas o path para o componente gerar o srcset
+    media_type: item.media_type,
+    year: (item.release_date || item.first_air_date || "").split("-")[0],
+    rating: item.vote_average ? item.vote_average.toFixed(1) : "N/A",
+    genre: item.genre_ids && item.genre_ids.length > 0 ? genresMap[item.genre_ids[0]] || t('home.hero_genre') : t('home.hero_genre'),
+}));
+
+const top10Items = trendingAll.filter(i => i.poster_path).slice(0, 10);
+
+// ItemList schema pro Top 10 — dá elegibilidade pro Google mostrar um carrossel de
+// filme/série nos resultados de busca da home, apontando pra URL real de cada título
+// (não pra API/imagem, pra não repetir o problema de "vídeo não é a página de exibição").
+const siteUrl = getSiteUrl(Astro.url);
+const itemListSchema = top10Items.length > 0 ? {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    itemListElement: top10Items.map((item, index) => {
+        const routeType = item.media_type === 'tv' ? 'serie' : 'filme';
+        const name = item.title || item.name || '';
+        return {
+            "@type": "ListItem",
+            position: index + 1,
+            // contentSlug, não slugify: o JSON-LD precisa da MESMA URL canônica da rota de destino.
+            url: `${siteUrl}${langPrefix}/${routeType}/${item.id}-${contentSlug(name)}`,
+        };
+    }),
+} : null;
+const lcpImage = heroSlides.length > 0 ? `https://image.tmdb.org/t/p/w780${heroSlides[0].backdrop_path}` : null;
+
+// Capping de resolução de imagem no Mobile para otimização extrema do LCP (Pilar 4)
+const preloadImageSet = heroSlides.length > 0 
+    ? getHomePreloadImageSet(heroSlides[0].backdrop_path, isMobileUA)
+    : null;
+const preloadImageSizes = getBackdropSizes(isMobileUA);
+---
+
+<BaseLayout
+    title={t('home.meta_title')}
+    description={t('home.meta_desc')}
+    bodyClass="selection:bg-[#DF0912] selection:text-white bg-[#060911] text-white overflow-x-hidden"
+    preloadImageSet={preloadImageSet}
+    preloadImageSizes={preloadImageSizes}
+>
+    {/* Usa home.h1_hidden (existe em pt e en). Antes chamava t('meta.title'), chave que não
+        existe em nenhum dicionário — o useTranslations cai no fallback de devolver a própria
+        chave, então o H1 da home renderizava literalmente "MultiCanaisHD - meta.title". */}
+    <h1 class="sr-only">{t('home.h1_hidden')}</h1>
+    <!-- FAQ Schema for better SERP real estate -->
+    <script slot="head"
+        type="application/ld+json"
+        set:html={JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            mainEntity: [
+                {
+                    "@type": "Question",
+                    name: t('home.faq.q1'),
+                    acceptedAnswer: {
+                        "@type": "Answer",
+                        text: t('home.faq.a1'),
+                    },
+                },
+                {
+                    "@type": "Question",
+                    name: t('home.faq.q2'),
+                    acceptedAnswer: {
+                        "@type": "Answer",
+                        text: t('home.faq.a2'),
+                    },
+                },
+                {
+                    "@type": "Question",
+                    name: t('home.faq.q3'),
+                    acceptedAnswer: {
+                        "@type": "Answer",
+                        text: t('home.faq.a3'),
+                    },
+                },
+            ],
+        })}
+    />
+    {itemListSchema && (
+        <script slot="head"
+            type="application/ld+json"
+            set:html={JSON.stringify(itemListSchema)}
+        />
+    )}
+
+    <main 
+        class="relative"
+        data-lang={lang}
+        data-lang-prefix={langPrefix}
+        data-t-personalized={t('home.personalized_title')}
+    >
+        <HeroCarousel initialSlides={heroSlides} isMobile={isMobileUA} />
+
+        {/* Content Flow V3.2 - Natural & Spacious */}
+        <div class="relative z-20 space-y-12 sm:space-y-16 pb-32">
+            
+            {/* Quick Resume Layer - Proper spacing after Hero */}
+            <section class="mt-12 relative z-30">
+                <ContinueWatching />
+            </section>
+
+            {/* Live Games Section - Jogos Ao Vivo (fora do perfil infantil) */}
+            {!isKids && (
+                <section class="relative z-20">
+                    <LiveGamesSection initialGames={liveGamesData} initialVipIds={vipIdsData} />
+                </section>
+            )}
+
+            {/* Personalized Recommendations Section (SEO/UX Phase 6) */}
+            <div id="personalizedSection" class="reveal-section hidden mt-16 overflow-hidden relative z-20">
+                {/* Dynamically populated via script below */}
+            </div>
+
+            <div class="container mx-auto px-4 sm:px-6 lg:px-12 space-y-24">
+                
+                {/* 1. Impact: Trending Top 10 */}
+                <section class="reveal-section space-y-8">
+                    <Top10Section initialItems={top10Items} />
+                    {/* Banner Adsterra (728x90 desktop / 320x50 mobile) — fora do perfil infantil. */}
+                    {!isKids && (
+                        <div class="flex justify-center">
+                            <BannerAd />
+                        </div>
+                    )}
+                </section>
+
+                {/* 1.5. Recent Episodes from StreamBetter (fonte sem gênero: não dá pra
+                    filtrar por idade, então fica fora do perfil infantil) */}
+                {!isKids && (
+                    <section class="reveal-section">
+                        <RecentEpisodes />
+                    </section>
+                )}
+
+                {/* 2. Content Rows */}
+                <section class="reveal-section">
+                    <LayoutCardsStreaming
+                        titleHead={isKids ? (isPt ? "Animação" : "Animation") : t('home.action_adventure')}
+                        staticData={listAction}
+                        lazyApi={isKids ? `/api/preview-genre?id=16&lang=${lang}` : undefined}
+                        isCrawler={isCrawler}
+                        lang={lang}
+                        exploreLink={isKids ? `${langPrefix}/explorar?type=all` : `${langPrefix}/genero/acao`}
+                    />
+                </section>
+                {/* Animes e comédia entram inteiros, sem recorte por gênero — a lista de
+                    animes tem título adulto e o gênero 35 não é infantil. */}
+                {!isKids && (
+                    <section class="reveal-section content-visibility-auto">
+                        <LayoutCardsStreaming
+                            titleHead={t('home.anime_season')}
+                            staticData={listAnime}
+                            lazyApi={`/api/list-animes?lang=${lang}`}
+                            isCrawler={isCrawler}
+                            type="tv"
+                            lang={lang}
+                            exploreLink={`${langPrefix}/genero/anime`}
+                        />
+                    </section>
+                )}
+                {!isKids && (
+                    <section class="reveal-section content-visibility-auto">
+                        <LayoutCardsStreaming
+                            titleHead={t('home.comedy')}
+                            staticData={listComedy}
+                            lazyApi={`/api/preview-genre?id=35&lang=${lang}`}
+                            isCrawler={isCrawler}
+                            lang={lang}
+                            exploreLink={`${langPrefix}/genero/comedia`}
+                        />
+                    </section>
+                )}
+                {!isKids && (
+                    <section class="reveal-section content-visibility-auto">
+                        <LayoutCardsStreaming
+                            titleHead={t('home.horror_thriller')}
+                            staticData={listHorror}
+                            lazyApi={`/api/preview-genre?id=27&lang=${lang}`}
+                            isCrawler={isCrawler}
+                            lang={lang}
+                            exploreLink={`${langPrefix}/genero/terror`}
+                        />
+                    </section>
+                )}
+                {!isKids && (
+                    <section class="reveal-section content-visibility-auto">
+                        <LayoutCardsStreaming
+                            titleHead={t('home.k-dramas')}
+                            staticData={listDorama}
+                            lazyApi={`/api/list-doramas?lang=${lang}`}
+                            isCrawler={isCrawler}
+                            type="tv"
+                            lang={lang}
+                            exploreLink={`${langPrefix}/explorar?type=tv`}
+                        />
+                    </section>
+                )}
+                <section class="reveal-section content-visibility-auto">
+                    <LayoutCardsStreaming
+                        titleHead={t('home.family')}
+                        staticData={listFamily}
+                        lazyApi={`/api/preview-genre?id=10751&lang=${lang}`}
+                        isCrawler={isCrawler}
+                        lang={lang}
+                        exploreLink={`${langPrefix}/genero/familia`}
+                    />
+                </section>
+
+                {/* 3. Live TV Identity Block (fora do perfil infantil) */}
+                {!isKids && (
+                <section
+                    class="reveal-section content-visibility-auto relative overflow-hidden"
+                >
+                    <div class="flex flex-col sm:flex-row items-center justify-between mb-12 relative z-10 gap-6">
+                        <div class="flex items-center gap-4 sm:gap-6">
+                            <span class="p-3 sm:p-4 bg-[#DF0912] rounded-xl shrink-0">
+                                <svg class="w-6 h-6 sm:w-8 sm:h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                            </span>
+                            <div class="text-center sm:text-left">
+                                <h2 class="text-2xl sm:text-3xl font-black text-white tracking-tighter uppercase italic">{t('home.live_tv_title')}</h2>
+                                <p class="text-[9px] text-gray-700 font-black uppercase tracking-widest mt-1 italic">{t('tv.warning')}</p>
+                            </div>
+                        </div>
+                        <a
+                            href={langPrefix + "/canais"}
+                            class="group/btn w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 bg-white/5 hover:bg-[#DF0912] text-white font-black transition-all border border-white/10 rounded-xl uppercase tracking-tighter text-xs"
+                        >
+                            {t('home.explore_schedule')}
+                        </a>
+                    </div>
+                    <LayoutCardTV todosCanaisProp={canaisTVData} />
+                </section>
+                )}
+
+
+            </div>
+        </div>
+    </main>
+
+    <style is:global>
+        /* Seções visíveis por padrão (fail-safe) */
+        /* O JS adiciona .will-animate antes de animar para criar o efeito de entrada */
+        .reveal-section.will-animate {
+            opacity: 0;
+            transform: translateY(16px);
+            transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+        }
+        .reveal-section.revealed {
+            opacity: 1;
+            transform: translateY(0);
+            transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+        }
+    </style>
+
+    <script is:inline>
+        function updateScrollButtons() {
+            const contentEl = document.getElementById('personalized-carousel');
+            const prevBtn = document.getElementById('prev-btn'); // assuming these exist or will exist
+            const nextBtn = document.getElementById('next-btn');
+
+            if (!contentEl || !prevBtn || !nextBtn) return;
+            const left = contentEl.scrollLeft;
+            const max = contentEl.scrollWidth - contentEl.clientWidth;
+            
+            prevBtn.style.opacity = left <= 10 ? "0" : "1";
+            prevBtn.style.pointerEvents = left <= 10 ? "none" : "auto";
+            nextBtn.style.opacity = left >= max - 10 ? "0" : "1";
+            nextBtn.style.pointerEvents = left >= max - 10 ? "none" : "auto";
+        }
+
+        function revealSection(el) {
+            el.classList.add('revealed');
+        }
+
+        function initHomeExperience() {
+            const sections = document.querySelectorAll('.reveal-section');
+            if (sections.length === 0) return;
+
+            sections.forEach((section) => {
+                revealSection(section);
+            });
+        }
+
+        async function initPersonalization() {
+            try {
+                const main = document.querySelector('main');
+                const section = document.getElementById('personalizedSection');
+                if (!section || !main) return;
+
+                const lang = main.dataset.lang || 'pt';
+                const langPrefix = main.dataset.langPrefix || '';
+                const tPersonalized = main.dataset.tPersonalized || 'Porque você assistiu';
+
+                let history = [];
+                try {
+                    if (window._authStore) {
+                        history = window._authStore.get().history || [];
+                    } else {
+                        const saved = localStorage.getItem('bf_session_optimistic');
+                        if (saved) {
+                            history = JSON.parse(saved).history || [];
+                        }
+                    }
+                } catch (e) {
+                    console.error("History parse error:", e);
+                }
+                
+                if (!Array.isArray(history) || history.length === 0) return;
+
+                const lastItem = history[0];
+                const { id, type, title: lastTitle } = lastItem;
+                if (!id || !type) return;
+
+                try {
+                    const res = await fetch(`/api/recommendations?id=${id}&type=${type}&lang=${lang}`);
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    
+                    let items = data.results || [];
+                    if (items.length === 0) return;
+
+                    items = items.filter(i => i.id != id).slice(0, 12);
+                    if (items.length === 0) return;
+
+                    const slugifyLocal = (text) => {
+                        if (!text) return "";
+                        return text.toString().toLowerCase().trim()
+                            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                            .replace(/\s+/g, "-").replace(/[^\w\-]+/g, "")
+                            .replace(/-+/g, "-").replace(/^-+|-+$/g, "");
+                    };
+
+                    section.innerHTML = `
+                        <div class="py-6 w-full mx-auto relative group/section overflow-hidden">
+                            <div class="flex items-center justify-between mb-8 px-4 sm:px-6 lg:px-12">
+                                <div class="flex items-center gap-3">
+                                    <span class="w-1.5 h-6 bg-[#DF0912]"></span>
+                                    <h2 class="text-xl sm:text-2xl font-black text-white tracking-tighter uppercase italic">
+                                        ${tPersonalized} <span class="text-[#DF0912]">${lastTitle}</span>
+                                    </h2>
+                                </div>
+                            </div>
+                            <div class="relative w-full px-4 sm:px-6 lg:px-12">
+                                <div id="personalized-carousel" class="flex gap-4 sm:gap-5 overflow-x-auto snap-x snap-mandatory scrollbar-hide scroll-smooth w-full" style="scrollbar-width: none; -ms-overflow-style: none;">
+                                    ${items.map((item) => {
+                                        const title = item.title || item.name;
+                                        const poster = item.poster_path || item.backdrop_path;
+                                        const imgUrl = poster ? `https://image.tmdb.org/t/p/w342${poster}` : 'https://placehold.co/342x513/111/444?text=MultiCanaisHD';
+                                        const srcset = poster ? `srcset="https://image.tmdb.org/t/p/w185${poster} 185w, https://image.tmdb.org/t/p/w342${poster} 342w, https://image.tmdb.org/t/p/w500${poster} 500w"` : '';
+                                        const sizes = poster ? `sizes="(max-width: 640px) 45vw, (max-width: 1024px) 30vw, 200px"` : '';
+                                        const slug = slugifyLocal(title);
+                                        const year = (item.release_date || item.first_air_date || "").split("-")[0];
+                                        const mediaType = item.media_type || (item.title ? 'movie' : 'tv');
+                                        return `
+                                            <a href="${langPrefix}/${mediaType === 'movie' ? 'filme' : 'serie'}/${item.id}-${slug}" 
+                                               class="bf-card flex-shrink-0 snap-start relative group/card block w-[calc(45%-8px)] sm:w-[calc(30%-10px)] md:w-[calc(25%-12px)] lg:w-[calc(16.666%-20px)] aspect-[2/3] overflow-hidden rounded-none transition-all duration-500 transform hover:scale-105 hover:z-20 bg-[#0a0a0a]">
+                                                <img src="${imgUrl}" ${srcset} ${sizes} alt="${title}" class="w-full h-full object-cover transition-all duration-700 group-hover:card:brightness-110" loading="lazy" />
+                                                <div class="absolute top-3 left-3 flex gap-2 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                                                    ${item.vote_average ? `<div class="bg-black/95 px-1.5 py-0.5 border border-white/5 flex items-center gap-1"><span class="text-[#FFCC00] text-[9px]">★</span><span class="text-white text-[9px] font-black">${item.vote_average.toFixed(1)}</span></div>` : ''}
+                                                    ${year ? `<div class="bg-black/95 px-1.5 py-0.5 border border-white/5 text-white text-[9px] font-black">${year}</div>` : ''}
+                                                </div>
+                                                <div class="absolute inset-0 bg-black/60 opacity-0 group-hover/card:opacity-100 transition-all duration-300 flex flex-col items-center justify-center p-4">
+                                                    <p class="text-white text-[10px] font-black text-center line-clamp-1 uppercase tracking-tighter">${title}</p>
+                                                </div>
+                                            </a>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    section.classList.remove('hidden');
+                    
+                    // Re-inicializa o IntersectionObserver para a nova seção
+                    const obs = new IntersectionObserver((entries) => {
+                        entries.forEach(entry => {
+                            if (entry.isIntersecting) {
+                                entry.target.classList.add('revealed');
+                                obs.unobserve(entry.target);
+                            }
+                        });
+                    }, { threshold: 0.1 });
+                    obs.observe(section);
+
+                } catch (e) {
+                    console.error("Erro na personalização:", e);
+                }
+            } catch (e) {
+                console.error("Critical personalization failure:", e);
+            }
+        }
+
+
+        // Executa em carregamento inicial e em navegações SPA do Astro
+        function initAll() {
+            initHomeExperience();
+            // Bloqueia fetch de personalização para crawlers (Lighthouse/PageSpeed)
+            const isBot = navigator.webdriver === true || /lighthouse|pagespeed|bot|crawler|spider/i.test(navigator.userAgent);
+            if (!isBot) {
+                const isMobile = window.matchMedia("(max-width: 768px)").matches;
+                const delay = isMobile ? 2500 : 1200;
+                if (typeof requestIdleCallback !== 'undefined') {
+                    requestIdleCallback(() => setTimeout(initPersonalization, delay), { timeout: delay + 1000 });
+                } else {
+                    setTimeout(initPersonalization, delay);
+                }
+            }
+        }
+        document.addEventListener('astro:page-load', initAll);
+    </script>
+</BaseLayout>

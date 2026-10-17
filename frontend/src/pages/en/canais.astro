@@ -1,0 +1,5 @@
+---
+// src/pages/en/canais.astro
+export const prerender = false;
+return Astro.rewrite(`/canais?lang=en&${Astro.url.searchParams.toString()}`);
+---

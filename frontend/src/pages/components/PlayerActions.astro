@@ -1,0 +1,51 @@
+---
+// src/components/PlayerActions.astro
+import { getConfig, getAdSettings } from "../../services/configService.js";
+const adProvider = await getConfig("AD_PROVIDER", "adsterra");
+const ADSTERRA_LINK = getAdSettings(adProvider).smartlink;
+---
+
+<div class="flex flex-wrap items-center justify-center gap-4 mt-6 mb-8 px-4">
+    
+    <a 
+        href={ADSTERRA_LINK} 
+        target="_blank"
+        rel="nofollow noreferrer"
+        class="group relative flex items-center gap-3 px-6 py-3 bg-[#161B28] hover:bg-[#1D2437] border border-yellow-500/30 hover:border-yellow-500 rounded-xl transition-all cursor-pointer overflow-hidden"
+    >
+        <div class="absolute inset-0 bg-yellow-500/5 group-hover:bg-yellow-500/10 transition-colors"></div>
+        <span class="p-1.5 rounded-lg bg-yellow-500/10 text-yellow-500 group-hover:scale-110 transition-transform">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+        </span>
+        <div class="text-left">
+            <p class="text-xs text-yellow-500 font-bold uppercase tracking-wider">VIP</p>
+            <p class="text-sm text-gray-200 font-medium">Assistir em 4K</p>
+        </div>
+    </a>
+
+    <a 
+        href={ADSTERRA_LINK} 
+        target="_blank"
+        rel="nofollow noreferrer"
+        class="group flex items-center gap-3 px-6 py-3 bg-[#161B28] hover:bg-[#1D2437] border border-white/10 hover:border-blue-500/50 rounded-xl transition-all cursor-pointer"
+    >
+        <span class="p-1.5 rounded-lg bg-blue-500/10 text-blue-500 group-hover:translate-y-1 transition-transform">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+        </span>
+        <div class="text-left">
+            <p class="text-xs text-blue-400 font-bold uppercase tracking-wider">Download</p>
+            <p class="text-sm text-gray-200 font-medium">Baixar Episódio</p>
+        </div>
+    </a>
+
+    <a 
+        href={ADSTERRA_LINK} 
+        target="_blank" 
+        rel="nofollow noreferrer"
+        class="group flex items-center gap-2 px-4 py-3 opacity-60 hover:opacity-100 hover:text-red-400 transition-all text-xs font-medium text-gray-400"
+    >
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+        <span>Link Quebrado?</span>
+    </a>
+
+</div>

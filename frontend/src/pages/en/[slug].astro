@@ -1,0 +1,6 @@
+---
+// src/pages/en/[slug].astro
+export const prerender = false;
+const { slug } = Astro.params;
+return Astro.rewrite(`/${slug}?lang=en&${Astro.url.searchParams.toString()}`);
+---

@@ -1,0 +1,402 @@
+---
+// src/pages/minha-lista.astro
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+// i18n
+import { getLangFromUrl, useTranslations } from "../i18n/utils";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+---
+
+<BaseLayout
+    title={t('watchlist.title')}
+    description={t('watchlist.desc')}
+    robots="noindex, nofollow"
+>
+    <main class="flex-grow container mx-auto px-4 py-8 mt-24 sm:mt-28">
+            <div
+                class="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4 border-b border-white/5 pb-4"
+            >
+                <h2
+                    class="text-3xl font-bold text-white flex items-center gap-2"
+                >
+                    <svg
+                        class="w-8 h-8 text-[#DF0912]"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        ><path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                        ></path></svg
+                    >
+                    {t('watchlist.library_title')}
+                </h2>
+
+                <div class="flex gap-2 p-1 bg-[#161B28] rounded-lg">
+                    <button
+                        id="tabFav"
+                        class="px-4 py-2 text-sm font-bold rounded-md bg-[#DF0912] text-white shadow-lg transition-all"
+                    >
+                        {t('watchlist.tab_favorites')}
+                    </button>
+                    <button
+                        id="tabHist"
+                        class="px-4 py-2 text-sm font-bold rounded-md text-gray-400 hover:text-white transition-all"
+                    >
+                        {t('watchlist.tab_history')}
+                    </button>
+                    <button
+                        id="btn-clear-hist"
+                        class="hidden ml-auto px-4 py-2 text-[10px] font-black uppercase tracking-tighter text-gray-500 hover:text-white bg-white/5 rounded-md border border-white/5 transition-all"
+                    >
+                        {t('watchlist.clear_history')}
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filtros de Categoria (Novo) -->
+            <div id="filterBar" class="flex items-center gap-3 mb-8 overflow-x-auto pb-2 hide-scrollbar">
+                <button data-filter="all" class="filter-btn px-5 py-1.5 rounded-full bg-[#DF0912] text-white text-[10px] font-black uppercase tracking-widest transition-all border border-[#DF0912]">{t('watchlist.filter_all')}</button>
+                <button data-filter="movie" class="filter-btn px-5 py-1.5 rounded-full bg-[#161B28] text-gray-400 text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 hover:border-white/20">{t('watchlist.filter_movies')}</button>
+                <button data-filter="tv" class="filter-btn px-5 py-1.5 rounded-full bg-[#161B28] text-gray-400 text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 hover:border-white/20">{t('watchlist.filter_series')}</button>
+            </div>
+
+            <div
+                id="favoritesContainer"
+                class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6"
+            >
+            </div>
+            <div
+                id="emptyFav"
+                class="hidden flex-col items-center justify-center py-20 text-center"
+            >
+                <div
+                    class="w-20 h-20 bg-[#161B28] rounded-full flex items-center justify-center mb-4"
+                >
+                    <svg
+                        class="w-8 h-8 text-gray-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        ><path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                        ></path></svg
+                    >
+                </div>
+                <p class="text-gray-400 text-lg font-medium">
+                    {t('watchlist.empty_favorites')}
+                </p>
+                <p class="text-gray-500 text-sm mb-6">
+                    {t('watchlist.empty_favorites_desc')}
+                </p>
+                <a
+                    href="/"
+                    class="px-6 py-2 bg-[#DF0912] text-white rounded-lg font-bold text-sm hover:bg-[#be080f]"
+                    >{t('watchlist.explore')}</a
+                >
+            </div>
+
+            <div
+                id="historyContainer"
+                class="hidden grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6"
+            >
+            </div>
+            <div
+                id="emptyHist"
+                class="hidden flex-col items-center justify-center py-20 text-center"
+            >
+                <div
+                    class="w-20 h-20 bg-[#161B28] rounded-full flex items-center justify-center mb-4"
+                >
+                    <svg
+                        class="w-8 h-8 text-gray-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        ><path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                        ></path></svg
+                    >
+                </div>
+                <p class="text-gray-400 text-lg font-medium">{t('watchlist.empty_history')}</p>
+                <p class="text-gray-500 text-sm">
+                    {t('watchlist.empty_history_desc')}
+                </p>
+            </div>
+            <div
+                id="loggedOutContainer"
+                class="hidden flex-col items-center justify-center py-20 text-center"
+            >
+                <div
+                    class="w-20 h-20 bg-[#161B28] rounded-full flex items-center justify-center mb-4"
+                >
+                    <svg class="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                </div>
+                <p class="text-gray-400 text-lg font-medium">{t('watchlist.login_required')}</p>
+                <p class="text-gray-500 text-sm mb-6">
+                    {t('watchlist.login_required_desc')}
+                </p>
+                <a
+                    href="/login"
+                    class="px-6 py-2 bg-[#DF0912] text-white rounded-lg font-bold text-sm hover:bg-[#be080f]"
+                >{t('watchlist.login_cta')}</a>
+            </div>
+            <!-- Data Layer -->
+            <div id="watchlist-data-layer" hidden
+                data-t-confirm-clear={t('watchlist.clear_confirm')}
+                data-t-removed={t('watchlist.removed_toast')}
+                data-t-movie={t('nav.movies').slice(0, -1)}
+                data-t-tv={t('nav.series').slice(0, -1)}
+                data-t-fav-tab={t('watchlist.tab_favorites')}
+                data-t-hist-tab={t('watchlist.tab_history')}
+                data-t-no-image={isPt ? 'SEM IMAGEM' : 'NO IMAGE'}
+                data-t-fav-ep-watched={t('player.ep_watched_feedback')}
+                data-t-mark-fav-ep-watched={t('player.mark_ep_watched_feedback')}
+                data-lang={lang}
+            ></div>
+        </main>
+
+        <script>
+            import { favoritesStore } from "../store/favoritesStore";
+            import { authStore, updateCloudStats, clearCloudHistory } from "../store/authStore";
+            import { showToast } from "../store/toastStore";
+
+            document.addEventListener("astro:page-load", () => {
+                const favContainer = document.getElementById("favoritesContainer");
+                const histContainer = document.getElementById("historyContainer");
+                const emptyFav = document.getElementById("emptyFav");
+                const emptyHist = document.getElementById("emptyHist");
+                const loggedOutContainer = document.getElementById("loggedOutContainer");
+                const tabFav = document.getElementById("tabFav");
+                const tabHist = document.getElementById("tabHist");
+                const filterBtns = document.querySelectorAll(".filter-btn");
+                const dl = document.getElementById("watchlist-data-layer");
+
+                let currentTab = "favorites";
+                let currentFilter = "all";
+
+                if (!favContainer) return;
+
+                function showTab(tab) {
+                    currentTab = tab;
+                    const activeClass = "px-4 py-2 text-sm font-bold rounded-md bg-[#DF0912] text-white shadow-lg transition-all";
+                    const inactiveClass = "px-4 py-2 text-sm font-bold rounded-md text-gray-400 hover:text-white transition-all";
+
+                    if (tab === "favorites") {
+                        favContainer.classList.remove("hidden");
+                        histContainer.classList.add("hidden");
+                        tabFav.className = activeClass;
+                        tabHist.className = inactiveClass;
+                    } else {
+                        histContainer.classList.remove("hidden");
+                        favContainer.classList.add("hidden");
+                        tabHist.className = activeClass;
+                        tabFav.className = inactiveClass;
+                    }
+                    updateClearBtnVisibility();
+                    renderAll();
+                }
+
+                // Listener para Limpar Histórico
+                const clearHistBtn = document.getElementById("btn-clear-hist");
+                clearHistBtn?.addEventListener("click", () => {
+                    if (confirm(dl?.dataset.tConfirmClear || "Deseja realmente limpar todo o seu histórico?")) {
+                        clearCloudHistory();
+                        renderAll();
+                    }
+                });
+
+                // Configuração dos Botões de Tab
+                tabFav.addEventListener("click", () => showTab("favorites"));
+                tabHist.addEventListener("click", () => showTab("history"));
+
+                function updateClearBtnVisibility() {
+                    const clearBtn = document.getElementById("btn-clear-hist");
+                    if (clearBtn) {
+                        if (currentTab === 'history') clearBtn.classList.remove("hidden");
+                        else clearBtn.classList.add("hidden");
+                    }
+                }
+
+                // Configuração dos Botões de Filtro
+                filterBtns.forEach(btn => {
+                    btn.onclick = () => {
+                        currentFilter = btn.dataset.filter;
+                        filterBtns.forEach(b => {
+                            b.className = "filter-btn px-5 py-1.5 rounded-full bg-[#161B28] text-gray-400 text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 hover:border-white/20";
+                        });
+                        btn.className = "filter-btn px-5 py-1.5 rounded-full bg-[#DF0912] text-white text-[10px] font-black uppercase tracking-widest transition-all border border-[#DF0912]";
+                        renderAll();
+                    };
+                });
+
+                const getHistory = () => {
+                    const state = authStore.get();
+                    if (state.user) return state.history || [];
+                    return [];
+                };
+
+                const renderCard = (item: any, container: HTMLElement, isFav: boolean = false) => {
+                    const el = document.createElement("a");
+                    
+                    // Sanitização de URL: Transforma links absolutos em caminhos relativos
+                    let finalUrl = item.url || `/${item.type === 'movie' ? 'filme' : 'serie'}/${item.id}-${item.slug || 'detalhes'}`;
+                    const isInternal = finalUrl.includes('localhost') || finalUrl.includes(window.location.hostname) || finalUrl.startsWith('/');
+                    if (isInternal && finalUrl.startsWith('http')) {
+                        try {
+                            const u = new URL(finalUrl, window.location.origin);
+                            finalUrl = u.pathname + u.search;
+                        } catch(e) {
+                            console.warn("Falha ao sanitizar URL:", finalUrl);
+                        }
+                    }
+                    el.href = finalUrl;
+                    el.className = "group relative flex flex-col bg-[#161B28] rounded-xl overflow-hidden transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl hover:shadow-red-900/10";
+                    
+                    // Botão de remover (X) que intercepta o clique do card
+                    let removeBtnHTML = "";
+                    if (isFav) {
+                        removeBtnHTML = `
+                            <button
+                                aria-label="Remover"
+                                class="remove-fav-btn absolute top-2 right-2 z-20 w-8 h-8 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-md"
+                                data-id="${item.id}"
+                            >
+                                <svg class="w-4 h-4 text-white pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        `;
+                    }
+
+                    const noImageText = dl?.dataset.tNoImage || 'SEM IMAGEM';
+                    const fallbackPosterUrl = `https://placehold.co/500x750/111/444?text=${encodeURIComponent(noImageText)}`;
+                    let posterUrl = item.poster
+                        ? (item.poster.startsWith('http') ? item.poster : `https://image.tmdb.org/t/p/w500${item.poster}`)
+                        : fallbackPosterUrl;
+
+                    const tagLabel = item.type === "tv" ? dl?.dataset.tTv : dl?.dataset.tMovie;
+
+                    const html = `
+                        <div class="relative aspect-[2/3] overflow-hidden">
+                            <img src="${posterUrl}" alt="${item.title}" loading="lazy" onerror="this.onerror=null; this.src='${fallbackPosterUrl}';" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                            <div class="absolute top-2 left-2 z-10">
+                                <span class="px-2 py-0.5 rounded bg-black/60 backdrop-blur-md text-[10px] font-bold text-white uppercase border border-white/10">
+                                    ${tagLabel}
+                                </span>
+                            </div>
+                            ${removeBtnHTML}
+                            <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center pointer-events-none">
+                                <div class="w-12 h-12 rounded-full bg-[#DF0912] flex items-center justify-center transform scale-0 group-hover:scale-100 transition-transform duration-300 delay-75 shadow-lg">
+                                    <svg class="w-5 h-5 text-white fill-current ml-1" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-3 border-t border-white/5 pointer-events-none">
+                            <h3 class="text-sm font-bold text-white leading-tight line-clamp-1 group-hover:text-[#DF0912] transition-colors">${item.title}</h3>
+                        </div>
+                    `;
+                    el.innerHTML = html;
+                    container.appendChild(el);
+                };
+
+                function renderAll() {
+                    const state = authStore.get();
+                    const isLogged = !!state.user;
+
+                    // Esconde tudo no começo e re-renderiza as lógicas
+                    favContainer.classList.add("hidden");
+                    histContainer.classList.add("hidden");
+                    emptyFav.classList.add("hidden");
+                    emptyHist.classList.add("hidden");
+                    if (loggedOutContainer) loggedOutContainer.classList.add("hidden");
+
+                    if (!isLogged) {
+                        if (loggedOutContainer) loggedOutContainer.classList.remove("hidden");
+                        return; // Para tudo, pois nâo tem acesso.
+                    }
+
+                    if (currentTab === 'favorites') favContainer.classList.remove("hidden");
+                    else histContainer.classList.remove("hidden");
+
+                    const favorites = favoritesStore.get();
+                    const history = getHistory();
+
+                    // Render Favoritos
+                    favContainer.innerHTML = '';
+                    const filteredFavs = currentFilter === 'all' ? favorites : favorites.filter(i => i.type === currentFilter);
+                    if (filteredFavs.length > 0) {
+                        filteredFavs.forEach((item) => renderCard(item, favContainer, true));
+                        emptyFav.classList.add("hidden");
+                        
+                        // Handler de remoção
+                        const removeBtns = favContainer.querySelectorAll('.remove-fav-btn');
+                        removeBtns.forEach((btn) => {
+                            btn.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                const idToRemove = btn.getAttribute('data-id');
+                                let currentFavs = favoritesStore.get();
+                                const newList = currentFavs.filter(i => i.id != idToRemove);
+                                updateCloudStats({ favorites: newList });
+                                showToast(dl?.dataset.tRemoved || "Removido da lista", "info");
+                            });
+                        });
+                    } else {
+                        if (currentTab === 'favorites') emptyFav.classList.remove("hidden");
+                        else emptyFav.classList.add("hidden");
+                    }
+
+                    // Render Histórico
+                    histContainer.innerHTML = '';
+                    const filteredHist = currentFilter === 'all' ? history : history.filter(i => i.type === currentFilter);
+                    if (filteredHist.length > 0) {
+                        filteredHist.forEach((item) => renderCard(item, histContainer, false));
+                        emptyHist.classList.add("hidden");
+                    } else {
+                        if (currentTab === 'history') emptyHist.classList.remove("hidden");
+                        else emptyHist.classList.add("hidden");
+                    }
+                }
+
+                // Suscrição Reativa a Store
+                favoritesStore.subscribe(renderAll);
+                authStore.subscribe(renderAll);
+
+                showTab("favorites");
+            });
+        </script>
+
+</BaseLayout>
+
+<style>
+    @reference 'tailwindcss';
+    .line-clamp-1 {
+        display: -webkit-box;
+        -webkit-line-clamp: 1;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    ::-webkit-scrollbar {
+        width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+        background: #0E111A;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: #333;
+        border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: #df0912;
+    }
+</style>

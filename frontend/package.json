@@ -1,0 +1,44 @@
+{
+  "name": "frontend",
+  "type": "module",
+  "version": "2.11.0",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "^12.6.13",
+    "@astrojs/sitemap": "^3.7.0",
+    "@axiomhq/js": "^1.6.0",
+    "@google/generative-ai": "^0.24.1",
+    "@supabase/supabase-js": "^2.103.2",
+    "@tailwindcss/vite": "^4.1.13",
+    "astro": "^5.18.0",
+    "astro-carousel": "^3.0.3",
+    "axios": "^1.11.0",
+    "date-fns": "^4.1.0",
+    "disable-devtool": "^0.3.9",
+    "discord-rpc": "^4.0.1",
+    "ioredis": "^5.10.1",
+    "nanostores": "^1.2.0",
+    "resend": "^6.12.0",
+    "tailwindcss": "^4.1.13",
+    "vidstack": "^0.6.15"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@testing-library/dom": "^10.4.1",
+    "@vitest/ui": "^4.1.4",
+    "jsdom": "^29.0.2",
+    "prettier": "^3.9.6",
+    "prettier-plugin-astro": "^0.14.1",
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.4"
+  }
+}

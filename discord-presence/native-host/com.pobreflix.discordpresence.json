@@ -1,0 +1,9 @@
+{
+  "name": "com.multicanaishd.discordpresence",
+  "description": "MultiCanaisHD Discord Rich Presence bridge",
+  "path": "C:\\Users\\User\\programacao\\projetos\\multicanaishd\\discord-presence\\native-host\\com.multicanaishd.discordpresence.bat",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://mjlefghcipfimlgodegbnemingolhfkl/"
+  ]
+}

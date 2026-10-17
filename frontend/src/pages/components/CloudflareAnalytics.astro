@@ -1,0 +1,11 @@
+---
+// src/pages/components/CloudflareAnalytics.astro
+const token = import.meta.env.PUBLIC_CLOUDFLARE_BEACON_TOKEN;
+const isProd = import.meta.env.PROD;
+---
+
+{token && isProd && (
+    <!-- Cloudflare Web Analytics -->
+    <script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon={JSON.stringify({ token })}></script>
+    <!-- End Cloudflare Web Analytics -->
+)}

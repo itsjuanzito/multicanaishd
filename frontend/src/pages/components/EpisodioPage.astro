@@ -1,0 +1,341 @@
+---
+// src/pages/components/EpisodioPage.astro
+// Página de um episódio como URL REAL e indexável.
+//
+// Antes, temporada e episódio só existiam como query param (/serie/x?season=3&episode=5), e
+// essas variantes são canonicalizadas para a página da série — decisão correta, mas o efeito
+// colateral é que nada no site respondia à busca real do usuário ("nome da série 3 temporada
+// episódio 5 dublado"). Aqui cada episódio ganha título, sinopse e schema próprios, que é o
+// que justifica a indexação separada.
+//
+// Real, indexable episode URL. Season/episode used to exist only as query params, which are
+// canonicalized to the series page — so nothing on the site answered episode-level queries.
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { getSiteUrl } from "../../services/env-adapter.js";
+import { obterParDeSlugs } from "../../services/contentSlugPairs.js";
+import { resolveRotatedSlug } from "../../services/urlRotationService.js";
+
+// Puramente de apresentação: quem busca os dados e decide 301/404/indisponível é a rota,
+// via resolverEpisodio() (ver services/episodioService.js e a nota lá sobre por que o
+// controle de fluxo não pode morar aqui).
+const {
+    id,
+    lang,
+    langPrefix,
+    slugCanonico,
+    caminhoCanonico,
+    detalhes,
+    episodios: episodiosDaTemporada,
+    episodioAtual,
+    numeroTemporada,
+    numeroEpisodio,
+} = Astro.props;
+
+const isPt = lang === "pt";
+const siteUrl = getSiteUrl(Astro.url);
+const nomeSerie = detalhes.title || detalhes.name;
+
+// Alternates de idioma (ver services/contentSlugPairs.js). A URL canônica desta página é ela
+// mesma (o episódio tem URL real), mas o slug da SÉRIE dentro dela muda de idioma para idioma:
+// em pt-BR é o título traduzido, em en o nome em inglês. Espelhar o path e trocar /en apontava
+// para uma URL que a rota de destino responde 301 — e o Google descarta o par de idiomas.
+//
+// O objeto é sempre passado, mesmo vazio: `null` no SEO.astro significa "esta rota não informa"
+// e cai no espelhamento; dois nulls significam "confirmei que não sei" e o alternate é omitido.
+const sufixoEpisodio = `/temporada-${numeroTemporada}/episodio-${numeroEpisodio}`;
+const parDeSlugsSerie = await obterParDeSlugs(id, "series", Astro.url);
+let alternates = { pt: null, en: null };
+if (parDeSlugsSerie) {
+    if (isPt) {
+        alternates = {
+            pt: `${siteUrl}/serie/${slugCanonico}${sufixoEpisodio}`,
+            en: parDeSlugsSerie.en
+                ? `${siteUrl}/en/serie/${id}-${parDeSlugsSerie.en}${sufixoEpisodio}`
+                : null,
+        };
+    } else {
+        // Aqui o idioma NÃO é o da rota: estamos montando o alternate do PT a partir de uma
+        // página EN, então o slug que está sendo resolvido é o português — lang 'pt' fixo.
+        const ptSlug = parDeSlugsSerie.pt
+            ? await resolveRotatedSlug(id, "series", `${id}-${parDeSlugsSerie.pt}`, 'pt')
+            : null;
+        alternates = {
+            pt: ptSlug ? `${siteUrl}/serie/${ptSlug}${sufixoEpisodio}` : null,
+            en: `${siteUrl}/en/serie/${slugCanonico}${sufixoEpisodio}`,
+        };
+    }
+}
+
+const codigoEpisodio = `${numeroTemporada}x${String(numeroEpisodio).padStart(2, "0")}`;
+const nomeEpisodio = episodioAtual?.name || (isPt ? `Episódio ${numeroEpisodio}` : `Episode ${numeroEpisodio}`);
+const sinopse = episodioAtual?.overview || "";
+const dataExibicao = episodioAtual?.air_date || null;
+const still = episodioAtual?.still_path
+    ? `https://image.tmdb.org/t/p/w780${episodioAtual.still_path}`
+    : detalhes.backdrop_path
+      ? `https://image.tmdb.org/t/p/w780${detalhes.backdrop_path}`
+      : null;
+
+const urlDoPlayer = `${langPrefix}/serie/${slugCanonico}?season=${numeroTemporada}&episode=${numeroEpisodio}`;
+const urlDaSerie = `${langPrefix}/serie/${slugCanonico}`;
+
+const anterior = numeroEpisodio > 1 ? numeroEpisodio - 1 : null;
+const proximo = episodiosDaTemporada.some((ep) => ep.episode_number === numeroEpisodio + 1)
+    ? numeroEpisodio + 1
+    : null;
+const urlEpisodio = (numero) => `${langPrefix}/serie/${slugCanonico}/temporada-${numeroTemporada}/episodio-${numero}`;
+
+// Ponte entre temporadas. Sem ela o crawler fica preso na temporada por onde entrou: a troca
+// de temporada na página da série é um <select> (ilegível pra robô) e as páginas de episódio
+// só linkavam irmãos da própria temporada. Apontar pro episódio 1 de cada temporada fecha o
+// grafo — daí a lista lateral daquela temporada expõe o resto — sem custar nenhuma URL nova
+// no sitemap, que já está com 19,6 mil entradas.
+// Temporada 0 é "especiais" no TMDB e fica de fora, igual ao resto do site.
+const temporadasNavegaveis = (detalhes?.seasons || [])
+    .filter((s) => s?.season_number > 0 && (s?.episode_count ?? 0) > 0)
+    .map((s) => ({
+        numero: s.season_number,
+        total: s.episode_count,
+        atual: s.season_number === numeroTemporada,
+        url: `${langPrefix}/serie/${slugCanonico}/temporada-${s.season_number}/episodio-1`,
+    }));
+
+// Título montado na ordem em que a busca acontece: nome da série, "Ep N" (é assim que as
+// pessoas buscam — "lanternas ep 2 dublado", nunca "lanternas 1x02"), dublado, nome do
+// episódio. O sufixo de marca fica curto de propósito — o Google corta perto de 60
+// caracteres e reescreve títulos longos e repetitivos.
+const tituloPagina = isPt
+    ? `Assistir ${nomeSerie} Ep ${numeroEpisodio} Dublado Online - T${numeroTemporada}: ${nomeEpisodio} | MultiCanaisHD`
+    : `Watch ${nomeSerie} Ep ${numeroEpisodio} Dubbed Online - S${numeroTemporada}: ${nomeEpisodio} | MultiCanaisHD`;
+
+const descricaoPagina = sinopse
+    ? `${isPt ? "Assista" : "Watch"} ${nomeSerie} ${codigoEpisodio} - ${nomeEpisodio}. ${sinopse.substring(0, 150).replace(/\s+\S*$/, "")}...`
+    : isPt
+      ? `Assistir ${nomeSerie} temporada ${numeroTemporada} episódio ${numeroEpisodio} (${nomeEpisodio}) online grátis, dublado e legendado em HD no MultiCanaisHD.`
+      : `Watch ${nomeSerie} season ${numeroTemporada} episode ${numeroEpisodio} (${nomeEpisodio}) online free, dubbed and subtitled in HD on MultiCanaisHD.`;
+
+// Sem VideoObject nem dateModified dinâmico — ver filme/[slug].astro.
+const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+        {
+            "@type": "TVEpisode",
+            name: nomeEpisodio,
+            episodeNumber: numeroEpisodio,
+            description: sinopse || descricaoPagina,
+            image: still || undefined,
+            datePublished: dataExibicao || undefined,
+            url: `${siteUrl}${caminhoCanonico}`,
+            partOfSeason: { "@type": "TVSeason", seasonNumber: numeroTemporada },
+            partOfSeries: {
+                "@type": "TVSeries",
+                name: nomeSerie,
+                url: `${siteUrl}${urlDaSerie}`,
+                image: detalhes.poster_path ? `https://image.tmdb.org/t/p/w500${detalhes.poster_path}` : undefined,
+            },
+            potentialAction: {
+                "@type": "WatchAction",
+                target: {
+                    "@type": "EntryPoint",
+                    urlTemplate: `${siteUrl}${caminhoCanonico}`,
+                    actionPlatform: [
+                        "http://schema.org/DesktopWebPlatform",
+                        "http://schema.org/MobileWebPlatform",
+                    ],
+                },
+                actionAccessibilityRequirement: {
+                    "@type": "ActionAccessSpecification",
+                    category: "free",
+                },
+            },
+        },
+        {
+            "@type": "BreadcrumbList",
+            itemListElement: [
+                { "@type": "ListItem", position: 1, name: isPt ? "Início" : "Home", item: `${siteUrl}${langPrefix || "/"}` },
+                { "@type": "ListItem", position: 2, name: nomeSerie, item: `${siteUrl}${urlDaSerie}` },
+                {
+                    "@type": "ListItem",
+                    position: 3,
+                    name: isPt ? `Temporada ${numeroTemporada}` : `Season ${numeroTemporada}`,
+                    item: `${siteUrl}${urlDaSerie}?season=${numeroTemporada}`,
+                },
+                { "@type": "ListItem", position: 4, name: `${codigoEpisodio} - ${nomeEpisodio}`, item: `${siteUrl}${caminhoCanonico}` },
+            ],
+        },
+    ],
+};
+
+const palavrasChave = isPt
+    ? `${nomeSerie} ${codigoEpisodio}, ${nomeSerie} temporada ${numeroTemporada} episodio ${numeroEpisodio}, assistir ${nomeSerie} dublado, ${nomeEpisodio}, ${nomeSerie} online gratis`
+    : `${nomeSerie} ${codigoEpisodio}, ${nomeSerie} season ${numeroTemporada} episode ${numeroEpisodio}, watch ${nomeSerie} online, ${nomeEpisodio}, ${nomeSerie} free`;
+
+const dataFormatada = (() => {
+    if (!dataExibicao) return null;
+    try {
+        return new Date(`${dataExibicao}T12:00:00Z`).toLocaleDateString(isPt ? "pt-BR" : "en-US", {
+            day: "2-digit",
+            month: "long",
+            year: "numeric",
+        });
+    } catch (e) {
+        return null;
+    }
+})();
+---
+
+<BaseLayout
+    title={tituloPagina}
+    description={descricaoPagina}
+    keywords={palavrasChave}
+    image={still || undefined}
+    jsonLd={jsonLd}
+    type="video.episode"
+    alternates={alternates}
+>
+    <main class="min-h-screen bg-[#060911] text-white pt-24 pb-20">
+        <div class="px-4 sm:px-6 lg:px-12 max-w-[1400px] mx-auto">
+            <nav class="flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-8" aria-label="breadcrumb">
+                <a href={`${langPrefix || "/"}`} class="hover:text-[#DF0912] transition-colors duration-300">{isPt ? "Início" : "Home"}</a>
+                <span class="text-white/20">/</span>
+                <a href={urlDaSerie} class="hover:text-[#DF0912] transition-colors duration-300 truncate max-w-[200px]">{nomeSerie}</a>
+                <span class="text-white/20">/</span>
+                <span class="text-gray-300">{isPt ? `Temporada ${numeroTemporada}` : `Season ${numeroTemporada}`}</span>
+                <span class="text-white/20">/</span>
+                <span class="text-[#DF0912]">{isPt ? `Episódio ${numeroEpisodio}` : `Episode ${numeroEpisodio}`}</span>
+            </nav>
+
+            <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-8 lg:gap-12 items-start">
+                <div>
+                    {still && (
+                        <img
+                            src={still}
+                            alt={`${nomeSerie} ${codigoEpisodio} - ${nomeEpisodio}`}
+                            width="780"
+                            height="439"
+                            fetchpriority="high"
+                            decoding="async"
+                            class="w-full aspect-video object-cover border border-white/5 mb-8"
+                        />
+                    )}
+
+                    <p class="text-[10px] sm:text-xs font-black uppercase tracking-[0.4em] text-[#DF0912] mb-3">
+                        {nomeSerie} · {isPt ? `Temporada ${numeroTemporada}` : `Season ${numeroTemporada}`}
+                    </p>
+                    <h1 class="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tighter uppercase italic mb-4">
+                        {codigoEpisodio}: {nomeEpisodio}
+                    </h1>
+
+                    {dataFormatada && (
+                        <p class="text-xs text-gray-500 font-bold uppercase tracking-widest mb-6">
+                            {isPt ? "Exibido em" : "Aired on"} {dataFormatada}
+                        </p>
+                    )}
+
+                    <p class="text-sm sm:text-base text-gray-300 leading-relaxed max-w-3xl mb-8">
+                        {sinopse ||
+                            (isPt
+                                ? `A sinopse deste episódio ainda não foi publicada. Você pode assistir ${nomeSerie} temporada ${numeroTemporada}, episódio ${numeroEpisodio} online grátis, dublado ou legendado, direto no player do MultiCanaisHD.`
+                                : `The synopsis for this episode has not been published yet. You can watch ${nomeSerie} season ${numeroTemporada}, episode ${numeroEpisodio} online free, dubbed or subtitled, in the MultiCanaisHD player.`)}
+                    </p>
+
+                    <div class="flex flex-wrap gap-3">
+                        <a
+                            href={urlDoPlayer}
+                            class="inline-flex items-center gap-2 px-7 py-3.5 bg-[#DF0912] hover:bg-[#cf0811] text-white text-xs font-black uppercase tracking-widest transition-all duration-300 hover:scale-105 active:scale-95"
+                        >
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                            {isPt ? "Assistir episódio" : "Watch episode"}
+                        </a>
+                        <a
+                            href={urlDaSerie}
+                            class="inline-flex items-center px-7 py-3.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-black uppercase tracking-widest transition-all duration-300 hover:scale-105 active:scale-95"
+                        >
+                            {isPt ? "Ver a série" : "View series"}
+                        </a>
+                    </div>
+
+                    <div class="flex items-center justify-between gap-4 mt-10 pt-6 border-t border-white/5">
+                        {anterior ? (
+                            <a href={urlEpisodio(anterior)} class="text-xs font-black uppercase tracking-widest text-gray-400 hover:text-[#DF0912] transition-colors duration-300">
+                                ← {isPt ? `Episódio ${anterior}` : `Episode ${anterior}`}
+                            </a>
+                        ) : (
+                            <span></span>
+                        )}
+                        {proximo && (
+                            <a href={urlEpisodio(proximo)} class="text-xs font-black uppercase tracking-widest text-gray-400 hover:text-[#DF0912] transition-colors duration-300">
+                                {isPt ? `Episódio ${proximo}` : `Episode ${proximo}`} →
+                            </a>
+                        )}
+                    </div>
+                </div>
+
+                <aside>
+                    {temporadasNavegaveis.length > 1 && (
+                        <nav class="mb-6" aria-label={isPt ? "Temporadas" : "Seasons"}>
+                            <h2 class="text-lg font-black uppercase italic tracking-tight mb-3">
+                                {isPt ? "Temporadas" : "Seasons"}
+                            </h2>
+                            <ul class="flex flex-wrap gap-2">
+                                {temporadasNavegaveis.map((t) => (
+                                    <li>
+                                        <a
+                                            href={t.url}
+                                            aria-current={t.atual ? "page" : undefined}
+                                            title={isPt
+                                                ? `Temporada ${t.numero} — ${t.total} episódios`
+                                                : `Season ${t.numero} — ${t.total} episodes`}
+                                            class:list={[
+                                                "inline-flex items-center gap-1.5 px-3 py-1.5 border text-xs font-bold transition-colors duration-300",
+                                                t.atual
+                                                    ? "bg-[#DF0912]/10 border-[#DF0912]/40 text-white"
+                                                    : "bg-[#0E111A] border-white/5 text-gray-400 hover:border-white/15 hover:text-white",
+                                            ]}
+                                        >
+                                            <span>{isPt ? "T" : "S"}{t.numero}</span>
+                                            <span class="text-[10px] font-medium text-gray-500">({t.total})</span>
+                                        </a>
+                                    </li>
+                                ))}
+                            </ul>
+                        </nav>
+                    )}
+
+                    <h2 class="text-lg font-black uppercase italic tracking-tight mb-5">
+                        {isPt ? `Episódios da temporada ${numeroTemporada}` : `Season ${numeroTemporada} episodes`}
+                    </h2>
+                    {episodiosDaTemporada.length === 0 ? (
+                        <p class="text-sm text-gray-500">
+                            {isPt
+                                ? "A lista de episódios desta temporada não pôde ser carregada agora."
+                                : "The episode list for this season could not be loaded right now."}
+                        </p>
+                    ) : (
+                        <ul class="space-y-1.5 max-h-[520px] overflow-y-auto pr-1">
+                            {episodiosDaTemporada.map((ep) => (
+                                <li>
+                                    <a
+                                        href={urlEpisodio(ep.episode_number)}
+                                        aria-current={ep.episode_number === numeroEpisodio ? "page" : undefined}
+                                        class:list={[
+                                            "flex items-center gap-3 px-3 py-2.5 border transition-colors duration-300",
+                                            ep.episode_number === numeroEpisodio
+                                                ? "bg-[#DF0912]/10 border-[#DF0912]/40 text-white"
+                                                : "bg-[#0E111A] border-white/5 text-gray-400 hover:border-white/15 hover:text-white",
+                                        ]}
+                                    >
+                                        <span class="text-[11px] font-black tabular-nums text-[#DF0912] w-8 shrink-0">
+                                            {String(ep.episode_number).padStart(2, "0")}
+                                        </span>
+                                        <span class="text-xs font-bold truncate">{ep.name}</span>
+                                    </a>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </aside>
+            </div>
+        </div>
+    </main>
+</BaseLayout>

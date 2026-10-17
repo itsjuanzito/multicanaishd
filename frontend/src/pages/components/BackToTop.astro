@@ -1,0 +1,57 @@
+---
+// src/components/BackToTop.astro
+---
+<button
+    id="back-to-top"
+    aria-label="Voltar ao topo"
+    class="fixed bottom-8 right-8 z-[1000] p-3 rounded-full bg-[#161B28]/80 backdrop-blur-md border border-white/10 text-white shadow-2xl transition-all duration-300 opacity-0 translate-y-10 pointer-events-none hover:bg-[#DF0912] hover:scale-110 active:scale-95 group"
+>
+    <svg 
+        class="w-6 h-6 transition-transform group-hover:-translate-y-1" 
+        fill="none" 
+        stroke="currentColor" 
+        viewBox="0 0 24 24"
+    >
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" />
+    </svg>
+</button>
+
+<script>
+    let ticking = false;
+
+    function toggleBackToTop() {
+        const btn = document.getElementById('back-to-top');
+        if (!btn) return;
+
+        if (window.scrollY > 500) {
+            btn.classList.remove('opacity-0', 'translate-y-10', 'pointer-events-none');
+            btn.classList.add('opacity-100', 'translate-y-0', 'pointer-events-auto');
+        } else {
+            btn.classList.add('opacity-0', 'translate-y-10', 'pointer-events-none');
+            btn.classList.remove('opacity-100', 'translate-y-0', 'pointer-events-auto');
+        }
+        ticking = false;
+    }
+
+    function onScroll() {
+        if (!ticking) {
+            window.requestAnimationFrame(toggleBackToTop);
+            ticking = true;
+        }
+    }
+
+    function scrollToTop() {
+        window.scrollTo({
+            top: 0,
+            behavior: 'smooth'
+        });
+    }
+
+    document.addEventListener('astro:page-load', () => {
+        const btn = document.getElementById('back-to-top');
+        if (btn) {
+            btn.addEventListener('click', scrollToTop);
+            window.addEventListener('scroll', onScroll, { passive: true });
+        }
+    });
+</script>

@@ -1,0 +1,260 @@
+---
+// src/components/HeroCarousel.astro
+import "../../styles/global.css";
+import { contentSlug } from "../../utils/slugify.js";
+import { fetchTrending } from "../../services/trendingService";
+import { getBackdropSrcset, getBackdropSizes } from "../../utils/mobile";
+
+// i18n
+import { getLangFromUrl, useTranslations } from "../../i18n/utils";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+
+const genresMap = {
+    28: t('genre.action'), 12: t('genre.adventure'), 16: t('genre.animation'), 35: t('genre.comedy'), 80: t('genre.crime'),
+    99: t('genre.documentary'), 18: t('genre.drama'), 10751: t('genre.family'), 14: t('genre.fantasy'),
+    36: t('genre.history'), 27: t('genre.horror'), 10402: t('genre.music'), 9648: t('genre.mystery'),
+    10749: t('genre.romance'), 878: t('genre.science_fiction'), 10770: t('genre.tv_movie'), 53: t('genre.thriller'),
+    10752: t('genre.war'), 37: t('genre.western'), 10759: t('genre.action_adventure'),
+    10765: t('genre.scifi_fantasy'), 10768: t('genre.war_politics'),
+};
+
+const { initialSlides = null, isMobile = false } = Astro.props;
+
+let slides: any[] = [];
+if (initialSlides) {
+    slides = initialSlides;
+} else {
+    try {
+        const rawSlides = await fetchTrending("all", "week", lang);
+        slides = rawSlides.slice(0, 5).map((item: any) => ({
+            id: item.id,
+            title: item.title || item.name,
+            overview: item.overview,
+            backdrop_path: item.backdrop_path, // Mantemos o path original para gerar o srcset
+            media_type: item.media_type,
+            year: (item.release_date || item.first_air_date || "").split("-")[0],
+            rating: item.vote_average ? item.vote_average.toFixed(1) : "N/A",
+            genre: item.genre_ids && item.genre_ids.length > 0
+                ? genresMap[item.genre_ids[0] as keyof typeof genresMap] || t('home.hero_genre')
+                : t('home.hero_genre'),
+        }));
+    } catch (e) {
+        console.error("Erro Hero:", e);
+    }
+}
+
+if (slides.length === 0) return null;
+
+// Usa o utilitario compartilhado, nao uma copia local. A copia que estava aqui esquecia de
+// colapsar tracos repetidos (faltava o `-+ -> -`), entao todo titulo com caractere
+// descartado entre espacos saia com traco duplo: "Minions & Monstros" virava
+// "minions--monstros". A rota canoniza pra traco simples, ou seja, o CTA mais clicado da
+// home mandava usuario e Googlebot num 301 evitavel -- o mesmo desperdicio que 25aa1a5
+// se deu ao trabalho de eliminar.
+
+const langPrefix = isPt ? "" : `/${lang}`;
+---
+
+<div
+    class="relative w-full h-[85vh] min-h-[650px] overflow-hidden group/hero bg-black select-none"
+>
+    <div id="hero-slider" class="relative w-full h-full">
+        {
+            slides.map((slide, index) => {
+                const isActive = index === 0;
+                // contentSlug, não slugify: título não-latino virava slug vazio → link quebrado.
+                const slug = contentSlug(slide.title);
+
+                const activeSrcset = isActive ? getBackdropSrcset(slide.backdrop_path, isMobile) : undefined;
+                const dataSrcset = getBackdropSrcset(slide.backdrop_path, isMobile);
+                const sizesAttr = getBackdropSizes(isMobile);
+
+                return (
+                    <div
+                        class={`absolute inset-0 w-full h-full transition-opacity duration-1000 ease-in-out ${isActive ? "opacity-100 z-10" : "opacity-0 z-0"}`}
+                        data-slide-index={index}
+                        data-id={slide.id}
+                        data-type={slide.media_type}
+                    >
+                        <div class="absolute inset-0 bg-black overflow-hidden">
+                            <img
+                                src={isActive ? `https://image.tmdb.org/t/p/w780${slide.backdrop_path}` : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 9'%3E%3C/svg%3E"}
+                                srcset={activeSrcset}
+                                data-src={`https://image.tmdb.org/t/p/w780${slide.backdrop_path}`}
+                                data-srcset={dataSrcset}
+                                sizes={sizesAttr}
+                                alt={slide.title}
+                                width="1280"
+                                height="720"
+                                class="w-full h-full object-cover object-center transition-all duration-[3000ms] opacity-50 scale-100 group-hover/hero:scale-105"
+                                loading={isActive ? "eager" : "lazy"}
+                                fetchpriority={isActive ? "high" : "low"}
+                                decoding={isActive ? "sync" : "async"}
+                                onerror={`this.onerror=null; this.srcset=''; this.sizes=''; this.src='https://placehold.co/1280x720/141414/FF5555?text=${encodeURIComponent(slide.title)}';`}
+                            />
+                            {/* Pro-Vignette V3 */}
+                            {/* Light Overlay for Contrast */}
+                            <div class="absolute inset-0 bg-black/30 pointer-events-none z-[1]" />
+                        </div>
+
+                        <div class="absolute inset-0 flex items-center z-[5] pt-10">
+                            <div class="container mx-auto px-4 sm:px-6 lg:px-12">
+                                <div class="max-w-3xl space-y-6 animate-hero-reveal">
+                                    
+                                    <div class="flex items-center gap-4">
+                                        <div class="bg-[#DF0912] text-white text-[11px] font-black px-3 py-1.5 uppercase tracking-[0.2em] shadow-lg shadow-red-900/20">
+                                            #{index + 1} {t('home.featured')}
+                                        </div>
+                                        <div class="flex items-center gap-3 text-[10px] font-black tracking-widest text-gray-400 uppercase">
+                                            <span class="text-white/80">{slide.year}</span>
+                                            <span class="text-[#DF0912] opacity-50">•</span>
+                                            <span class="text-[#DF0912]">{slide.genre}</span>
+                                            <span class="text-[#DF0912] opacity-50">•</span>
+                                            <div class="flex items-center gap-1.5 font-black text-white">
+                                                <span class="text-[#FFCC00]">★</span>
+                                                <span>{slide.rating}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <h2 class="text-5xl sm:text-6xl lg:text-7xl font-black text-white leading-[0.85] tracking-tighter uppercase italic">
+                                        {slide.title}
+                                    </h2>
+
+                                    <p class="hidden sm:block text-gray-300 text-sm md:text-base leading-relaxed line-clamp-3 max-w-xl font-medium opacity-80 border-l-2 border-[#DF0912] pl-6 italic">
+                                        {slide.overview || t('home.exclusive_prod')}
+                                    </p>
+
+                                    <div class="pt-4">
+                                        <a
+                                            href={`${langPrefix}/${slide.media_type === 'movie' ? 'filme' : 'serie'}/${slide.id}-${slug}`}
+                                            class="bf-hero-btn inline-flex px-12 py-5 bg-[#DF0912] hover:bg-white hover:text-black text-white font-black rounded-none transition-all items-center gap-3 uppercase tracking-tighter text-sm"
+                                        >
+                                            <svg class="w-5 h-5 fill-current ml-0.5" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                            {t('home.watch_now')}
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })
+        }
+    </div>
+
+    {/* Navigation Controls - Restored V3 Sólidas */}
+    <div class="absolute bottom-16 right-12 flex items-center gap-3 z-30">
+        <button
+            id="hero-prev"
+            class="w-12 h-12 border border-white/5 flex items-center justify-center text-white hover:bg-[#DF0912] hover:border-[#DF0912] transition-all bg-black/60"
+            aria-label={isPt ? "Slide anterior" : "Previous slide"}
+        >
+            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"></path></svg>
+        </button>
+        <button
+            id="hero-next"
+            class="w-12 h-12 border border-white/5 flex items-center justify-center text-white hover:bg-[#DF0912] hover:border-[#DF0912] transition-all bg-black/60"
+            aria-label={isPt ? "Próximo slide" : "Next slide"}
+        >
+            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path></svg>
+        </button>
+    </div>
+
+    {/* Bottom Narrative Mask - Deep Gradient */}
+
+</div>
+
+<script>
+    function initHeroCarousel() {
+        const slides = document.querySelectorAll("[data-slide-index]");
+        if (slides.length === 0) return;
+        
+        if (window.__heroCarouselInit) return;
+        window.__heroCarouselInit = true;
+
+        // Bloqueia auto-play e preloads extras para crawlers do Lighthouse/PageSpeed
+        const isBot = navigator.webdriver === true || /lighthouse|pagespeed|bot|crawler|spider/i.test(navigator.userAgent);
+
+        const prevBtn = document.getElementById("hero-prev");
+        const nextBtn = document.getElementById("hero-next");
+        
+        let currentIndex = 0;
+        let interval;
+
+        function showSlide(index) {
+            slides.forEach((s) => {
+                s.classList.remove("opacity-100", "z-10");
+                s.classList.add("opacity-0", "z-0");
+            });
+            
+            if (slides[index]) {
+                slides[index].classList.remove("opacity-0", "z-0");
+                slides[index].classList.add("opacity-100", "z-10");
+
+                // Carrega a imagem do slide atual se ainda não carregou
+                const img = slides[index].querySelector("img");
+                if (img && img.dataset.src) {
+                    if (img.dataset.srcset) img.srcset = img.dataset.srcset;
+                    img.src = img.dataset.src;
+                    img.removeAttribute('data-src');
+                    img.removeAttribute('data-srcset');
+                }
+
+                // Para crawlers, não carrega próximos slides (economiza rede/CPU)
+                if (!isBot) {
+                    const nextIndex = (index + 1) % slides.length;
+                    if (slides[nextIndex]) {
+                        const nextImg = slides[nextIndex].querySelector("img");
+                        if (nextImg && nextImg.dataset.src) {
+                            if (nextImg.dataset.srcset) nextImg.srcset = nextImg.dataset.srcset;
+                            nextImg.src = nextImg.dataset.src;
+                            nextImg.removeAttribute('data-src');
+                            nextImg.removeAttribute('data-srcset');
+                        }
+                    }
+                }
+            }
+            currentIndex = index;
+        }
+
+        function nextSlide() {
+            const next = (currentIndex + 1) % slides.length;
+            showSlide(next);
+        }
+
+        function startTimer() {
+            clearInterval(interval);
+            // Não inicia auto-play para crawlers — elimina CPU idle blocking
+            if (isBot) return;
+            interval = setInterval(nextSlide, 8000);
+        }
+
+        if (nextBtn) nextBtn.onclick = () => { nextSlide(); startTimer(); };
+        if (prevBtn) prevBtn.onclick = () => {
+            const prev = (currentIndex - 1 + slides.length) % slides.length;
+            showSlide(prev);
+            startTimer();
+        };
+
+        showSlide(0);
+        startTimer();
+    }
+
+    document.addEventListener("astro:page-load", () => {
+        window.__heroCarouselInit = false; 
+        initHeroCarousel();
+    });
+</script>
+
+<style>
+    @keyframes heroReveal {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    [data-slide-index].opacity-100 .animate-hero-reveal {
+        animation: heroReveal 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+</style>

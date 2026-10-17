@@ -1,0 +1,5 @@
+---
+// src/pages/en/changelog.astro
+export const prerender = false;
+return Astro.rewrite(`/changelog?lang=en&${Astro.url.searchParams.toString()}`);
+---

@@ -1,0 +1,152 @@
+---
+// src/pages/components/VipExpiryNotice.astro
+// Aviso flutuante de VIP acabando (≤ 2 dias) ou recém-vencido (≤ 3 dias depois).
+// Lê o vipUntil que o authStore já carrega — zero request extra por pageview.
+// Comprar com VIP ativo SOMA os dias (paymentReconcileService.nextVipUntil), então
+// renovar antes não desperdiça nada; o texto deixa isso claro.
+---
+
+<div
+    id="vip-expiry-notice"
+    transition:persist
+    role="status"
+    class="hidden fixed bottom-4 left-4 right-4 sm:right-auto sm:max-w-sm z-[105] rounded-2xl border border-[#DF0912]/40 bg-[#141414]/90 backdrop-blur-md shadow-2xl p-4 text-white"
+>
+    <div class="flex items-start gap-3">
+        <span class="text-xl leading-none" aria-hidden="true">💎</span>
+        <div class="flex-1 min-w-0">
+            <p id="vip-expiry-title" class="font-black text-sm"></p>
+            <p id="vip-expiry-text" class="text-xs text-gray-400 mt-1 leading-relaxed"></p>
+            <button
+                type="button"
+                id="vip-expiry-renew"
+                class="mt-3 px-4 py-2 rounded-xl bg-[#DF0912] hover:bg-[#cf0811] hover:scale-105 transition-colors transition-transform text-xs font-bold"
+            ></button>
+        </div>
+        <button
+            type="button"
+            id="vip-expiry-close"
+            class="shrink-0 text-gray-500 hover:text-white transition-colors text-lg leading-none"
+        >&times;</button>
+    </div>
+</div>
+
+<script>
+    import { authStore } from "../../store/authStore";
+
+    const DAY_MS = 86_400_000;
+    const WARN_BEFORE_MS = 2 * DAY_MS;
+    const WARN_AFTER_MS = 3 * DAY_MS;
+    const DISMISS_KEY = "bf_vip_expiry_dismissed";
+
+    const COPY = {
+        pt: {
+            soonTitle: (d: string) => `Seu VIP expira ${d}`,
+            soonText: "Renove agora: os dias comprados são somados ao que você ainda tem, nada é perdido.",
+            expiredTitle: "Seu VIP expirou",
+            expiredText: "Compre novamente para voltar a assistir sem anúncios e com todos os recursos VIP.",
+            renew: "Renovar VIP",
+            close: "Fechar aviso",
+            today: "hoje",
+            tomorrow: "amanhã",
+            inDays: (n: number) => `em ${n} dias`,
+        },
+        en: {
+            soonTitle: (d: string) => `Your VIP expires ${d}`,
+            soonText: "Renew now: purchased days are added to what you still have, nothing is lost.",
+            expiredTitle: "Your VIP has expired",
+            expiredText: "Buy again to go back to ad-free watching with every VIP feature.",
+            renew: "Renew VIP",
+            close: "Close notice",
+            today: "today",
+            tomorrow: "tomorrow",
+            inDays: (n: number) => `in ${n} days`,
+        },
+    };
+
+    type Copy = typeof COPY.pt;
+
+    function getCopy(): Copy {
+        return document.documentElement.lang?.startsWith("en") ? COPY.en : COPY.pt;
+    }
+
+    // "Hoje/amanhã" pelo calendário local, não por blocos de 24h.
+    function relativeDay(until: Date, copy: Copy): string {
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        const diffDays = Math.floor((until.getTime() - startOfToday.getTime()) / DAY_MS);
+        if (diffDays <= 0) return copy.today;
+        if (diffDays === 1) return copy.tomorrow;
+        return copy.inDays(diffDays);
+    }
+
+    /** "soon" | "expired" | null — vipUntil nulo é vitalício ou nunca foi VIP. */
+    function getNoticeState(vipUntil: string | null): "soon" | "expired" | null {
+        if (!vipUntil) return null;
+        const remaining = new Date(vipUntil).getTime() - Date.now();
+        if (Number.isNaN(remaining)) return null;
+        if (remaining > 0 && remaining <= WARN_BEFORE_MS) return "soon";
+        if (remaining <= 0 && -remaining <= WARN_AFTER_MS) return "expired";
+        return null;
+    }
+
+    // Dispensa vale por estado + data de vencimento: renovou (data nova) ou venceu
+    // depois de dispensar o "vai vencer", o aviso volta.
+    function dismissId(state: string, vipUntil: string): string {
+        return `${state}:${vipUntil}`;
+    }
+
+    function isDismissed(id: string): boolean {
+        try {
+            return localStorage.getItem(DISMISS_KEY) === id;
+        } catch {
+            return false;
+        }
+    }
+
+    function fillNotice(state: "soon" | "expired", vipUntil: string, copy: Copy) {
+        const title = document.getElementById("vip-expiry-title");
+        const text = document.getElementById("vip-expiry-text");
+        const renew = document.getElementById("vip-expiry-renew");
+        const close = document.getElementById("vip-expiry-close");
+        if (title) title.textContent = state === "soon"
+            ? copy.soonTitle(relativeDay(new Date(vipUntil), copy))
+            : copy.expiredTitle;
+        if (text) text.textContent = state === "soon" ? copy.soonText : copy.expiredText;
+        if (renew) renew.textContent = copy.renew;
+        close?.setAttribute("aria-label", copy.close);
+    }
+
+    function render() {
+        const notice = document.getElementById("vip-expiry-notice");
+        if (!notice) return;
+        const { user, vipUntil, initialized } = authStore.get();
+        const state = user && initialized ? getNoticeState(vipUntil) : null;
+        if (!state || !vipUntil || isDismissed(dismissId(state, vipUntil))) {
+            notice.classList.add("hidden");
+            return;
+        }
+        fillNotice(state, vipUntil, getCopy());
+        notice.dataset.dismissId = dismissId(state, vipUntil);
+        notice.classList.remove("hidden");
+    }
+
+    function dismiss() {
+        const notice = document.getElementById("vip-expiry-notice");
+        try {
+            localStorage.setItem(DISMISS_KEY, notice?.dataset.dismissId || "");
+        } catch {}
+        notice?.classList.add("hidden");
+    }
+
+    // transition:persist mantém o nó entre navegações; listeners/subscribe só uma vez.
+    if (!(window as any)._bfVipExpiryInit) {
+        (window as any)._bfVipExpiryInit = true;
+        document.getElementById("vip-expiry-close")?.addEventListener("click", dismiss);
+        document.getElementById("vip-expiry-renew")?.addEventListener("click", () => {
+            document.dispatchEvent(new CustomEvent("multicanaishd:open-vip"));
+        });
+        authStore.subscribe(render);
+        document.addEventListener("astro:page-load", render);
+    }
+</script>

@@ -1,0 +1,873 @@
+---
+// src/pages/vip.astro
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+// i18n
+import { getLangFromUrl, useTranslations } from "../i18n/utils";
+import { getSiteUrl } from "../services/env-adapter.js";
+import { CRYPTO_CURRENCIES, DEFAULT_CRYPTO_CURRENCY, cryptoOptionLabel } from "../services/cryptoCurrencies.js";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+const siteUrl = getSiteUrl(Astro.url);
+
+// Schema Service com AggregateOffer para ofertas VIP (SEO). Usamos "Service", não "Product":
+// o tipo Product só fica elegível a rich result completo com aggregateRating/review reais no
+// Google, e não temos avaliação de usuário pra essa assinatura — inventar uma violaria as
+// diretrizes de dados estruturados do Google. "Service" não exige rating e é semanticamente
+// mais correto pra uma assinatura (sem item físico enviado).
+const vipSchema = {
+  "@type": "Service",
+  "name": "MultiCanaisHD VIP - MultiCanaisHD",
+  "image": `${siteUrl}/og-image.jpg`,
+  "description": isPt 
+    ? "Acesso premium aos canais de TV ao vivo, esportes, futebol, e assista filmes e séries sem anúncios no MultiCanaisHD."
+    : "Premium access to live TV channels, sports, soccer, and watch movies and series ad-free on MultiCanaisHD.",
+  "offers": {
+    "@type": "AggregateOffer",
+    "priceCurrency": "BRL",
+    "lowPrice": "10.00",
+    "highPrice": "500.00",
+    "offerCount": "9",
+    "offers": [
+      {
+        "@type": "Offer",
+        "name": "Plano Mensal Standard",
+        "price": "10.00",
+        "priceCurrency": "BRL",
+        "category": "Subscription"
+      },
+      {
+        "@type": "Offer",
+        "name": "Plano Trimestral Standard",
+        "price": "25.00",
+        "priceCurrency": "BRL",
+        "category": "Subscription"
+      },
+      {
+        "@type": "Offer",
+        "name": "Plano Anual Standard",
+        "price": "80.00",
+        "priceCurrency": "BRL",
+        "category": "Subscription"
+      },
+      {
+        "@type": "Offer",
+        "name": "Plano Diamond Mensal",
+        "price": "19.90",
+        "priceCurrency": "BRL",
+        "category": "Subscription"
+      },
+      {
+        "@type": "Offer",
+        "name": "Plano Diamond Trimestral",
+        "price": "49.90",
+        "priceCurrency": "BRL",
+        "category": "Subscription"
+      },
+      {
+        "@type": "Offer",
+        "name": "Plano Diamond Anual",
+        "price": "149.90",
+        "priceCurrency": "BRL",
+        "category": "Subscription"
+      },
+      {
+        "@type": "Offer",
+        "name": "Plano Black Mensal",
+        "price": "50.00",
+        "priceCurrency": "BRL",
+        "category": "Subscription"
+      },
+      {
+        "@type": "Offer",
+        "name": "Plano Black Trimestral",
+        "price": "125.00",
+        "priceCurrency": "BRL",
+        "category": "Subscription"
+      },
+      {
+        "@type": "Offer",
+        "name": "Plano Black Anual",
+        "price": "500.00",
+        "priceCurrency": "BRL",
+        "category": "Subscription"
+      }
+    ]
+  }
+};
+---
+
+<BaseLayout
+    title={isPt ? "MultiCanaisHD VIP - Desbloqueie o Melhor do MultiCanaisHD" : "MultiCanaisHD VIP - Unlock the Best of MultiCanaisHD"}
+    description={isPt ? "Tenha acesso aos canais de TV ao vivo, esportes, futebol, e assista tudo sem anúncios no MultiCanaisHD." : "Get access to live TV channels, sports, soccer, and watch everything ad-free on MultiCanaisHD."}
+    jsonLd={vipSchema}
+>
+    <!-- Cinematic Centered Container with Premium Design -->
+    <main
+        class="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-12 mt-24 sm:mt-28 relative z-10"
+        id="vip-page-container"
+    >
+        
+        <!-- Center Header Branding -->
+        <div class="max-w-3xl mx-auto text-center mb-10">
+            <div class="inline-flex w-16 h-16 bg-white/5 rounded-2xl items-center justify-center border border-white/5 mb-4 select-none">
+                <svg class="w-8 h-8 text-[#DF0912]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-7.714 2.143L11 21l-2.286-6.857L1 12l7.714-2.143L11 3z"/>
+                </svg>
+            </div>
+            <h1 class="text-4xl sm:text-5xl font-black text-white uppercase tracking-tighter italic mb-2 leading-none">
+                MultiCanaisHD<span class="text-[#DF0912]"> VIP</span>
+            </h1>
+            <p class="text-gray-400 text-xs sm:text-sm font-bold uppercase tracking-[0.2em]">{t('vip.modal_subtitle')}</p>
+        </div>
+
+        <!-- 1. Billing Period Selector Switch (Center-Aligned) - Apenas para VIP -->
+        <div class="flex flex-col items-center gap-3 mb-12" id="billing-period-selector">
+            <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest leading-none select-none">
+                {isPt ? 'Escolha o período de faturamento' : 'Choose billing period'}
+            </p>
+            <div class="inline-flex bg-neutral-900/80 p-1.5 rounded-2xl border border-white/5 relative z-20 gap-1.5">
+                <button 
+                    type="button" 
+                    id="toggle-mensal"
+                    class="px-4 sm:px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 bg-[#DF0912] text-white select-none outline-none cursor-pointer flex flex-col items-center justify-center leading-none min-w-[90px] sm:min-w-[110px] shadow-lg shadow-red-950/20"
+                    data-period="mensal"
+                >
+                    <span>{isPt ? 'Mensal' : 'Monthly'}</span>
+                    <span class="sub-label text-[7px] text-white/80 uppercase mt-1 font-black tracking-widest">{isPt ? 'Padrão' : 'Standard'}</span>
+                </button>
+                <button 
+                    type="button" 
+                    id="toggle-trimestral"
+                    class="px-4 sm:px-5 py-2.5 rounded-xl text-xs font-black text-gray-400 hover:text-white uppercase tracking-wider transition-all duration-300 select-none outline-none cursor-pointer flex flex-col items-center justify-center leading-none min-w-[90px] sm:min-w-[110px] bg-transparent"
+                    data-period="trimestral"
+                >
+                    <span>{isPt ? 'Trimestral' : 'Quarterly'}</span>
+                    <span class="sub-label text-[7px] text-[#DF0912] uppercase mt-1 font-black tracking-widest">{isPt ? 'Popular' : 'Popular'}</span>
+                </button>
+                <button 
+                    type="button" 
+                    id="toggle-anual"
+                    class="px-4 sm:px-5 py-2.5 rounded-xl text-xs font-black text-gray-400 hover:text-white uppercase tracking-wider transition-all duration-300 select-none outline-none cursor-pointer flex flex-col items-center justify-center leading-none min-w-[90px] sm:min-w-[110px] bg-transparent"
+                    data-period="anual"
+                >
+                    <span>{isPt ? 'Anual' : 'Annual'}</span>
+                    <span class="sub-label text-[7px] text-emerald-400 uppercase mt-1 font-black tracking-widest">-33% OFF</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 2. Comparison Cards Grid (Spacious layout) -->
+        <div class="max-w-6xl mx-auto mb-12">
+            
+            <!-- SECTION 1: USER SUBSCRIPTIONS (VIP) -->
+            <div id="section-vip" class="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch max-w-6xl mx-auto">
+                <!-- LEFT CARD: BETTERVIP (Básico) -->
+<div class="flex flex-col bg-[#0E111A]/60 backdrop-blur-md border border-white/5 p-8 rounded-[32px] shadow-xl hover:scale-[1.01] hover:border-white/10 transition-all duration-300 flex-grow relative overflow-hidden text-left justify-between">
+    <div>
+        <!-- Card Header -->
+        <div class="mb-6">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="text-lg">🎟️</span>
+                <span class="text-[10px] font-black text-[#DF0912] uppercase tracking-widest">MultiCanaisHD VIP</span>
+            </div>
+            <h2 class="text-2xl font-black text-white uppercase italic leading-none">{isPt ? 'Plano Básico' : 'Basic Plan'}</h2>
+            <p class="text-gray-400 text-[10px] font-semibold mt-2.5 leading-relaxed">{isPt ? 'Acesso essencial completo ao MultiCanaisHD' : 'Essential complete access to MultiCanaisHD'}</p>
+        </div>
+
+        <!-- Dynamic Price Display -->
+        <div class="mb-8">
+            <div class="flex items-baseline gap-1">
+                <span class="text-3xl font-black text-white italic transition-all duration-300" id="basic-price-display">R$ 10,00</span>
+                <span class="text-gray-500 text-xs font-bold uppercase tracking-wider" id="basic-period-display">/ {isPt ? 'mês' : 'mo'}</span>
+            </div>
+            <p class="text-gray-500 text-[9px] font-bold uppercase tracking-wider mt-1.5 transition-all duration-300" id="basic-subtext-display">R$ 10,00 cobrados hoje</p>
+        </div>
+
+        <!-- Bullet Points Benefits -->
+        <div class="flex flex-col gap-3.5 mb-8">
+            <div class="flex items-start gap-3">
+                <div class="w-5 h-5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/10 rounded-full flex items-center justify-center text-xs flex-shrink-0 font-bold">✓</div>
+                <span class="text-gray-300 text-xs font-semibold leading-relaxed">{isPt ? 'Desbloqueia os canais VIP de esporte e canais de TV ao vivo' : 'Unlocks VIP sports channels and live TV channels'}</span>
+            </div>
+            <div class="flex items-start gap-3">
+                <div class="w-5 h-5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/10 rounded-full flex items-center justify-center text-xs flex-shrink-0 font-bold">✓</div>
+                <span class="text-gray-300 text-xs font-semibold leading-relaxed">{isPt ? 'Navegação 100% livre de anúncios no site' : '100% Ad-Free site navigation'}</span>
+            </div>
+            <div class="flex items-start gap-3">
+                <div class="w-5 h-5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/10 rounded-full flex items-center justify-center text-xs flex-shrink-0 font-bold">✓</div>
+                <span class="text-gray-300 text-xs font-semibold leading-relaxed">{isPt ? 'Player VIP 100% livre de anúncios' : '100% ad-free VIP player'}</span>
+            </div>
+            <div class="flex items-start gap-3">
+                <div class="w-5 h-5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/10 rounded-full flex items-center justify-center text-xs flex-shrink-0 font-bold">✓</div>
+                <span class="text-gray-300 text-xs font-semibold leading-relaxed">{isPt ? 'Poder usar a seção de comentários' : 'Full access to the comments section'}</span>
+            </div>
+            <div class="flex items-start gap-3">
+                <div class="w-5 h-5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/10 rounded-full flex items-center justify-center text-xs flex-shrink-0 font-bold">✓</div>
+                <span class="text-gray-300 text-xs font-semibold leading-relaxed">{isPt ? 'Opção de 5 avatares VIP exclusivos de perfil' : 'Option of 5 exclusive VIP profile avatars'}</span>
+            </div>
+            <div class="flex items-start gap-3">
+                <div class="w-5 h-5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/10 rounded-full flex items-center justify-center text-xs flex-shrink-0 font-bold">✓</div>
+                <span class="text-gray-300 text-xs font-semibold leading-relaxed">{isPt ? 'Trocar o nickname do perfil apenas 1 vez' : 'Change profile nickname only once'}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Call to Action button -->
+    <button 
+        type="button" 
+        id="btn-subscribe-basic"
+        class="w-full py-4 bg-white/5 hover:bg-[#DF0912] border border-white/10 hover:border-[#DF0912] text-white hover:text-white font-black uppercase text-xs tracking-widest rounded-2xl transition-all duration-300 cursor-pointer outline-none active:scale-95"
+    >
+        {isPt ? 'Assinar Plano Básico' : 'Subscribe Basic'}
+    </button>
+</div>
+
+                <!-- CENTER CARD: BETTERVIP DIAMOND (Supremo) -->
+                <div class="flex flex-col bg-gradient-to-b from-cyan-950/20 via-neutral-900/80 to-[#0E111A]/90 backdrop-blur-md border border-cyan-500/30 p-8 rounded-[32px] hover:scale-[1.01] hover:border-cyan-400/50 transition-all duration-300 flex-grow relative overflow-hidden text-left justify-between" id="card-diamond-container">
+                    <div>
+                        <!-- Top Ribbon -->
+                        <div class="absolute -right-12 top-6 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-black text-[6.5px] sm:text-[7px] uppercase py-1.5 px-12 rotate-45 tracking-widest leading-none shadow-lg text-center select-none">
+                            {isPt ? 'RECOMENDADO' : 'POPULAR'}
+                        </div>
+
+                        <!-- Card Header -->
+                        <div class="mb-6 relative">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-lg animate-bounce duration-1000">💎</span>
+                                <span class="text-[10px] font-black bg-gradient-to-r from-cyan-400 via-sky-200 to-indigo-400 bg-clip-text text-transparent uppercase tracking-widest">MultiCanaisHD VIP Diamond</span>
+                            </div>
+                            <h2 class="text-2xl font-black bg-gradient-to-r from-cyan-400 via-sky-200 to-indigo-400 bg-clip-text text-transparent uppercase italic leading-none">{isPt ? 'Plano Diamond' : 'Diamond Plan'}</h2>
+                            <p class="text-gray-400 text-[10px] font-semibold mt-2.5 leading-relaxed">{isPt ? 'A experiência definitiva e customizável do site' : 'The ultimate customizable platform experience'}</p>
+                        </div>
+
+                        <!-- Dynamic Price Display -->
+                        <div class="mb-8 relative">
+                            <div class="flex items-baseline gap-1">
+                                <span class="text-3xl font-black text-cyan-400 italic transition-all duration-300" id="diamond-price-display">R$ 19,90</span>
+                                <span class="text-gray-500 text-xs font-bold uppercase tracking-wider" id="diamond-period-display">/ {isPt ? 'mês' : 'mo'}</span>
+                            </div>
+                            <p class="text-gray-500 text-[9px] font-bold uppercase tracking-wider mt-1.5 transition-all duration-300" id="diamond-subtext-display">R$ 19,90 cobrados hoje</p>
+                        </div>
+
+                        <!-- Bullet Points Benefits -->
+                        <div class="flex flex-col gap-3.5 mb-8 relative">
+                            <div class="flex items-start gap-3">
+                                <div class="w-5 h-5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/10 rounded-full flex items-center justify-center text-xs flex-shrink-0 font-bold">✓</div>
+                                <span class="text-cyan-200/95 text-xs font-bold leading-relaxed">{isPt ? 'Tudo que o Plano Básico oferece, e mais:' : 'Everything in the Basic Plan, plus:'}</span>
+                            </div>
+                            
+                            <div class="flex items-start gap-3">
+                                <div class="w-5 h-5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/10 rounded-full flex items-center justify-center text-xs flex-shrink-0 font-bold">✓</div>
+                                <span class="text-[#DF0912] text-xs font-bold leading-relaxed">
+                                    {isPt ? 'Player exclusivo com várias funcionalidades e sem anúncios' : 'Exclusive player with multiple features and completely ad-free'}
+                                </span>
+                            </div>
+                            <div class="flex items-start gap-3">
+                                <div class="w-5 h-5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/10 rounded-full flex items-center justify-center text-xs flex-shrink-0 font-bold">✓</div>
+                                <span class="text-gray-300 text-xs font-semibold leading-relaxed">{isPt ? 'Download direto de filmes e séries, sem torrent' : 'Direct download of movies and series, no torrent needed'}</span>
+                            </div>
+                            <div class="flex items-start gap-3">
+                                <div class="w-5 h-5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/10 rounded-full flex items-center justify-center text-xs flex-shrink-0 font-bold">✓</div>
+                                <span class="text-gray-300 text-xs font-semibold leading-relaxed">{isPt ? 'Trocar o nickname do perfil quantas vezes quiser' : 'Change profile nickname as many times as you want'}</span>
+                            </div>
+                            <div class="flex items-start gap-3">
+                                <div class="w-5 h-5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/10 rounded-full flex items-center justify-center text-xs flex-shrink-0 font-bold">✓</div>
+                                <span class="text-gray-300 text-xs font-semibold leading-relaxed">{isPt ? 'Usar qualquer foto de perfil e GIFs animados' : 'Use any profile picture and animated GIFs'}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Call to Action button -->
+                    <button 
+                        type="button" 
+                        id="btn-subscribe-diamond"
+                        class="w-full py-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-black uppercase text-xs tracking-widest rounded-2xl transition-all duration-300 cursor-pointer outline-none hover:brightness-110 active:scale-95 shadow-lg shadow-cyan-900/30"
+                    >
+                        {isPt ? 'Assinar Plano Diamond' : 'Subscribe Diamond'}
+                    </button>
+                </div>
+
+                <!-- RIGHT CARD: BETTERVIP BLACK (Topo) -->
+                <div class="flex flex-col bg-gradient-to-b from-neutral-900/40 via-neutral-900/80 to-[#0E111A]/95 backdrop-blur-md border border-neutral-400/20 p-8 rounded-[32px] hover:scale-[1.01] hover:border-neutral-300/40 transition-all duration-300 flex-grow relative overflow-hidden text-left justify-between" id="card-black-container">
+                    <div>
+                        <!-- Card Header -->
+                        <div class="mb-6 relative">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-lg">⚫</span>
+                                <span class="text-[10px] font-black bg-gradient-to-r from-neutral-100 via-neutral-300 to-neutral-500 bg-clip-text text-transparent uppercase tracking-widest">MultiCanaisHD VIP Black</span>
+                            </div>
+                            <h2 class="text-2xl font-black bg-gradient-to-r from-neutral-100 via-neutral-300 to-neutral-500 bg-clip-text text-transparent uppercase italic leading-none">{isPt ? 'Plano Black' : 'Black Plan'}</h2>
+                            <p class="text-gray-400 text-[10px] font-semibold mt-2.5 leading-relaxed">{isPt ? 'O próximo nível do streaming' : 'The next level of streaming'}</p>
+                        </div>
+
+                        <!-- Dynamic Price Display -->
+                        <div class="mb-8 relative">
+                            <div class="flex items-baseline gap-1">
+                                <span class="text-3xl font-black text-neutral-200 italic transition-all duration-300" id="black-price-display">R$ 50,00</span>
+                                <span class="text-gray-500 text-xs font-bold uppercase tracking-wider" id="black-period-display">/ {isPt ? 'mês' : 'mo'}</span>
+                            </div>
+                            <p class="text-gray-500 text-[9px] font-bold uppercase tracking-wider mt-1.5 transition-all duration-300" id="black-subtext-display">R$ 50,00 cobrados hoje</p>
+                        </div>
+
+                        <!-- Bullet Points Benefits -->
+                        <div class="flex flex-col gap-3.5 mb-8 relative">
+                            <div class="flex items-start gap-3">
+                                <div class="w-5 h-5 bg-white/10 text-neutral-200 border border-white/10 rounded-full flex items-center justify-center text-xs flex-shrink-0 font-bold">✓</div>
+                                <span class="text-neutral-200 text-xs font-bold leading-relaxed">{isPt ? 'Tudo que o Plano Diamond oferece, e mais:' : 'Everything in the Diamond Plan, plus:'}</span>
+                            </div>
+                            <div class="flex items-start gap-3">
+                                <div class="w-5 h-5 bg-white/10 text-neutral-200 border border-white/10 rounded-full flex items-center justify-center text-xs flex-shrink-0 font-bold">✓</div>
+                                <span class="text-[#DF0912] text-xs font-bold leading-relaxed">{isPt ? 'Crie vários perfis na mesma conta' : 'Create multiple profiles on the same account'}</span>
+                            </div>
+                            <div class="flex items-start gap-3">
+                                <div class="w-5 h-5 bg-white/10 text-neutral-200 border border-white/10 rounded-full flex items-center justify-center text-xs flex-shrink-0 font-bold">✓</div>
+                                <span class="text-gray-300 text-xs font-semibold leading-relaxed">{isPt ? 'Perfis exclusivos para crianças' : 'Dedicated profiles for kids'}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Call to Action button -->
+                    <button
+                        type="button"
+                        id="btn-subscribe-black"
+                        class="w-full py-4 bg-gradient-to-r from-neutral-200 to-neutral-400 text-black font-black uppercase text-xs tracking-widest rounded-2xl transition-all duration-300 cursor-pointer outline-none hover:brightness-110 active:scale-95 shadow-lg shadow-black/30"
+                    >
+                        {isPt ? 'Assinar Plano Black' : 'Subscribe Black'}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Checkout Confirmation Modal Overlay (Dynamic) -->
+        <div id="checkout-modal-overlay" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 hidden transition-all duration-300 opacity-0">
+            <div class="bg-[#0E111A] border border-white/5 w-full max-w-md rounded-[32px] p-6 sm:p-8 shadow-2xl relative overflow-hidden transition-all duration-300 scale-95 flex flex-col gap-6" id="checkout-modal-content">
+                
+                <!-- Close Button -->
+                <button type="button" id="btn-close-modal" class="absolute top-5 right-5 w-8 h-8 rounded-full bg-white/5 border border-white/5 hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center text-sm transition-colors cursor-pointer outline-none select-none">
+                    ✕
+                </button>
+
+                <!-- Modal Header Details -->
+                <div class="text-center mt-2">
+                    <span id="modal-plan-badge" class="inline-block px-3 py-1 text-[8.5px] font-black uppercase tracking-widest rounded-full mb-3 select-none">
+                        BETTERVIP
+                    </span>
+                    <h3 class="text-xl font-black text-white uppercase italic leading-none" id="modal-plan-title">MultiCanaisHD VIP</h3>
+                    <p class="text-gray-400 text-[10px] font-bold uppercase tracking-wider mt-1.5" id="modal-plan-duration">Faturamento Mensal</p>
+                </div>
+
+                <!-- Horizontal Separator -->
+                <div class="h-px bg-white/5"></div>
+
+                <!-- Gateway Selection Tab -->
+                <div class="flex flex-col gap-4">
+                    <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest text-left leading-none select-none">
+                        {isPt ? '1. Método de Pagamento' : '1. Payment Method'}
+                    </p>
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <!-- Pix Card -->
+                        <button
+                            id="modal-gateway-pix"
+                            class="relative flex flex-col items-center justify-center p-4 bg-[#DF0912]/10 border-2 border-[#DF0912] rounded-2xl text-center cursor-pointer transition-all duration-300 group outline-none"
+                            data-gateway="pix"
+                        >
+                            <span id="modal-pix-badge" class="absolute top-2.5 right-2.5 w-3.5 h-3.5 bg-[#DF0912] text-white rounded-full flex items-center justify-center text-[7.5px] font-black">
+                                ✓
+                            </span>
+                            <div class="w-8 h-8 bg-[#DF0912]/10 rounded-xl flex items-center justify-center text-[#DF0912] mb-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                </svg>
+                            </div>
+                            <p class="text-white text-[9px] font-black uppercase tracking-wider mb-0.5 select-none">PIX (Brasil)</p>
+                            <p id="modal-pix-price" class="text-[#DF0912] text-[10px] font-black italic">R$ 10,00</p>
+                        </button>
+
+                        <!-- Crypto Card -->
+                        <button 
+                            id="modal-gateway-crypto" 
+                            class="relative flex flex-col items-center justify-center p-4 bg-white/[0.02] border-2 border-white/5 rounded-2xl text-center cursor-pointer transition-all duration-300 group outline-none hover:border-white/10"
+                            data-gateway="crypto"
+                        >
+                            <span id="modal-crypto-badge" class="hidden absolute top-2.5 right-2.5 w-3.5 h-3.5 bg-emerald-500 text-white rounded-full flex items-center justify-center text-[7.5px] font-black">
+                                ✓
+                            </span>
+                            <div class="w-8 h-8 bg-white/5 text-gray-400 group-hover:text-emerald-400 rounded-xl flex items-center justify-center mb-2 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                            <p class="text-white text-[9px] font-black uppercase tracking-wider mb-0.5 select-none">Crypto</p>
+                            <p id="modal-crypto-price" class="text-gray-400 text-[10px] font-black italic">R$ 10,00</p>
+                        </button>
+                    </div>
+
+                    <!-- Crypto Currency Picker: só aparece com Crypto selecionado -->
+                    <div id="modal-crypto-currency-picker" class="hidden text-left">
+                        <label for="modal-crypto-currency-select" class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 leading-none block">
+                            {isPt ? 'Moeda' : 'Currency'}
+                        </label>
+                        <select
+                            id="modal-crypto-currency-select"
+                            class="w-full py-3 px-4 bg-white/[0.03] border border-white/10 rounded-xl text-white text-xs font-bold"
+                        >
+                            {CRYPTO_CURRENCIES.map((c) => (
+                                <option value={c.code} data-min={c.minCents} selected={c.code === DEFAULT_CRYPTO_CURRENCY}>{cryptoOptionLabel(c)}</option>
+                            ))}
+                        </select>
+                        <p class="mt-2 text-[10px] leading-snug text-gray-400">
+                            {isPt ? 'A maioria das criptomoedas só aceita pagamentos a partir de uns R$ 70. Para elas, escolha um plano de valor maior (a lista já mostra só as que servem pro plano escolhido). USDT (BNB Smart Chain) e Litecoin aceitam qualquer plano, a partir de R$ 10.' : 'Most cryptocurrencies only accept payments from about R$ 70. For those, pick a higher-priced plan (the list only shows the ones that fit the selected plan). USDT (BNB Smart Chain) and Litecoin accept any plan, from R$ 10.'}
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Final Purchase CTA -->
+                <button
+                    id="vip-page-confirm"
+                    class="w-full py-4 bg-[#DF0912] hover:bg-[#922328] text-white font-black uppercase text-xs tracking-widest rounded-2xl transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2 cursor-pointer outline-none mt-2"
+                    data-selected-gateway="pix"
+                >
+                    {isPt ? 'Ativar VIP com Pix - R$ 10,00' : 'Activate VIP with Pix - R$ 10,00'}
+                </button>
+
+                <!-- Disclaimer -->
+                <p class="text-center text-[7.5px] text-gray-600 font-bold uppercase tracking-[0.2em] leading-relaxed mt-1 select-none" id="pix-terms-notice">
+                    {t('vip.pix_notice')}
+                </p>
+
+            </div>
+        </div>
+
+        <!-- 4. Login Required Modal Overlay -->
+        <div id="vip-login-required" class="hidden fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
+            <div class="bg-[#0E111A] p-8 rounded-[32px] border border-[#DF0912]/20 text-center flex flex-col justify-center items-center gap-4 py-12 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-300">
+                <div class="w-16 h-16 bg-[#DF0912]/10 rounded-2xl flex items-center justify-center border border-[#DF0912]/20">
+                    <svg class="w-8 h-8 text-[#DF0912]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                </div>
+                <div>
+                    <h3 class="text-white text-sm font-black uppercase tracking-widest mb-2 italic">{t('vip.login_required_title')}</h3>
+                    <p class="text-gray-400 text-[11px] font-medium leading-relaxed mb-6 max-w-xs mx-auto">{t('vip.login_required_desc')}</p>
+                </div>
+                <a href={isPt ? '/login?redirect=/vip' : '/en/login?redirect=/vip'} class="block w-full py-4 bg-white text-black font-black uppercase text-xs tracking-widest rounded-2xl hover:bg-gray-200 transition-all text-center">
+                    {t('vip.login_cta')}
+                </a>
+            </div>
+        </div>
+
+    </main>
+</BaseLayout>
+
+<script>
+    import { authStore, initAuth } from "../store/authStore";
+    import { getSupabase } from "../services/supabase";
+    import { syncCryptoOptions } from "../services/cryptoCurrencies.js";
+
+    async function initVipPage() {
+        const pageContainer = document.getElementById('vip-page-container');
+        if (!pageContainer) return;
+
+        // Toggles de período de faturamento
+        const btnMensal = document.getElementById('toggle-mensal') as HTMLButtonElement;
+        const btnTrimestral = document.getElementById('toggle-trimestral') as HTMLButtonElement;
+        const btnAnual = document.getElementById('toggle-anual') as HTMLButtonElement;
+        const periodToggles = [btnMensal, btnTrimestral, btnAnual];
+
+        // Displays de preços nas páginas
+        const basicPrice = document.getElementById('basic-price-display');
+        const basicSubtext = document.getElementById('basic-subtext-display');
+        const diamondPrice = document.getElementById('diamond-price-display');
+        const diamondSubtext = document.getElementById('diamond-subtext-display');
+        const blackPrice = document.getElementById('black-price-display');
+        const blackSubtext = document.getElementById('black-subtext-display');
+
+        // Botoes de selecao de plano
+        const btnSubscribeBasic = document.getElementById('btn-subscribe-basic') as HTMLButtonElement;
+        const btnSubscribeDiamond = document.getElementById('btn-subscribe-diamond') as HTMLButtonElement;
+        const btnSubscribeBlack = document.getElementById('btn-subscribe-black') as HTMLButtonElement;
+
+        // Modal de checkout
+        const modalOverlay = document.getElementById('checkout-modal-overlay');
+        const modalContent = document.getElementById('checkout-modal-content');
+        const btnCloseModal = document.getElementById('btn-close-modal');
+        const modalPlanBadge = document.getElementById('modal-plan-badge');
+        const modalPlanTitle = document.getElementById('modal-plan-title');
+        const modalPlanDuration = document.getElementById('modal-plan-duration');
+        const modalPixPrice = document.getElementById('modal-pix-price');
+
+        // Seletores de gateway no modal
+        const modalGatewayPix = document.getElementById('modal-gateway-pix');
+        const modalGatewayCrypto = document.getElementById('modal-gateway-crypto');
+        const modalPixBadge = document.getElementById('modal-pix-badge');
+        const modalCryptoBadge = document.getElementById('modal-crypto-badge');
+        const modalCryptoPrice = document.getElementById('modal-crypto-price');
+        const modalCryptoCurrencyPicker = document.getElementById('modal-crypto-currency-picker');
+        const modalCryptoCurrencySelect = document.getElementById('modal-crypto-currency-select') as HTMLSelectElement | null;
+        const pixTermsNotice = document.getElementById('pix-terms-notice');
+
+        // Botão de confirmação final
+        const confirmBtn = document.getElementById('vip-page-confirm') as HTMLButtonElement;
+
+        // Overlay de login obrigatório
+        const loginRequired = document.getElementById('vip-login-required');
+
+        const isPt = document.documentElement.lang === 'pt';
+
+        // Tabela estrita de preços para prevenir fraudes
+        const prices = {
+            mensal: {
+                basic: { amount: 1000, display: "R$ 10,00", sub: isPt ? "R$ 10,00 cobrados hoje" : "R$ 10.00 billed today" },
+                diamond: { amount: 1990, display: "R$ 19,90", sub: isPt ? "R$ 19,90 cobrados hoje" : "R$ 19.90 billed today" },
+                black: { amount: 5000, display: "R$ 50,00", sub: isPt ? "R$ 50,00 cobrados hoje" : "R$ 50.00 billed today" }
+            },
+            trimestral: {
+                basic: { amount: 2500, display: "R$ 25,00", sub: isPt ? "R$ 25,00 cobrados hoje" : "R$ 25.00 billed today" },
+                diamond: { amount: 4990, display: "R$ 49,90", sub: isPt ? "R$ 49,90 cobrados hoje" : "R$ 49.90 billed today" },
+                black: { amount: 12500, display: "R$ 125,00", sub: isPt ? "R$ 125,00 cobrados hoje" : "R$ 125.00 billed today" }
+            },
+            anual: {
+                basic: { amount: 8000, display: "R$ 80,00", sub: isPt ? "R$ 80,00 cobrados hoje" : "R$ 80.00 billed today" },
+                diamond: { amount: 14990, display: "R$ 149,90", sub: isPt ? "R$ 149,90 cobrados hoje" : "R$ 149.90 billed today" },
+                black: { amount: 50000, display: "R$ 500,00", sub: isPt ? "R$ 500,00 cobrados hoje" : "R$ 500.00 billed today" }
+            }
+        };
+
+        let selectedPeriod = "mensal"; // "mensal" | "trimestral" | "anual"
+        let selectedPlan = "basic"; // "basic" | "diamond" | "black"
+        let selectedGateway = "pix"; // "pix" | "crypto"
+        let userToken = "";
+
+        async function getCheckoutToken() {
+            try {
+                const supabase = getSupabase();
+                const { data } = await supabase.auth.getSession();
+                if (data?.session?.access_token) {
+                    userToken = data.session.access_token;
+                    const current = authStore.get();
+                    authStore.set({
+                        ...current,
+                        user: data.session.user,
+                        token: data.session.access_token,
+                        loading: false,
+                        initialized: true
+                    });
+                    initAuth(true, data.session).catch((err) => console.warn("[VIP Page] Falha ao sincronizar perfil antes do checkout:", err));
+                    return data.session.access_token;
+                }
+            } catch (err) {
+                console.warn("[VIP Page] Nao foi possivel recuperar sessao fresca:", err);
+            }
+
+            const currentToken = authStore.get()?.token || userToken;
+            if (currentToken) {
+                userToken = currentToken;
+                return currentToken;
+            }
+
+            try {
+                await initAuth(true);
+                userToken = authStore.get()?.token || "";
+                return userToken;
+            } catch (err) {
+                console.warn("[VIP Page] Falha ao inicializar auth antes do checkout:", err);
+                return "";
+            }
+        }
+
+        // Verificação de autenticação
+        try {
+            const state = authStore.get();
+            userToken = state.token || "";
+        } catch (e) {
+            console.error("[VIP Page] Auth check error:", e);
+        }
+
+        // 1. Alternador de Período (Mensal / Trimestral / Anual)
+        function updatePeriodDisplay() {
+            const basicData = prices[selectedPeriod].basic;
+            const diamondData = prices[selectedPeriod].diamond;
+            const blackData = prices[selectedPeriod].black;
+
+            // Transições suaves com fade-out rápido
+            if (basicPrice) basicPrice.textContent = basicData.display;
+            if (basicSubtext) basicSubtext.textContent = basicData.sub;
+            if (diamondPrice) diamondPrice.textContent = diamondData.display;
+            if (diamondSubtext) diamondSubtext.textContent = diamondData.sub;
+            if (blackPrice) blackPrice.textContent = blackData.display;
+            if (blackSubtext) blackSubtext.textContent = blackData.sub;
+
+            // Ajustar o texto do faturamento no período (/ trimestre, / ano, etc)
+            const periodLabels = {
+                mensal: isPt ? "/ mês" : "/ mo",
+                trimestral: isPt ? "/ trimestre" : "/ quarter",
+                anual: isPt ? "/ ano" : "/ yr"
+            };
+
+            const displayLabel = periodLabels[selectedPeriod];
+            const displayBasicPeriod = document.getElementById('basic-period-display');
+            const displayDiamondPeriod = document.getElementById('diamond-period-display');
+            const displayBlackPeriod = document.getElementById('black-period-display');
+
+            if (displayBasicPeriod) displayBasicPeriod.textContent = displayLabel;
+            if (displayDiamondPeriod) displayDiamondPeriod.textContent = displayLabel;
+            if (displayBlackPeriod) displayBlackPeriod.textContent = displayLabel;
+        }
+
+        function updateToggleClasses() {
+            periodToggles.forEach(b => {
+                if (!b) return;
+                const sub = b.querySelector('.sub-label') as HTMLSpanElement;
+                if (b.dataset.period === selectedPeriod) {
+                    b.className = "px-4 sm:px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 bg-[#DF0912] text-white select-none outline-none cursor-pointer flex flex-col items-center justify-center leading-none min-w-[90px] sm:min-w-[110px] shadow-lg shadow-red-950/20";
+                    if (sub) {
+                        sub.className = "sub-label text-[7px] text-white/80 uppercase mt-1 font-black tracking-widest";
+                    }
+                } else {
+                    b.className = "px-4 sm:px-5 py-2.5 rounded-xl text-xs font-black text-gray-400 hover:text-white uppercase tracking-wider transition-all duration-300 select-none outline-none cursor-pointer flex flex-col items-center justify-center leading-none min-w-[90px] sm:min-w-[110px] bg-transparent";
+                    if (sub) {
+                        const period = b.dataset.period;
+                        if (period === 'mensal') {
+                            sub.className = "sub-label text-[7px] text-gray-500 uppercase mt-1 font-bold tracking-widest";
+                        } else if (period === 'trimestral') {
+                            sub.className = "sub-label text-[7px] text-[#DF0912] uppercase mt-1 font-black tracking-widest";
+                        } else if (period === 'anual') {
+                            sub.className = "sub-label text-[7px] text-emerald-400 uppercase mt-1 font-black tracking-widest";
+                        }
+                    }
+                }
+            });
+        }
+
+        periodToggles.forEach(btn => {
+            if (!btn) return;
+            btn.addEventListener('click', () => {
+                selectedPeriod = btn.dataset.period || "mensal";
+                updateToggleClasses();
+                updatePeriodDisplay();
+            });
+        });
+
+        // 2. Abertura do Modal de Checkout ao clicar nas CTAs
+        async function openCheckout(plan: "basic" | "diamond" | "black") {
+            if (!await getCheckoutToken()) {
+                // Se deslogado, abre painel de login obrigatório com fade-in
+                if (loginRequired) loginRequired.classList.remove('hidden');
+                return;
+            }
+
+            selectedPlan = plan;
+
+            // Configurar modal baseado no plano
+            if (plan === "basic") {
+                if (modalPlanBadge) {
+                    modalPlanBadge.textContent = "BETTERVIP";
+                    modalPlanBadge.className = "inline-block px-3 py-1 text-[8.5px] font-black uppercase tracking-widest rounded-full mb-3 select-none bg-red-500/10 text-[#DF0912] border border-red-500/10";
+                }
+                if (modalPlanTitle) modalPlanTitle.textContent = isPt ? "MultiCanaisHD VIP Básico" : "MultiCanaisHD VIP Basic";
+            } else if (plan === "diamond") {
+                if (modalPlanBadge) {
+                    modalPlanBadge.textContent = "BETTERVIP DIAMOND";
+                    modalPlanBadge.className = "inline-block px-3 py-1 text-[8.5px] font-black uppercase tracking-widest rounded-full mb-3 select-none bg-cyan-500/10 text-cyan-400 border border-cyan-500/10 animate-pulse";
+                }
+                if (modalPlanTitle) {
+                    modalPlanTitle.textContent = "MultiCanaisHD VIP Diamond";
+                }
+            } else {
+                if (modalPlanBadge) {
+                    modalPlanBadge.textContent = "BETTERVIP BLACK";
+                    modalPlanBadge.className = "inline-block px-3 py-1 text-[8.5px] font-black uppercase tracking-widest rounded-full mb-3 select-none bg-neutral-300/10 text-neutral-200 border border-neutral-400/20 animate-pulse";
+                }
+                if (modalPlanTitle) {
+                    modalPlanTitle.textContent = "MultiCanaisHD VIP Black";
+                }
+            }
+
+            // Duração texto
+            const periodNames = {
+                mensal: isPt ? "Faturamento Mensal" : "Monthly Billing",
+                trimestral: isPt ? "Faturamento Trimestral" : "Quarterly Billing",
+                anual: isPt ? "Faturamento Anual" : "Annual Billing"
+            };
+            if (modalPlanDuration) modalPlanDuration.textContent = periodNames[selectedPeriod];
+
+            // Atualizar displays de preço do modal
+            const currentPlanData = prices[selectedPeriod][plan];
+            if (modalPixPrice) modalPixPrice.textContent = currentPlanData.display;
+            if (modalCryptoPrice) modalCryptoPrice.textContent = currentPlanData.display;
+
+            // Configurar botões de gateway de acordo com o plano para harmonizar a paleta
+            updateGatewayUI();
+
+            // Abrir com animação suave
+            if (modalOverlay && modalContent) {
+                modalOverlay.classList.remove('hidden');
+                setTimeout(() => {
+                    modalOverlay.classList.remove('opacity-0');
+                    modalContent.classList.remove('scale-95');
+                }, 50);
+            }
+        }
+
+        if (btnSubscribeBasic) btnSubscribeBasic.addEventListener('click', () => openCheckout('basic'));
+        if (btnSubscribeDiamond) btnSubscribeDiamond.addEventListener('click', () => openCheckout('diamond'));
+        if (btnSubscribeBlack) btnSubscribeBlack.addEventListener('click', () => openCheckout('black'));
+
+        // 3. Seleção de gateway dentro do modal — pagamento é sempre automatizado
+        // via VeloraPay (PIX ou cripto), resolvido na página /pagamento/[reference]
+        // depois do checkout; não há mais confirmação manual de hash aqui.
+        function updateGatewayUI() {
+            const currentPlanData = prices[selectedPeriod][selectedPlan];
+            syncCryptoOptions(modalCryptoCurrencySelect, currentPlanData.amount);
+
+            if (modalGatewayPix && modalGatewayCrypto && modalPixBadge && modalCryptoBadge) {
+                if (selectedGateway === "pix") {
+                    modalGatewayPix.className = "relative flex flex-col items-center justify-center p-4 bg-[#DF0912]/10 border-2 border-[#DF0912] rounded-2xl text-center cursor-pointer transition-all duration-300 group outline-none";
+                    modalGatewayCrypto.className = "relative flex flex-col items-center justify-center p-4 bg-white/[0.02] border-2 border-white/5 rounded-2xl text-center cursor-pointer transition-all duration-300 group outline-none hover:border-white/10";
+
+                    modalPixBadge.classList.remove('hidden');
+                    modalCryptoBadge.classList.add('hidden');
+                    if (pixTermsNotice) pixTermsNotice.classList.remove('hidden');
+                    modalCryptoCurrencyPicker?.classList.add('hidden');
+                } else {
+                    modalGatewayCrypto.className = "relative flex flex-col items-center justify-center p-4 bg-emerald-500/10 border-2 border-emerald-500 rounded-2xl text-center cursor-pointer transition-all duration-300 group outline-none";
+                    modalGatewayPix.className = "relative flex flex-col items-center justify-center p-4 bg-white/[0.02] border-2 border-white/5 rounded-2xl text-center cursor-pointer transition-all duration-300 group outline-none hover:border-white/10";
+
+                    modalPixBadge.classList.add('hidden');
+                    modalCryptoBadge.classList.remove('hidden');
+                    if (pixTermsNotice) pixTermsNotice.classList.add('hidden');
+                    modalCryptoCurrencyPicker?.classList.remove('hidden');
+                }
+            }
+
+            if (confirmBtn) {
+                confirmBtn.classList.remove('hidden');
+                if (selectedGateway === "pix") {
+                    confirmBtn.className = "w-full py-4 bg-[#DF0912] hover:bg-[#922328] text-white font-black uppercase text-xs tracking-widest rounded-2xl transition-all shadow-xl shadow-red-950/20 active:scale-95 flex items-center justify-center gap-2 cursor-pointer outline-none mt-2";
+                    confirmBtn.textContent = isPt
+                        ? `Ativar VIP com Pix - ${currentPlanData.display}`
+                        : `Activate VIP with Pix - ${currentPlanData.display}`;
+                } else {
+                    confirmBtn.className = "w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase text-xs tracking-widest rounded-2xl transition-all shadow-xl shadow-emerald-950/20 active:scale-95 flex items-center justify-center gap-2 cursor-pointer outline-none mt-2";
+                    confirmBtn.textContent = isPt
+                        ? `Pagar com Criptomoedas - ${currentPlanData.display}`
+                        : `Pay with Cryptocurrencies - ${currentPlanData.display}`;
+                }
+            }
+        }
+
+        if (modalGatewayPix) {
+            modalGatewayPix.addEventListener('click', () => {
+                selectedGateway = "pix";
+                updateGatewayUI();
+            });
+        }
+        if (modalGatewayCrypto) {
+            modalGatewayCrypto.addEventListener('click', () => {
+                selectedGateway = "crypto";
+                updateGatewayUI();
+            });
+        }
+
+        // 4. Fechamento do modal
+        function closeModal() {
+            if (modalOverlay && modalContent) {
+                modalOverlay.classList.add('opacity-0');
+                modalContent.classList.add('scale-95');
+                setTimeout(() => {
+                    modalOverlay.classList.add('hidden');
+                    if (pixTermsNotice) pixTermsNotice.classList.remove('hidden');
+                    if (confirmBtn) confirmBtn.classList.remove('hidden');
+                }, 150);
+            }
+        }
+
+        if (btnCloseModal) btnCloseModal.addEventListener('click', closeModal);
+        if (modalOverlay) {
+            modalOverlay.addEventListener('click', (e) => {
+                if (e.target === modalOverlay) closeModal();
+            });
+        }
+
+        // 5. Clique de Confirmação Final do Checkout
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', async () => {
+                console.log("💳 [Checkout Modal] Iniciando transação...");
+                const originalText = confirmBtn.textContent;
+                const processingText = isPt ? "Processando..." : "Processing...";
+                
+                confirmBtn.innerHTML = `<span class="animate-spin inline-block w-4 h-4 border-2 border-white/20 border-t-white rounded-full mr-2"></span> ${processingText}`;
+                confirmBtn.disabled = true;
+
+                try {
+                    const currentPlanData = prices[selectedPeriod][selectedPlan];
+                    const token = await getCheckoutToken();
+                    if (!token) {
+                        alert(isPt ? "Sessao expirada. Faca login novamente." : "Session expired. Please login again.");
+                        return;
+                    }
+
+                    // A VeloraPay não hospeda checkout: o destino é a NOSSA própria
+                    // página /pagamento/[reference], então navega na mesma aba (sem
+                    // popup — evita aba travada em about:blank quando bloqueado/lento).
+                    const response = await fetch('/api/vip/checkout', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            gateway: selectedGateway,
+                            amount: currentPlanData.amount,
+                            ...(selectedGateway === 'crypto' ? { payCurrency: modalCryptoCurrencySelect?.value } : {})
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.checkoutUrl) {
+                        console.log("🚀 [Checkout Modal] Redirecionando para:", data.checkoutUrl);
+                        window.location.href = data.checkoutUrl;
+                        closeModal();
+                    } else {
+                        const errorMsg = data.error || (isPt ? `Falha inesperada (HTTP ${response.status}).` : `Unexpected failure (HTTP ${response.status}).`);
+                        console.error("❌ [Checkout Modal] Erro no Checkout:", errorMsg);
+                        alert(isPt ? `Não foi possível gerar o link de pagamento: ${errorMsg}` : `Could not generate checkout link: ${errorMsg}`);
+                    }
+                } catch (e: any) {
+                    console.error("❌ [Checkout Modal] Erro de Conexão:", e);
+                    alert(isPt ? `Erro de conexão: ${e.message || "Tente novamente."}` : `Connection error: ${e.message || "Try again."}`);
+                } finally {
+                    confirmBtn.textContent = originalText;
+                    confirmBtn.disabled = false;
+                }
+            });
+        }
+
+        // Inicializar
+        updatePeriodDisplay();
+    }
+
+    document.addEventListener("astro:page-load", initVipPage);
+</script>
+
+<style>
+    @reference "tailwindcss";
+
+    /* Seamless checkout transitions */
+    #checkout-modal-overlay {
+        transition: opacity 0.2s ease-out, visibility 0.2s ease-out;
+    }
+
+    /* color-scheme: dark sozinho não garante que o POPUP do <select> siga o
+       tema em todo navegador — estilo de <option> é o que garante o
+       contraste de verdade (mesmo ajuste feito no VipModal.astro). */
+    #modal-crypto-currency-select {
+        color-scheme: dark;
+    }
+    #modal-crypto-currency-select option {
+        background: #0E111A;
+        color: #fff;
+    }
+</style>

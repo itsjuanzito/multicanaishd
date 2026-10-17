@@ -1,0 +1,2715 @@
+---
+// src/pages/serie/[slug].astro
+// @ts-nocheck
+import "../../styles/global.css";
+export const prerender = false;
+
+// Reduzindo o cache na CDN para evitar problemas de comentários misturados em diferentes episódios
+Astro.response.headers.set(
+    "Cache-Control",
+    "public, s-maxage=3600, stale-while-revalidate=86400",
+);
+
+import LayoutCardsStreaming from "../../layouts/LayoutCardsStreaming.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import BetterComments from "../components/BetterComments.astro";
+import TrailerModal from "../components/TrailerModal.astro";
+// Só esta rota (e /filme/[slug]) dispara `multicanaishd:open-torrent`, então só ela paga o
+// TorrentModal. Antes ele vinha do BaseLayout e carregava em toda página do site.
+import TorrentModal from "../components/TorrentModal.astro";
+import { getTMDBDetails, getTMDBRecommendations } from "../../services/tmdb.js";
+import OndeAssistir from "../components/OndeAssistir.astro";
+import { getSeriesSeasonEpisodes } from "../../services/streambetterCatalogService.js";
+import { getGenreByIdOrSlug } from "../../utils/genres";
+import { slugify } from "../../utils/slugify.js";
+import { slugDeDetalhes } from "../../utils/canonicalSlug.js";
+import { resolveRotatedSlug } from "../../services/urlRotationService.js";
+import { upstreamUnavailableResponse } from "../../utils/upstreamUnavailable.js";
+import {
+    isMobileUA as checkMobileUA,
+    getDetailPreloadImageSet,
+} from "../../utils/mobile";
+import { axiomService } from "../../services/axiom-service.js";
+
+// i18n
+import { getLangFromUrl, useTranslations } from "../../i18n/utils";
+import { detectLocale } from "../../utils/localeDetection.js";
+import { slugCanonicoParaIdioma } from "../../utils/slugCanonico.js";
+import { obterParDeSlugs } from "../../services/contentSlugPairs.js";
+import { getSiteUrl } from "../../services/env-adapter.js";
+import {
+    buildEmbedUrl,
+    getShopUrl,
+    getEmbedPublicKey,
+} from "../../services/streamEmbedService.js";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+const langPrefix = isPt ? "" : `/${lang}`;
+const siteUrl = getSiteUrl(Astro.url);
+
+const userAgent = Astro.request.headers.get("user-agent") || "";
+const isMobileUA = checkMobileUA(userAgent);
+
+// Leva usuário estrangeiro/nacional pra versão correta do idioma mesmo entrando
+// direto numa página de conteúdo (sem passar pela home antes).
+//
+// O slug do destino é resolvido AQUI. Antes, este redirect reaproveitava o slug do idioma de
+// origem e deixava a página de destino se autocorrigir com um segundo redirect — uma visita
+// custava três requisições (302 -> 301 -> 200) e isso sozinho respondia por ~12% do tráfego
+// do site. Ver utils/slugCanonico.js.
+const { activeLocale, isCrawler, isManual, isRewrittenEn, isBrowserNavigation } =
+    detectLocale(Astro);
+if (!isManual && !isRewrittenEn && !isCrawler && isBrowserNavigation && activeLocale !== lang) {
+    // NUNCA cachear este redirect na borda: o destino depende do cookie de idioma e do
+    // país do visitante, mas a chave de cache da Cloudflare é só a URL. Um 302 cacheado
+    // aqui prenderia TODOS os visitantes no idioma do primeiro que passou. O
+    // Cache-Control público setado no topo do arquivo vale só pro HTML de fato renderizado.
+    Astro.response.headers.set("Cache-Control", "private, no-store");
+    const targetPrefix = activeLocale === "en" ? "/en" : "";
+    const idParaSlug = Astro.params.slug?.match(/^(\d+)/)?.[1];
+    const slugDestino = await slugCanonicoParaIdioma(
+        idParaSlug,
+        "tv",
+        activeLocale,
+        Astro.params.slug,
+    );
+    return Astro.redirect(
+        `${targetPrefix}/serie/${slugDestino}${Astro.url.search}`,
+        302,
+    );
+}
+
+const { slug } = Astro.params;
+const type = "tv";
+
+// Astro.rewrite("/404") reinicia o pipeline de middleware pro novo path, então o log de
+// requisição no middleware.js só enxerga "/404" genérico — logamos aqui, com a URL original
+// ainda intacta, pra saber de fato qual slug quebrou.
+const logNotFound = (reason) => {
+    const p = axiomService.ingest({
+        _time: new Date().toISOString(),
+        type: "content_not_found",
+        path: Astro.url.pathname,
+        reason,
+        platform: "multicanaishd-web",
+    });
+    if (Astro.locals.runtime?.waitUntil) {
+        Astro.locals.runtime.waitUntil(p);
+    } else {
+        p.catch(() => {});
+    }
+};
+
+// Extração do ID do slug (formato: 1396-breaking-bad)
+const idMatch = slug.match(/^(\d+)/);
+const id = idMatch ? idMatch[1] : null;
+
+// Sem ID não há o que buscar — 404 legítimo. Mas ID válido com parte textual vazia
+// ('/serie/153485-') NÃO é 404: é um link nosso mal gerado pra título em script não-latino,
+// e 404-ar matava conteúdo que existe. Deixa seguir; o redirect canônico mais abaixo manda
+// pra URL certa, que agora é garantidamente não-vazia via contentSlug().
+if (!id) {
+    Astro.response.status = 404;
+    logNotFound("invalid_slug");
+    return Astro.rewrite("/404");
+}
+
+const removableSeoParams = [
+    "id",
+    "type",
+    "fromSearch",
+    "play",
+    "fbclid",
+    "gclid",
+    "gclsrc",
+    "dclid",
+    "msclkid",
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "utm_term",
+    "utm_content",
+    "debug",
+];
+if (removableSeoParams.some((param) => Astro.url.searchParams.has(param))) {
+    const cleanParams = new URLSearchParams(Astro.url.searchParams);
+    removableSeoParams.forEach((param) => cleanParams.delete(param));
+    for (const key of Array.from(cleanParams.keys())) {
+        if (key.startsWith("utm_")) cleanParams.delete(key);
+    }
+    const qs = cleanParams.toString() ? `?${cleanParams.toString()}` : "";
+    // langPrefix obrigatório: em /en/* o Astro.url.pathname é o path PT (a rota /en reescreve
+    // para a PT com ?lang=en). Sem o prefixo, uma URL inglesa com parâmetro de tracking era
+    // 301-ada para a página em PORTUGUÊS — o oposto do canônico que ela mesma declara.
+    return Astro.redirect(`${langPrefix}${Astro.url.pathname}${qs}`, 301);
+}
+
+const season = Astro.url.searchParams.get("season") || "1";
+const episode = Astro.url.searchParams.get("episode") || "1";
+const fromSearch = Astro.url.searchParams.get("fromSearch");
+
+// Guard: valida que season e episode são números razoáveis antes de ir ao TMDB.
+// Guard: validate season and episode are sane numbers before firing TMDB requests.
+// URLs absurdas como ?episode=9999 causam timeouts e erros 5xx no servidor.
+// O teto existe só pra barrar lixo/abuso (?episode=999999), não pra julgar o que é uma
+// série "grande demais" — e estava baixo demais: Sazae-san, Shin-chan e novelas diárias
+// como Tomorrow Is Ours passam de 1500 episódios com folga, e apareciam no Axiom como
+// 404 em conteúdo que existe. Guiding Light, o extremo conhecido, teve 15.762 episódios.
+const seasonNum = parseInt(season, 10);
+const episodeNum = parseInt(episode, 10);
+const MAX_SEASON = 200;
+const MAX_EPISODE = 20000;
+
+if (
+    isNaN(seasonNum) ||
+    isNaN(episodeNum) ||
+    seasonNum < 1 ||
+    episodeNum < 1 ||
+    seasonNum > MAX_SEASON ||
+    episodeNum > MAX_EPISODE
+) {
+    Astro.response.status = 404;
+    logNotFound("invalid_season_episode");
+    return Astro.rewrite("/404");
+}
+
+// Sem chave por padrão: `isVIP` no SSR é sempre false (HTML precisa ser cacheável, não pode
+// variar por usuário) — quem decide se inclui a chave (VIP = sem anúncio da StreamBetter) é
+// o cliente, via isVip() real, remontando a URL na hora (ver buildEmbedUrl() no client script).
+const embedUrl = buildEmbedUrl({
+    kind: "episode",
+    tmdbId: id,
+    season: seasonNum,
+    episode: episodeNum,
+    includeKey: false,
+});
+
+let response,
+    dadosMulti,
+    ano,
+    backUrl,
+    initialEpisodes = [],
+    recommendationsResponse,
+    episodesResponse,
+    // Declarado aqui, e não no try: urlDoEpisodio() lê este valor fora daquele bloco.
+    expectedSlug,
+    nextEpisodeInfo = null,
+    // Alternates de idioma (ver services/contentSlugPairs.js). Ficam fora do try pelo mesmo
+    // motivo de expectedSlug: quem consome é o BaseLayout, no corpo do arquivo. Dois nulls =
+    // "não sei os slugs do outro idioma" (o alternate será omitido, não espelhado).
+    alternates = { pt: null, en: null };
+
+// --- MASTER PARALLELIZATION (Zero-Wait) ---
+// tmdbDetailsPromise é compartilhada com getSeriesSeasonEpisodes para evitar uma
+// segunda chamada sequencial ao TMDB (uma das causas de SSR de série levando 25-48s).
+const tmdbDetailsPromise = getTMDBDetails(id, type, lang).catch((e) => {
+    console.error(`[Serie] Fallback TMDB details:`, e.message);
+    return null;
+});
+
+const [tmdbDetails, tmdbRecs, tmdbSeason] = await Promise.all([
+    tmdbDetailsPromise,
+    getTMDBRecommendations(id, type, lang).catch((e) => {
+        console.error(`[Serie] Fallback recommendations:`, e.message);
+        return { results: [] };
+    }),
+    getSeriesSeasonEpisodes(id, season, lang, tmdbDetailsPromise).catch((e) => {
+        console.error(
+            `[Serie] Fallback season details (Xtream/TMDB):`,
+            e.message,
+        );
+        return { episodes: [] };
+    }),
+]);
+
+try {
+    response = tmdbDetails;
+    recommendationsResponse = tmdbRecs;
+    episodesResponse = tmdbSeason;
+    initialEpisodes = episodesResponse?.episodes || [];
+
+    // Falha de origem ≠ conteúdo inexistente. getTMDBDetails devolve `{ notFound: true }`
+    // só quando o TMDB confirma 404; timeout, 429 e 5xx viram exceção e chegam aqui como
+    // null. Antes os dois casos caíam no mesmo rewrite("/404"), então um blip do TMDB
+    // desindexava URLs válidas que estão no sitemap. Ver upstreamUnavailable.js.
+    if (
+        !response ||
+        response.success === false ||
+        (!response.title && !response.name && !response.notFound)
+    ) {
+        console.error(
+            `🔴 [Série] Origem indisponível para o item: ${id}.`,
+            response,
+        );
+        logNotFound("tmdb_load_failed");
+        return upstreamUnavailableResponse(lang);
+    }
+
+    if (response.notFound) {
+        Astro.response.status = 404;
+        logNotFound("tmdb_not_found");
+        return Astro.rewrite("/404");
+    }
+
+    dadosMulti = {
+        id: id,
+        name: response.title || response.name,
+        date: response.first_air_date || response.release_date || null,
+        bio: response.overview,
+        inProduction: response.in_production,
+        vote: response.vote_average || 0,
+        genres: response.genres?.map((g) => g.name).join(", ") || "N/A",
+        imdbId: response.imdb_id || null,
+        poster: response.poster_path
+            ? `https://image.tmdb.org/t/p/w500${response.poster_path}`
+            : null,
+        backdrop: response.backdrop_path
+            ? `https://image.tmdb.org/t/p/w1280${response.backdrop_path}`
+            : null,
+        seasons: response.seasons || [],
+        runtime: response.episode_run_time?.[0] || 45,
+    };
+
+    // SEO Hygiene & Anti-DMCA URL Rotation: Redireciona se o slug textual estiver desatualizado
+    // Se a obra sofreu rotação Anti-DMCA (Google/Lumen), o current_slug rotacionado tem prioridade.
+    // Cada idioma tem sua própria rotação (colunas _en em url_rotations): o canônico desta rota
+    // precisa do idioma DELA — passar o idioma errado mandaria o visitante de /en/ para um slug
+    // em português (ou vice-versa) e geraria um 301 em cada pageview.
+    const canonicalSlugSerie = slugDeDetalhes(id, response, lang);
+    expectedSlug = await resolveRotatedSlug(id, 'series', canonicalSlugSerie, lang);
+
+    if (slug !== expectedSlug) {
+        const langPrefix = isPt ? "" : `/${lang}`;
+        const safeParams = new URLSearchParams();
+        for (const [key, value] of Astro.url.searchParams.entries()) {
+            if (!["lang", "id", "type"].includes(key)) {
+                safeParams.set(key, value);
+            }
+        }
+        const qs = safeParams.toString() ? `?${safeParams.toString()}` : "";
+        return Astro.redirect(`${langPrefix}/serie/${expectedSlug}${qs}`, 301);
+    }
+
+    // Alternates de idioma calculados de verdade (ver services/contentSlugPairs.js).
+    // Espelhar o path e trocar /en só é correto quando o slug é igual nos dois idiomas — numa
+    // série não é: em pt-BR o canônico vem do título traduzido, em en do nome em inglês. O
+    // espelho caía no 301 da rota de destino e o Google descarta o par de idiomas inteiro.
+    //
+    // O objeto é SEMPRE preenchido, mesmo que com dois nulls: `null` no SEO.astro significa
+    // "esta rota não informa" e cai no espelhamento (correto para hub/gênero/canal), enquanto
+    // dois nulls significam "esta rota confirma que não sabe os slugs do outro idioma" — e aí
+    // o alternate é omitido. Sem a distinção, o conteúdo sem mapa voltava ao espelho quebrado.
+    const parDeSlugs = await obterParDeSlugs(id, "series", Astro.url);
+    if (parDeSlugs) {
+        if (isPt) {
+            alternates = {
+                pt: `${siteUrl}/serie/${expectedSlug}`,
+                en: parDeSlugs.en ? `${siteUrl}/en/serie/${id}-${parDeSlugs.en}` : null,
+            };
+        } else {
+            // Aqui o idioma NÃO é o da rota: estamos montando o alternate do PT a partir de uma
+            // página EN, então o slug que está sendo resolvido é o português — lang 'pt' fixo.
+            const ptSlug = parDeSlugs.pt
+                ? await resolveRotatedSlug(id, "series", `${id}-${parDeSlugs.pt}`, 'pt')
+                : null;
+            alternates = {
+                pt: ptSlug ? `${siteUrl}/serie/${ptSlug}` : null,
+                en: `${siteUrl}/en/serie/${expectedSlug}`,
+            };
+        }
+    }
+
+    // Cast & Crew
+    dadosMulti.cast = response.credits?.cast
+        ? response.credits.cast.slice(0, 8)
+        : [];
+    dadosMulti.creator = response.created_by?.[0] || null;
+
+    ano = dadosMulti.date ? dadosMulti.date.split("-")[0] : "N/A";
+    backUrl = isPt ? "/" : "/en";
+    if (fromSearch === "true") {
+        const referer = Astro.request.headers.get("referer");
+        if (referer) {
+            const searchTerm = referer.split("q=")[1]?.split("&")[0];
+            if (searchTerm) backUrl = "/results?q=" + searchTerm;
+        }
+    }
+
+    const primaryGenre = response.genres?.[0] || null;
+    const genreObj = primaryGenre ? getGenreByIdOrSlug(primaryGenre.id) : null;
+    dadosMulti.genreSlug = genreObj
+        ? genreObj.slug
+        : slugify(primaryGenre?.name || "");
+    dadosMulti.trailerKey = response?.trailer_key || null;
+    dadosMulti.voteCount = response.vote_count || 1;
+
+    // Próximo Episódio logic
+    if (response.next_episode_to_air) {
+        const nextEp = response.next_episode_to_air;
+        const airDate = new Date(nextEp.air_date + "T00:00:00");
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const diffDays = Math.ceil(
+            (airDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+        );
+        if (diffDays >= 0) {
+            const formatterWeekday = new Intl.DateTimeFormat(
+                isPt ? "pt-BR" : "en-US",
+                { weekday: "long" },
+            );
+            const formatterMonth = new Intl.DateTimeFormat(
+                isPt ? "pt-BR" : "en-US",
+                { month: "short" },
+            );
+            nextEpisodeInfo = {
+                number: nextEp.episode_number,
+                season: nextEp.season_number,
+                days: diffDays,
+                dateStr: isPt
+                    ? `${formatterWeekday.format(airDate)}, ${airDate.getDate()} de ${formatterMonth.format(airDate).replace(".", "")}`
+                    : `${formatterWeekday.format(airDate)}, ${formatterMonth.format(airDate)} ${airDate.getDate()}`,
+            };
+        }
+    }
+} catch (error) {
+    console.error("Erro ao carregar dados da série:", error);
+    const logPromise = axiomService.logError(error, { rota: `/serie/${slug}` });
+    if (Astro.locals.runtime?.waitUntil) {
+        Astro.locals.runtime.waitUntil(logPromise);
+    } else {
+        logPromise.catch(() => {});
+    }
+    // Exceção ao montar os dados de um título que o TMDB retornou com sucesso é bug nosso,
+    // não URL inexistente — 404 aqui desindexava a página por um erro de código passageiro.
+    return upstreamUnavailableResponse(lang);
+}
+
+// Processamento enriquecido de episódios da temporada ativa (Pilar 3)
+const processedEpisodes = (initialEpisodes || []).map((ep) => {
+    const isCurrent = ep.episode_number === parseInt(episode);
+    const backdrop = dadosMulti?.backdrop || "";
+    const epImg = ep.still_path
+        ? `https://image.tmdb.org/t/p/w300${ep.still_path}`
+        : backdrop;
+
+    let isNew = false;
+    if (ep.air_date) {
+        try {
+            const airDate = new Date(ep.air_date + "T00:00:00");
+            const now = new Date();
+            const diffTime = now.getTime() - airDate.getTime();
+            const diffDays = diffTime / (1000 * 3600 * 24);
+            if (diffDays >= 0 && diffDays <= 7) isNew = true;
+        } catch (e) {
+            console.error(
+                `[Serie] Erro ao analisar data do episódio E${ep.episode_number}:`,
+                e,
+            );
+        }
+    }
+
+    return {
+        ...ep,
+        isCurrent,
+        epImg,
+        isNew,
+    };
+});
+
+const currentEpisodeData = initialEpisodes.find(
+    (ep) => ep.episode_number === parseInt(episode),
+);
+const episodeInfo = `${t("player.season_prefix")}${season.toString().padStart(2, "0")}E${episode.toString().padStart(2, "0")}`;
+
+const epSuffix = episode.toString().padStart(2, "0");
+// URL canônica desta página é SEMPRE a versão sem query params (ver breadcrumb/canonical
+// abaixo), que por sua vez cai no default season=1&episode=1 — então "assistir {serie}
+// online" (busca genérica, sem episódio) era indexada com um título de "1x01" na cara,
+// e essa é a query com o CTR mais baixo do relatório (ex: 16-12% vs 25-58% nas outras).
+// Só entra o "Ep N" no título quando o visitante pediu um episódio explicitamente.
+const hasExplicitEpisode =
+    Astro.url.searchParams.has("season") || Astro.url.searchParams.has("episode");
+const pageTitle = isPt
+    ? !hasExplicitEpisode
+        ? `Assistir ${dadosMulti.name} Completo Dublado Online Grátis - MultiCanaisHD`
+        : currentEpisodeData
+          ? `Assistir ${dadosMulti.name} Ep ${episode} Dublado Online - T${season}: ${currentEpisodeData.name} - MultiCanaisHD`
+          : `Assistir ${dadosMulti.name} Ep ${episode} Dublado Online - Temporada ${season} - MultiCanaisHD`
+    : !hasExplicitEpisode
+      ? `Watch ${dadosMulti.name} Full Series Dubbed Online Free - MultiCanaisHD`
+      : currentEpisodeData
+        ? `Watch ${dadosMulti.name} Ep ${episode} Dubbed Online - S${season}: ${currentEpisodeData.name} - MultiCanaisHD`
+        : `Watch ${dadosMulti.name} Ep ${episode} Dubbed Online - Season ${season} - MultiCanaisHD`;
+
+const ctaPrefix = isPt
+    ? `Assista ${dadosMulti.name} (${ano}) online grátis em HD! `
+    : `Watch ${dadosMulti.name} (${ano}) online free in HD! `;
+const h1Title = dadosMulti.name;
+const pageDescription = currentEpisodeData?.overview
+    ? `${ctaPrefix}${currentEpisodeData.overview.substring(0, 150).replace(/\s+\S*$/, "")}...`
+    : dadosMulti.bio
+      ? `${ctaPrefix}${dadosMulti.bio.substring(0, 150).replace(/\s+\S*$/, "")}...`
+      : t("content.synopsis_fallback", { name: dadosMulti.name });
+
+// Constante de propósito — mesma razão documentada em filme/[slug].astro e, antes dele, em
+// redirect/[slug].astro: o `supabase.auth.getSession()` que alimentava isto nunca devolvia
+// sessão no SSR do Worker, então `isVIP` já era false pra todo mundo, VIP incluso. Quem
+// resolve o VIP de verdade é o authStore no cliente. Como constante, o HTML do SSR não varia
+// por usuário — condição necessária pra ele poder ser cacheado.
+const isVIP = false;
+// Fica null de propósito: o plano depende do último pagamento (services/vipPlans.js) e o
+// SSR não tem sessão pra buscá-lo. `data-user-plan` vazio faz o cliente cair no authStore,
+// que já resolveu o plano — emitir um palpite aqui sobrescreveria o valor certo.
+const vipPlan = null;
+
+// Sem VideoObject, AggregateRating, FAQPage e dateModified dinâmico — ver o comentário
+// equivalente em filme/[slug].astro (dados de terceiro marcados como nossos = spam de schema).
+// TVEpisode schema structure for episodes instead of TVSeries (Pilar 6 - SEO Supremo)
+const episodeSchema = {
+    "@type": "TVEpisode",
+    name: currentEpisodeData?.name
+        ? `${dadosMulti.name} S${season.toString().padStart(2, "0")}E${episode.toString().padStart(2, "0")}: ${currentEpisodeData.name}`
+        : `${dadosMulti.name} S${season.toString().padStart(2, "0")}E${episode.toString().padStart(2, "0")}`,
+    episodeNumber: parseInt(episode),
+    description: pageDescription,
+    image: currentEpisodeData?.still_path
+        ? `https://image.tmdb.org/t/p/w500${currentEpisodeData.still_path}`
+        : dadosMulti.poster,
+    datePublished: currentEpisodeData?.air_date || dadosMulti.date,
+    partOfSeason: {
+        "@type": "TVSeason",
+        seasonNumber: parseInt(season),
+        partOfSeries: {
+            "@type": "TVSeries",
+            name: dadosMulti.name,
+            image: dadosMulti.poster,
+            description: dadosMulti.bio,
+            numberOfSeasons: String(
+                dadosMulti.seasons?.filter((s) => s.season_number > 0)
+                    ?.length || "1",
+            ),
+            numberOfEpisodes: String(response.number_of_episodes || "1"),
+        },
+    },
+    potentialAction: {
+        "@type": "WatchAction",
+        target: {
+            "@type": "EntryPoint",
+            urlTemplate: `${siteUrl}${langPrefix}${Astro.url.pathname}?season=${season}&episode=${episode}`,
+            actionPlatform: [
+                "http://schema.org/DesktopWebPlatform",
+                "http://schema.org/MobileWebPlatform",
+            ],
+        },
+        actionAccessibilityRequirement: {
+            "@type": "ActionAccessSpecification",
+            category: "free",
+            availabilityStarts: dadosMulti.date ? `${dadosMulti.date}T00:00:00Z` : undefined,
+        },
+    },
+};
+
+const breadcrumbSchema = {
+    "@type": "BreadcrumbList",
+    itemListElement: [
+        {
+            "@type": "ListItem",
+            position: 1,
+            name: t("nav.home"),
+            item: siteUrl,
+        },
+        {
+            "@type": "ListItem",
+            position: 2,
+            name: t("nav.series"),
+            item: `${siteUrl}${isPt ? "" : "/en"}/explorar?type=tv`,
+        },
+        // Breadcrumb aponta para URL canônica da série (sem params de episódio) — consistente com o <link rel="canonical">
+        // Breadcrumb points to the series canonical URL (no episode params) — consistent with <link rel="canonical">
+        {
+            "@type": "ListItem",
+            position: 3,
+            name: dadosMulti.name,
+            item: `${siteUrl}${langPrefix}${Astro.url.pathname}`,
+        },
+    ],
+};
+
+// URL real da página de episódio. A lista lateral renderizada no servidor aponta pra cá, e é
+// o único caminho que o crawler tem até essas páginas: elas não estão no sitemap (expandir
+// ~4.9 mil séries em episódios daria mais de 100 mil URLs, inflando um sitemap que já está
+// perto do teto do protocolo), e renderEpisodes() troca a lista inteira por divs assim que o
+// player sobe — ou seja, quem enxerga estas âncoras é basicamente só robô.
+// Reusa `expectedSlug` (já resolvido acima com a rotação Anti-DMCA aplicada) em vez de
+// recalcular via slugDeDetalhes: recalcular aqui gerava links de episódio com o slug ANTIGO
+// numa série rotacionada — a própria página que deveria esconder a URL denunciada continuava
+// distribuindo links internos pra ela, e cada clique voltava a cair num 301.
+const urlDoEpisodio = (numeroTemporada, numeroEpisodio) =>
+    `${langPrefix}/serie/${expectedSlug}/temporada-${numeroTemporada}/episodio-${numeroEpisodio}`;
+
+// A pergunta é "Onde assistir X?" porque é assim que a busca acontece; a resposta é o
+// MultiCanaisHD, sem citar catálogo de terceiro (ver a nota em components/OndeAssistir.astro).
+const respostaOndeAssistir = isPt
+    ? `Você pode assistir ${dadosMulti.name} completa, dublada e legendada, online e grátis no MultiCanaisHD — basta clicar no botão "Assistir" acima e escolher entre as opções de servidor.`
+    : `You can watch ${dadosMulti.name} in full, dubbed and subtitled, online and free on MultiCanaisHD — just click the "Watch" button above and choose between the server options.`;
+
+const faqSchema = {
+    "@type": "FAQPage",
+    mainEntity: [
+        {
+            "@type": "Question",
+            name: isPt
+                ? `Onde assistir ${dadosMulti.name}?`
+                : `Where to watch ${dadosMulti.name}?`,
+            acceptedAnswer: {
+                "@type": "Answer",
+                text: respostaOndeAssistir,
+            },
+        },
+        {
+            "@type": "Question",
+            name: isPt
+                ? `${dadosMulti.name} está disponível dublada?`
+                : `Is ${dadosMulti.name} available dubbed?`,
+            acceptedAnswer: {
+                "@type": "Answer",
+                text: isPt
+                    ? `Sim, ${dadosMulti.name} está disponível dublada em português e também com legendas no MultiCanaisHD. Você pode trocar de servidor a qualquer momento para encontrar a opção de áudio que preferir.`
+                    : `Yes, ${dadosMulti.name} is available dubbed and with subtitles on MultiCanaisHD. You can switch servers at any time to find your preferred audio option.`,
+            },
+        },
+        {
+            "@type": "Question",
+            name: isPt
+                ? `Quantas temporadas tem ${dadosMulti.name}?`
+                : `How many seasons does ${dadosMulti.name} have?`,
+            acceptedAnswer: {
+                "@type": "Answer",
+                text: isPt
+                    ? `${dadosMulti.name} possui ${dadosMulti.seasons?.filter((s) => s.season_number > 0)?.length || "1"} temporada(s) disponível(is) para assistir online e grátis no MultiCanaisHD.`
+                    : `${dadosMulti.name} has ${dadosMulti.seasons?.filter((s) => s.season_number > 0)?.length || "1"} season(s) available to watch online for free on MultiCanaisHD.`,
+            },
+        },
+    ],
+};
+
+const relatedSeries = await Promise.all(
+    (recommendationsResponse?.results || [])
+        .filter((item) => item?.id && (item.title || item.name))
+        .slice(0, 5)
+        .map(async (item) => {
+            const itemCanonicalSlug = slugDeDetalhes(item.id, item, lang);
+            return {
+                id: item.id,
+                name: item.title || item.name,
+                // slugify cru aqui gerava link interno divergente do canônico da página de destino —
+                // ou seja, um 301 garantido por clique (e no JSON-LD, por rastreio). Mesma lógica
+                // pra rotação Anti-DMCA: se a recomendação também foi rotacionada, o link já deve
+                // sair apontando pro slug novo em vez de gerar outro 301 no clique. O idioma é o
+                // da rota, porque itemCanonicalSlug também foi calculado com ele.
+                slug: await resolveRotatedSlug(item.id, 'series', itemCanonicalSlug, lang),
+            };
+        }),
+);
+
+const finalJsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [episodeSchema, breadcrumbSchema],
+};
+
+const keywords = isPt
+    ? `${dadosMulti.name}, assistir ${dadosMulti.name} online, assistir ${dadosMulti.name} online gratis, assistir ${dadosMulti.name} dublado, assistir ${dadosMulti.name} legendado, ${dadosMulti.name} dublado online, assistir serie ${dadosMulti.name}, assistir ${dadosMulti.name} completo gratis`
+    : `watch ${dadosMulti.name} online, watch ${dadosMulti.name} online free, watch ${dadosMulti.name} free stream, stream ${dadosMulti.name} online, ${dadosMulti.name} free online`;
+
+---
+
+<BaseLayout
+    title={pageTitle}
+    description={pageDescription}
+    image={dadosMulti.backdrop || dadosMulti.poster}
+    preloadImageSet={dadosMulti.backdrop
+        ? getDetailPreloadImageSet(response.backdrop_path, isMobileUA)
+        : null}
+    preloadImage={!response.backdrop_path && dadosMulti.poster
+        ? dadosMulti.poster
+        : null}
+    preloadImageSizes="100vw"
+    type="video.tv_show"
+    keywords={keywords}
+    jsonLd={finalJsonLd}
+    alternates={alternates}
+>
+    <main
+        class="container mx-auto px-4 py-8 xl:px-8 max-w-[1450px] mt-24 sm:mt-28"
+    >
+        <div
+            id="slug-data-layer"
+            hidden
+            data-id={id}
+            data-type={type}
+            data-slug={slug}
+            data-embed-url={embedUrl}
+            data-embed-base={getShopUrl()}
+            data-embed-key={getEmbedPublicKey()}
+            data-genres={dadosMulti.genres}
+            data-poster={dadosMulti.poster}
+            data-title={dadosMulti.name}
+            data-season={season}
+            data-episode={episode}
+            data-user-vip={isVIP ? "true" : "false"}
+            data-user-plan={vipPlan || ""}
+            data-imdb-id={dadosMulti.imdbId}
+            data-initial-episodes={JSON.stringify(initialEpisodes)}
+            data-backdrop={dadosMulti.backdrop}
+            data-total-episodes={response.number_of_episodes}
+            data-trailer-key={dadosMulti.trailerKey}
+            data-lang={lang}
+            data-t-season={t("player.season")}
+            data-t-episode={t("player.episode")}
+            data-t-watched={t("player.watched")}
+            data-t-next-ep={t("player.next_ep")}
+            data-t-new={t("player.new_badge")}
+            data-t-ep-watched={t("player.ep_watched_feedback")}
+            data-t-mark-ep-watched={t("player.mark_ep_watched_feedback")}
+        >
+        </div>
+
+        <div class="flex items-center gap-2 mb-6">
+            <a
+                href={backUrl}
+                class="p-2 bg-white/5 hover:bg-[#DF0912] rounded-full transition-all group"
+            >
+                <svg
+                    class="w-5 h-5 text-gray-400 group-hover:text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    ><path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M15 19l-7-7 7-7"></path></svg
+                >
+            </a>
+            <div class="h-4 w-px bg-white/10 mx-1"></div>
+            <div
+                class="flex items-center gap-2 text-xs font-black uppercase tracking-tighter text-gray-500"
+            >
+                <a href={backUrl} class="hover:text-white transition-colors"
+                    >{t("nav.home")}</a
+                >
+                <span>/</span>
+                <span class="text-white truncate max-w-[150px] sm:max-w-none"
+                    >{dadosMulti.name}</span
+                >
+            </div>
+        </div>
+
+        <div
+            id="player-main-grid"
+            class="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 mb-12"
+        >
+            <div id="player-left-col" class="lg:col-span-8 space-y-6">
+                <div
+                    id="playerWrapper"
+                    class="relative w-full h-[450px] sm:h-auto sm:aspect-video bg-black rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-white/5 group"
+                >
+                    <iframe
+                        id="playerFrame"
+                        src=""
+                        style="border:0"
+                        scrolling="no"
+                        frameborder="0"
+                        height="100%"
+                        width="100%"
+                        allowfullscreen="true"
+                        allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; accelerometer; gyroscope; clipboard-write"
+                        class="absolute top-0 left-0 w-full h-full z-10"
+                    ></iframe>
+
+                    <!-- Botão de Tela Cheia Customizado (UX Premium) -->
+                    <button
+                        id="customFullscreenBtn"
+                        class="absolute top-4 right-4 z-[40] w-10 h-10 flex items-center justify-center bg-black/60 hover:bg-[#DF0912] text-white rounded-xl backdrop-blur-md border border-white/10 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300 transform hover:scale-110 active:scale-95"
+                        title={t("player.fullscreen")}
+                    >
+                        <svg
+                            class="w-5 h-5 transition-transform"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                id="fs-icon-enter"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
+                            ></path>
+                            <path
+                                id="fs-icon-exit"
+                                class="hidden"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M9 3v2m0 0v2m0-2H7m2 0h2M3 15v2m0 0v2m0-2h2m-2 0H1m11 8v-2m0 0v-2m0 2h2m-2 0h-2m8-8v-2m0 0v-2m0 2h-2m2 0h2"
+                            ></path>
+                        </svg>
+                    </button>
+
+                </div>
+
+                <!-- NOVO LAYOUT DE CONTROLES PREMIUM (Séries) -->
+                <!--
+                    Este painel fica FORA do condicional de redirect de propósito. Ele já morou
+                    dentro do mesmo bloco do player, e ligar o redirect externo levava junto
+                    favoritos, trailer, compartilhar, marcar como assistido, download e embed —
+                    ações que não têm nada a ver com onde o vídeo roda. Só o que depende do
+                    player embutido (próximo episódio e modo cinema) some.
+                -->
+                <div
+                    class="flex flex-wrap items-center gap-2.5 bg-[#161B28] p-5 sm:p-6 rounded-2xl border border-white/5 shadow-2xl relative z-20 mt-4"
+                >
+                    <!-- Grupo principal: navegação/saída (próximo ep, anúncio, download, embed, cinema) -->
+                    <button
+                        id="nextEpBtn"
+                        class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#DF0912]/10 text-[#DF0912] hover:bg-[#DF0912] hover:text-white text-xs font-bold transition-all border border-[#DF0912]/30"
+                    >
+                        <svg
+                            class="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            ><path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2.5"
+                                d="M9 5l7 7-7 7"></path></svg
+                        >
+                        {t("player.next_ep")}
+                    </button>
+
+                    {
+                        !isVIP && (
+                            <button
+                                id="noAdsBtn"
+                                onclick="document.dispatchEvent(new CustomEvent('multicanaishd:open-vip'))"
+                                class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-red-700 text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-black/20 hover:scale-105 transition-transform active:scale-95"
+                            >
+                                {t("player.no_ads")}
+                            </button>
+                        )
+                    }
+
+                    <button
+                        id="downloadBtn"
+                        class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-xs font-bold transition-all border border-blue-500/20 shadow-lg shadow-blue-900/5"
+                    >
+                        <svg
+                            class="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            ><path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2.5"
+                                d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                            ></path></svg
+                        >
+                        {t("player.download")}
+                    </button>
+
+                    <button
+                        id="embedBtn"
+                        class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1D2437] hover:bg-[#333] text-gray-300 hover:text-[#DF0912] text-xs font-bold transition-all border border-white/5"
+                    >
+                        <svg
+                            class="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            ><path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2.5"
+                                d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
+                            ></path></svg
+                        >
+                        {t("player.embed")}
+                    </button>
+
+                    <button
+                        id="cinemaModeBtn"
+                        class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1D2437] text-gray-300 hover:text-white text-xs font-bold transition-all border border-white/5 hover:bg-[#333]"
+                    >
+                        <svg
+                            class="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            ><path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2.5"
+                                d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"
+                            ></path></svg
+                        >
+                        {t("player.cinema_mode")}
+                    </button>
+
+                    <!-- Divisor vertical entre navegação/saída e engajamento -->
+                    <div class="w-px self-stretch bg-white/10 mx-1 hidden sm:block"></div>
+
+                    <!-- Grupo secundário: engajamento (lista, trailer, compartilhar, reportar) -->
+                    <button
+                        id="favBtn"
+                        class="hidden items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1D2437] text-gray-300 hover:text-[#DF0912] text-xs font-bold transition-all border border-white/5 hover:bg-[#333]"
+                    >
+                        <svg
+                            id="favIcon"
+                            class="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            ><path
+                                d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                                stroke-width="2.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"></path></svg
+                        >
+                        <span id="favText">{t("player.my_list")}</span>
+                    </button>
+
+                    {
+                        dadosMulti.trailerKey && (
+                            <button
+                                id="trailerBtn"
+                                data-key={dadosMulti.trailerKey}
+                                class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1D2437] text-gray-300 hover:text-white hover:bg-[#DF0912] text-xs font-bold transition-all border border-white/5"
+                            >
+                                <svg
+                                    class="w-4 h-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <>
+                                        <path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                        <path
+                                            d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                            stroke-width="2.5"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                        />
+                                    </>
+                                </svg>
+                                <span>{t("player.watch_trailer")}</span>
+                            </button>
+                        )
+                    }
+
+                    <button
+                        id="shareBtn"
+                        class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1D2437] text-gray-300 hover:text-white text-xs font-bold transition-all border border-white/5 hover:bg-[#333]"
+                    >
+                        <svg
+                            class="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            ><path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2.5"
+                                d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                            ></path></svg
+                        >
+                        {t("player.share")}
+                    </button>
+
+                    <button
+                        onclick={`document.dispatchEvent(new CustomEvent('multicanaishd:open-community', { detail: { title: '${t("player.community_report_title")}', description: '${t("player.community_report_desc")}' } }))`}
+                        class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-orange-500/10 hover:bg-orange-500 text-orange-500 hover:text-white text-xs font-bold transition-all border border-orange-500/20"
+                    >
+                        <svg
+                            class="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            ><path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2.5"
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                            ></path></svg
+                        >
+                        {t("player.report_error")}
+                    </button>
+                </div>
+
+                <div
+                    class="bg-[#161B28] rounded-xl p-5 sm:p-7 border border-white/5 shadow-xl"
+                >
+                    <h1 class="text-2xl sm:text-3xl font-black text-white mb-3">
+                        {h1Title}
+                    </h1>
+                    <div class="flex flex-wrap items-center gap-2 mb-4">
+                        <span
+                            class="px-2.5 py-1 rounded-md bg-white/10 text-xs font-bold text-gray-200"
+                            >{ano}</span
+                        >
+                        <span
+                            class="px-2.5 py-1 rounded-md bg-[#DF0912]/20 text-[#DF0912] text-xs font-black border border-[#DF0912]/20"
+                            >★ {dadosMulti.vote.toFixed(1)}</span
+                        >
+
+                        {/* Gêneros clicáveis para SEO (Pilar 5) */}
+                        {
+                            response.genres?.map((g) => (
+                                <a
+                                    href={`${langPrefix}/genero/${getGenreByIdOrSlug(g.id)?.slug || g.id}`}
+                                    class="px-2.5 py-1 rounded-md bg-white/5 hover:bg-[#DF0912] text-xs font-bold text-gray-300 hover:text-white transition-all border border-white/5 hover:border-[#DF0912]"
+                                >
+                                    {g.name}
+                                </a>
+                            ))
+                        }
+                        <span
+                            class={`px-2 py-1 rounded-md text-[10px] font-black border ${dadosMulti.inProduction ? "bg-green-500/10 text-green-400 border-green-500/30" : "bg-blue-500/10 text-blue-400 border-blue-500/30"}`}
+                            >{
+                                dadosMulti.inProduction
+                                    ? t("content.production")
+                                    : t("content.finished")
+                            }</span
+                        >
+                    </div>
+                    <p class="text-gray-300 text-sm leading-relaxed mb-6">
+                        {dadosMulti.bio || t("content.no_synopsis")}
+                    </p>
+
+                    {
+                        relatedSeries.length > 0 && (
+                            <p class="text-sm text-gray-400 mt-6 pt-6 border-t border-white/5">
+                                <span class="inline-flex items-center gap-1.5 align-middle">
+                                    <svg
+                                        class="w-4 h-4 text-gray-500"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"
+                                        />
+                                    </svg>
+                                    <strong class="text-gray-300">
+                                        {isPt
+                                            ? "Séries relacionadas:"
+                                            : "Related series:"}
+                                    </strong>
+                                </span>{" "}
+                                {relatedSeries.map((serie, i) => (
+                                    <><a href={`${langPrefix}/serie/${serie.slug}`} class="text-[#DF0912] hover:underline">{serie.name}</a>{i < relatedSeries.length - 1 ? ", " : ""}</>
+                                ))}
+                            </p>
+                        )
+                    }
+
+                    {
+                        response.images?.backdrops?.length > 0 && (
+                            <div class="mt-8 pt-6 border-t border-white/5">
+                                <h4 class="text-xs font-black uppercase tracking-wider text-gray-500 mb-4 flex items-center gap-2">
+                                    <svg
+                                        class="w-4 h-4"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M14 8h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                        />
+                                    </svg>
+                                    {isPt ? "Cenas da Série" : "Series Stills"}
+                                </h4>
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    {response.images.backdrops
+                                        .slice(0, 4)
+                                        .map((img) => (
+                                            <img
+                                                src={`https://image.tmdb.org/t/p/w300${img.file_path}`}
+                                                alt={`${isPt ? "Cena de" : "Scene from"} ${dadosMulti.name}`}
+                                                class="rounded-lg object-cover w-full h-32 hover:scale-105 transition-transform cursor-pointer"
+                                                loading="lazy"
+                                            />
+                                        ))}
+                                </div>
+                            </div>
+                        )
+                    }
+
+                    <OndeAssistir nome={dadosMulti.name} isPt={isPt} />
+
+                    <div class="mt-8 pt-6 border-t border-white/5">
+                        <h4
+                            class="text-xs font-black uppercase tracking-wider text-gray-500 mb-4"
+                        >
+                            {
+                                isPt
+                                    ? "Perguntas Frequentes"
+                                    : "Frequently Asked Questions"
+                            }
+                        </h4>
+                        <div class="space-y-4">
+                            {
+                                faqSchema.mainEntity.map((qa) => (
+                                    <div>
+                                        <p class="text-sm font-bold text-white mb-1">
+                                            {qa.name}
+                                        </p>
+                                        <p class="text-sm text-gray-400 leading-relaxed">
+                                            {qa.acceptedAnswer.text}
+                                        </p>
+                                    </div>
+                                ))
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-4 space-y-4">
+                {
+                    nextEpisodeInfo && (
+                        <div class="bg-gradient-to-br from-[#DF0912]/20 to-[#DF0912]/5 rounded-xl border border-[#DF0912]/30 p-4">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="flex items-center justify-center w-2 h-2 rounded-full bg-[#DF0912] animate-pulse" />
+                                <span class="text-[10px] font-black uppercase tracking-wider text-[#DF0912]">
+                                    {t("content.next_ep_airing")}
+                                </span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-white font-black text-lg">
+                                        T{nextEpisodeInfo.season} EP{" "}
+                                        {nextEpisodeInfo.number}
+                                    </p>
+                                    <p class="text-gray-400 text-xs">
+                                        {nextEpisodeInfo.dateStr}
+                                    </p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-[#DF0912] font-black text-2xl">
+                                        {nextEpisodeInfo.days === 0
+                                            ? t("player.launch_today").replace(
+                                                  "!",
+                                                  "",
+                                              )
+                                            : `${nextEpisodeInfo.days} ${t("player.days")}`}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )
+                }
+
+                <div
+                    class="bg-[#161B28] rounded-xl flex flex-col border border-white/5 h-[700px] sticky top-24 overflow-hidden"
+                >
+                    <div class="p-4 border-b border-white/5 bg-[#0E111A]/80">
+                        <h3
+                            class="text-white font-black mb-4 flex items-center gap-2"
+                        >
+                            <svg
+                                class="w-5 h-5 text-[#DF0912]"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"
+                                ><path d="M4 6h16M4 10h16M4 14h16M4 18h16"
+                                ></path></svg
+                            >{t("player.episodes")}
+                        </h3>
+                        <select
+                            id="seasonSelect"
+                            class="w-full bg-[#161B28] border border-white/10 text-white font-bold rounded-lg px-4 py-3 text-sm appearance-none cursor-pointer"
+                        >
+                            {
+                                dadosMulti.seasons
+                                    .filter((s) => s.season_number > 0)
+                                    .map((s) => (
+                                        <option
+                                            value={s.season_number}
+                                            selected={
+                                                s.season_number.toString() ===
+                                                season
+                                            }
+                                        >
+                                            {t("player.season")}{" "}
+                                            {s.season_number}
+                                        </option>
+                                    ))
+                            }
+                        </select>
+                    </div>
+                    <div
+                        id="episodeListContainer"
+                        class="flex-1 overflow-y-auto p-3 space-y-2.5 hide-scrollbar"
+                    >
+                        {
+                            processedEpisodes.map((ep) => (
+                                <a
+                                    href={urlDoEpisodio(season, ep.episode_number)}
+                                    class={`flex items-start gap-4 p-3 rounded-2xl cursor-pointer transition-all border group/ep ${ep.isCurrent ? "bg-[#DF0912]/10 border-[#DF0912]" : "bg-[#0E111A]/50 border-white/5 hover:bg-[#1D2437]"}`}
+                                    data-ep-num={ep.episode_number}
+                                    id={
+                                        ep.isCurrent
+                                            ? "current-playing-episode"
+                                            : undefined
+                                    }
+                                >
+                                    <div class="relative w-32 h-[84px] flex-shrink-0 rounded-xl overflow-hidden bg-[#1a1a1a] border border-white/5 group-hover/ep:border-[#DF0912]/30 transition-colors">
+                                        {ep.epImg ? (
+                                            <img
+                                                src={ep.epImg}
+                                                class={`w-full h-full object-cover ${ep.still_path ? "" : "opacity-20 grayscale"}`}
+                                                loading="lazy"
+                                                alt={`${dadosMulti.name} E${ep.episode_number}`}
+                                            />
+                                        ) : null}
+                                        {!ep.still_path && (
+                                            <div class="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#0E111A] to-[#1D2437]">
+                                                <span class="text-[10px] font-black text-[#DF0912]/40 italic tracking-tighter">
+                                                    MULTICANAISHD
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        <div class="absolute top-1 left-1 flex flex-col gap-1">
+                                            {ep.isNew && (
+                                                <div class="bg-yellow-500 text-black text-[8px] font-black px-1.5 py-0.5 rounded shadow-lg animate-pulse">
+                                                    {t("player.new_badge") ||
+                                                        "NOVO"}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div class="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent" />
+                                        <span class="absolute bottom-1 right-1 text-[9px] font-black bg-[#DF0912] px-1.5 py-0.5 rounded shadow-lg text-white">
+                                            E{ep.episode_number}
+                                        </span>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-white text-sm font-bold truncate">
+                                            {ep.name}
+                                        </p>
+                                        <p class="text-[10px] text-gray-500 line-clamp-2 mt-1">
+                                            {ep.overview ||
+                                                (isPt
+                                                    ? "Sem sinopse."
+                                                    : "No overview available.")}
+                                        </p>
+                                    </div>
+                                </a>
+                            ))
+                        }
+                    </div>
+                    <div
+                        id="watchedBtnContainer"
+                        class="hidden p-3 border-t border-white/5 bg-[#0E111A]/80"
+                    >
+                        <button
+                            id="markWatchedBtn"
+                            class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-[#1D2437] text-gray-300 font-bold transition-all border border-white/5"
+                        >
+                            <span id="watchedText">{t("player.watched")}</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="container mx-auto px-4 py-8">
+            <LayoutCardsStreaming
+                titleHead={`${t("home.personalized_title")} ${dadosMulti.name}`}
+                type={type}
+                recommendationId={id}
+                staticData={recommendationsResponse?.results || []}
+                lang={lang}
+            />
+        </div>
+        <BetterComments
+            contentId={`${type}_${id}_s${season}_e${episode}`}
+            title={dadosMulti.name}
+            isVIP={isVIP}
+        />
+    </main>
+
+    <script>
+        import { authStore, updateCloudStats } from "../../store/authStore";
+        import { favoritesStore } from "../../store/favoritesStore";
+        import { showToast } from "../../store/toastStore";
+
+        // Janela em que relatos de progresso vindos do iframe são considerados eco do
+        // episódio ANTERIOR, e não avanço de autoplay. Ver syncEpisodeFromPlayer().
+        const ECO_DO_PLAYER_ANTIGO_MS = 8000;
+
+        window.BetterPlayer = {
+            state: {
+                initialized: false,
+                initializing: false,
+                initKey: "",
+                contentId: null,
+                contentType: "tv",
+                seasonNum: "1",
+                episodeNum: "1",
+                epDataList: [],
+                lang: "pt",
+                lastLoadedPlayerKey: "",
+            },
+            isVip() {
+                const dl = document.getElementById("slug-data-layer");
+                let storeVip = false;
+                try {
+                    if (typeof authStore !== "undefined") {
+                        storeVip = authStore.get()?.isVIP || false;
+                    }
+                } catch (e) {}
+                // Mesma regra do BaseLayout: a sessão otimista do localStorage também
+                // conta. Sem ela, enquanto o check real não confirma (ou quando falha, ex:
+                // rede ruim/VPN), o site mostrava "VIP" mas o player montava a URL do
+                // embed SEM a chave — e o VIP via anúncio.
+                let optimisticVip = false;
+                try {
+                    const raw = localStorage.getItem("bf_session_optimistic");
+                    const session = raw && raw !== "undefined" ? JSON.parse(raw) : null;
+                    optimisticVip =
+                        session?.isVIP === true &&
+                        (!session.vipUntil || new Date(session.vipUntil) > new Date());
+                } catch (e) {}
+                return dl?.dataset.userVip === "true" || storeVip || optimisticVip;
+            },
+            init() {
+                try {
+                    const dl = document.getElementById("slug-data-layer");
+                    if (!dl) return;
+                    const initKey = `${window.location.pathname}|${window.location.search}|${dl.dataset.id || ""}`;
+                    if (
+                        (this.state.initializing || this.state.initialized) &&
+                        this.state.initKey === initKey
+                    ) {
+                        return;
+                    }
+                    this.state.initializing = true;
+                    this.state.initKey = initKey;
+                    this.state.lastLoadedPlayerKey = "";
+                    this.state.contentId = dl.dataset.id;
+                    this.state.lang = dl.dataset.lang || "pt";
+
+                    // [AUTO-RESUME] Busca progresso no histórico local/nuvem se não houver query params na URL (Pilar 2)
+                    let sNum = null;
+                    let eNum = null;
+                    try {
+                        const urlParams = new URLSearchParams(
+                            window.location.search,
+                        );
+                        sNum = urlParams.get("season");
+                        eNum = urlParams.get("episode");
+
+                        if (!sNum) {
+                            const state = authStore.get();
+                            const histItem = (state.history || []).find(
+                                (item) =>
+                                    item?.id?.toString() ===
+                                    this.state.contentId?.toString(),
+                            );
+                            if (histItem && histItem.url) {
+                                try {
+                                    const u = new URL(
+                                        histItem.url,
+                                        window.location.origin,
+                                    );
+                                    const urlSeason =
+                                        u.searchParams.get("season");
+                                    const urlEpisode =
+                                        u.searchParams.get("episode");
+                                    if (urlSeason && urlEpisode) {
+                                        sNum = urlSeason;
+                                        eNum = urlEpisode;
+                                        // Atualiza a barra de endereços para manter a consistência visual (Pilar 1 e 2)
+                                        const newUrl = new URL(
+                                            window.location.href,
+                                        );
+                                        newUrl.searchParams.set("season", sNum);
+                                        newUrl.searchParams.set(
+                                            "episode",
+                                            eNum,
+                                        );
+                                        window.history.replaceState(
+                                            {},
+                                            "",
+                                            newUrl,
+                                        );
+                                    }
+                                } catch (e) {}
+                            }
+                        }
+                    } catch (e) {
+                        console.error(
+                            "[BetterPlayer] Error during URL / history restore:",
+                            e,
+                        );
+                    }
+
+                    this.state.seasonNum = sNum || dl.dataset.season || "1";
+                    this.state.episodeNum = eNum || dl.dataset.episode || "1";
+
+                    // Navegação SPA reaproveita este objeto: zera o progresso do conteúdo
+                    // anterior pra ele não vazar como `start` ou como posição salva deste.
+                    this._endedHandled = false;
+                    this._vipWaitStart = 0;
+                    clearTimeout(this._vipWaitTimer);
+                    this.state.playerSelfAdvanced = false;
+                    this._progress = {
+                        currentTime: 0,
+                        duration: 0,
+                        season: null,
+                        episode: null,
+                        lastPersist: 0,
+                        dirty: false,
+                    };
+
+                    try {
+                        this.state.epDataList = JSON.parse(
+                            dl.dataset.initialEpisodes || "[]",
+                        );
+                    } catch (e) {
+                        console.error(
+                            "❌ [Player] Erro ao analisar initialEpisodes:",
+                            e,
+                        );
+                        this.state.epDataList = [];
+                    }
+
+                    // Robust VIP check with fallback (Pilar 2)
+                    let userVip = false;
+                    try {
+                        userVip = this.isVip();
+                    } catch (e) {
+                        console.error(
+                            "[BetterPlayer] Error checking VIP status:",
+                            e,
+                        );
+                        userVip = dl.dataset.userVip === "true";
+                    }
+
+                    if (userVip) {
+                        try {
+                            document
+                                .getElementById("noAdsBtn")
+                                ?.classList.add("hidden");
+                        } catch (e) {}
+                    }
+
+                    try {
+                        this.setupEvents();
+                    } catch (e) {
+                        console.error(
+                            "[BetterPlayer] Error setting up events:",
+                            e,
+                        );
+                    }
+
+                    // Se a temporada recuperada for diferente da carregada via SSR, ou se a lista de episódios estiver vazia (falha no SSR), buscamos dinamicamente (Pilar 4)
+                    if (
+                        this.state.seasonNum !== (dl.dataset.season || "1") ||
+                        !this.state.epDataList ||
+                        this.state.epDataList.length === 0
+                    ) {
+                        try {
+                            const seasonSelect = document.getElementById(
+                                "seasonSelect",
+                            ) as HTMLSelectElement;
+                            if (seasonSelect)
+                                seasonSelect.value = this.state.seasonNum;
+                            this.loadEpisodes(this.state.seasonNum);
+                        } catch (e) {
+                            console.error(
+                                "[BetterPlayer] Error switching season / loading episodes dynamically:",
+                                e,
+                            );
+                            try {
+                                this.renderEpisodes();
+                                this.updateWatchedUI();
+                                this.updateFavoriteUI([]);
+                                this.updatePlayer();
+                            } catch (err) {}
+                        }
+                    } else {
+                        try {
+                            this.renderEpisodes();
+                        } catch (e) {
+                            console.error(
+                                "[BetterPlayer] Error rendering episodes:",
+                                e,
+                            );
+                        }
+
+                        try {
+                            this.updateWatchedUI();
+                        } catch (e) {
+                            console.error(
+                                "[BetterPlayer] Error updating watched UI:",
+                                e,
+                            );
+                        }
+
+                        try {
+                            let favs = [];
+                            try {
+                                favs = favoritesStore?.get() || [];
+                            } catch (err) {
+                                console.error(
+                                    "[BetterPlayer] Error getting favoritesStore:",
+                                    err,
+                                );
+                            }
+                            this.updateFavoriteUI(favs);
+                        } catch (e) {
+                            console.error(
+                                "[BetterPlayer] Error updating favorite UI:",
+                                e,
+                            );
+                        }
+
+                        try {
+                            this.updatePlayer();
+                        } catch (e) {
+                            console.error(
+                                "[BetterPlayer] Error updating player:",
+                                e,
+                            );
+                        }
+                    }
+
+                    try {
+                        this.startHeartbeat();
+                    } catch (e) {
+                        console.error(
+                            "[BetterPlayer] Error starting heartbeat:",
+                            e,
+                        );
+                    }
+
+                    this.state.initialized = true;
+                    this.state.initializing = false;
+                } catch (e) {
+                    this.state.initializing = false;
+                    console.error(
+                        "[BetterPlayer] Critical error during init():",
+                        e,
+                    );
+                    // Critical failure visual fallback: always try to show player/mask to avoid static black screen
+                    try {
+                        this.updatePlayer();
+                    } catch (err) {
+                        console.error(
+                            "[BetterPlayer] Failed critical player fallback:",
+                            err,
+                        );
+                    }
+                }
+            },
+            setupEvents() {
+                const els = {
+                    season: document.getElementById("seasonSelect"),
+                    fav: document.getElementById("favBtn"),
+                    trailer: document.getElementById("trailerBtn"),
+                    share: document.getElementById("shareBtn"),
+                    download: document.getElementById("downloadBtn"),
+                    embed: document.getElementById("embedBtn"),
+                    cinema: document.getElementById("cinemaModeBtn"),
+                    next: document.getElementById("nextEpBtn"),
+                    mark: document.getElementById("markWatchedBtn"),
+                };
+
+                if (els.season)
+                    els.season.onchange = (e) => {
+                        this.state.seasonNum = (
+                            e.target as HTMLSelectElement
+                        ).value;
+                        // A URL é sincronizada dentro de loadEpisodes, após sabermos qual é
+                        // o primeiro episódio real da temporada (Pilar 2)
+                        this.loadEpisodes(this.state.seasonNum, true);
+                    };
+
+                if (els.fav) els.fav.onclick = () => this.toggleFavorite();
+                if (els.mark) els.mark.onclick = () => this.toggleWatched();
+                if (els.trailer)
+                    els.trailer.onclick = (e) => {
+                        const key = e.currentTarget.dataset.key;
+                        if (key)
+                            document.dispatchEvent(
+                                new CustomEvent("multicanaishd:open-trailer", {
+                                    detail: { key },
+                                }),
+                            );
+                    };
+                if (els.share) els.share.onclick = () => this.share();
+                if (els.download) els.download.onclick = () => this.download();
+                if (els.embed) els.embed.onclick = () => this.openEmbed();
+                if (els.cinema)
+                    els.cinema.onclick = () => this.toggleCinemaMode();
+                if (els.next) els.next.onclick = () => this.nextEpisode();
+
+                // Tela Cheia Customizada
+                const fsBtn = document.getElementById("customFullscreenBtn");
+                const wrapper = document.getElementById("playerWrapper");
+
+                if (fsBtn && wrapper) {
+                    fsBtn.addEventListener("click", () => {
+                        try {
+                            if (!document.fullscreenElement) {
+                                if (wrapper.requestFullscreen) {
+                                    wrapper.requestFullscreen();
+                                } else if (wrapper.webkitRequestFullscreen) {
+                                    wrapper.webkitRequestFullscreen();
+                                } else if (wrapper.msRequestFullscreen) {
+                                    wrapper.msRequestFullscreen();
+                                }
+                            } else {
+                                if (document.exitFullscreen) {
+                                    document.exitFullscreen();
+                                }
+                            }
+                        } catch (err) {
+                            console.error("Erro ao alternar tela cheia:", err);
+                        }
+                    });
+
+                    document.addEventListener("fullscreenchange", () => {
+                        const enterIcon =
+                            document.getElementById("fs-icon-enter");
+                        const exitIcon =
+                            document.getElementById("fs-icon-exit");
+                        if (document.fullscreenElement) {
+                            enterIcon?.classList.add("hidden");
+                            exitIcon?.classList.remove("hidden");
+                            wrapper.classList.remove("rounded-xl");
+                        } else {
+                            enterIcon?.classList.remove("hidden");
+                            exitIcon?.classList.add("hidden");
+                            wrapper.classList.add("rounded-xl");
+                        }
+                    });
+                }
+
+                // Modal de solicitação de VOD (Xtream Codes) (Pilar 1 & 2: UX Premium e Estabilidade)
+                // Handled via page-level Event Delegation for robustness (Astro ViewTransitions compatibility)
+            },
+            async share() {
+                const dl = document.getElementById("slug-data-layer");
+                const title = dl?.dataset.title || "MultiCanaisHD";
+                if (navigator.share) {
+                    try {
+                        await navigator.share({
+                            title,
+                            text: `Assista ${title} online em HD no MultiCanaisHD!`,
+                            url: window.location.href,
+                        });
+                    } catch (e) {}
+                } else {
+                    navigator.clipboard.writeText(window.location.href);
+                    showToast("Link copiado!", "success");
+                }
+            },
+            download() {
+                const dl = document.getElementById("slug-data-layer");
+                const imdbId = dl?.dataset.imdbId;
+                const title = dl?.dataset.title || "MultiCanaisHD";
+                if (!imdbId) {
+                    showToast(
+                        "ID do IMDb não disponível para esta série.",
+                        "error",
+                    );
+                    return;
+                }
+                document.dispatchEvent(
+                    new CustomEvent("multicanaishd:open-torrent", {
+                        detail: {
+                            id: this.state.contentId,
+                            tmdbId: this.state.contentId,
+                            imdbId,
+                            title,
+                            type: "tv",
+                            season: this.state.seasonNum,
+                            episode: this.state.episodeNum,
+                        },
+                    }),
+                );
+            },
+            openEmbed() {
+                window.open("https://streambetter.shop", "_blank", "noopener");
+            },
+            async loadEpisodes(s, resetEpisode = false) {
+                try {
+                    const res = await fetch(
+                        `/api/detalhes?id=${this.state.contentId}&type=tv&season=${s}&lang=${this.state.lang}`,
+                    );
+                    if (!res.ok)
+                        throw new Error(`HTTP error! status: ${res.status}`);
+                    const data = await res.json();
+                    this.state.epDataList = data?.episodes || [];
+                } catch (error) {
+                    console.error(
+                        "❌ [Player] Erro ao carregar episódios:",
+                        error,
+                    );
+                    this.state.epDataList = [];
+                    import("../../store/toastStore").then((m) =>
+                        m.showToast(
+                            this.state.lang === "pt"
+                                ? "Erro ao carregar episódios da temporada."
+                                : "Error loading episodes for this season.",
+                            "error",
+                        ),
+                    );
+                } finally {
+                    if (resetEpisode) {
+                        // A numeração de episódio do TMDB nem sempre reseta a 1 a cada temporada
+                        // (ex.: Hunter x Hunter temporada 3 começa no episódio 137), então usamos
+                        // o primeiro episódio realmente retornado em vez de assumir "1".
+                        const firstEp =
+                            this.state.epDataList?.[0]?.episode_number;
+                        this.state.episodeNum =
+                            firstEp != null ? String(firstEp) : "1";
+
+                        const url = new URL(window.location.href);
+                        url.searchParams.set("season", this.state.seasonNum);
+                        url.searchParams.set("episode", this.state.episodeNum);
+                        window.history.pushState({}, "", url);
+                    }
+                    this.renderEpisodes();
+                    this.updateWatchedUI();
+                    this.updateFavoriteUI(favoritesStore.get());
+                    this.updatePlayer();
+                }
+            },
+            // Monta a URL do iframe na hora, do zero: inclui a chave pública (StreamBetter
+            // some com o anúncio dela) só se o viewer atual for VIP. Como o SSR nunca sabe o
+            // VIP real (HTML precisa ser cacheável), essa decisão só pode ser tomada aqui.
+            buildEmbedUrl() {
+                const dl = document.getElementById("slug-data-layer");
+                const base = dl?.dataset.embedBase || "";
+                const id = dl?.dataset.id || this.state.contentId;
+                if (!base || !id) return dl?.dataset.embedUrl || "";
+                const params = new URLSearchParams();
+                const key = dl?.dataset.embedKey || "";
+                if (this.isVip() && key) params.set("key", key);
+
+                const start = this.currentStartSeconds();
+                if (start > 0) params.set("start", String(start));
+
+                return `${base}/serie/${id}/${this.state.seasonNum}/${this.state.episodeNum}?${params.toString()}`;
+            },
+            // Segundo em que o player deve começar. A posição viva desta sessão tem prioridade
+            // sobre a salva: se o iframe recarregar no meio (ex: o check de VIP terminou e a URL
+            // ganhou/perdeu a chave), a pessoa volta pra onde estava, não pro ponto inicial.
+            currentStartSeconds() {
+                const doEpisodioAtual =
+                    String(this._progress?.season) ===
+                        String(this.state.seasonNum) &&
+                    String(this._progress?.episode) ===
+                        String(this.state.episodeNum);
+                const live = doEpisodioAtual
+                    ? Number(this._progress?.currentTime) || 0
+                    : 0;
+                if (live > 30) return Math.round(live);
+                return this.readSavedStart();
+            },
+            readSavedStart() {
+                try {
+                    const item = (authStore.get()?.history || []).find(
+                        (i) => i?.id == this.state.contentId,
+                    );
+                    if (!item) return 0;
+                    // A posição salva é de UM episódio (o histórico guarda uma entrada por
+                    // série): só vale se for exatamente o que está aberto agora.
+                    if (
+                        String(item.resume_season) !==
+                            String(this.state.seasonNum) ||
+                        String(item.resume_episode) !==
+                            String(this.state.episodeNum)
+                    ) {
+                        return 0;
+                    }
+                    const resume = Number(item.resume_seconds) || 0;
+                    const duration = Number(item.duration_seconds) || 0;
+                    // Abaixo de 30s não vale retomar (é praticamente o começo), e a menos de
+                    // 1 min do fim retomar é pior que recomeçar — cai direto nos créditos.
+                    if (resume > 30 && (!duration || resume < duration - 60)) {
+                        return Math.round(resume);
+                    }
+                } catch (e) {}
+                return 0;
+            },
+            // Compara duas URLs de embed ignorando `start`. Esse parâmetro muda conforme a
+            // reprodução avança, e se entrasse na comparação o iframe se recarregaria sozinho
+            // a cada atualização de progresso (updateVIPUI roda a cada mudança do authStore).
+            sameEmbedTarget(a, b) {
+                const norm = (u) => {
+                    try {
+                        const url = new URL(u, window.location.origin);
+                        url.searchParams.delete("start");
+                        return url.toString();
+                    } catch (e) {
+                        return u || "";
+                    }
+                };
+                return norm(a) === norm(b);
+            },
+            // A troca de episódio acontece só no cliente (pushState + updatePlayer, sem
+            // recarregar a página), então `astro:page-load` não dispara de novo e o
+            // data-content-id da seção de comentários ficava congelado no episódio que o
+            // servidor renderizou. Resultado: os comentários de um episódio apareciam em
+            // todos, e o que você postasse ia parar no episódio errado.
+            syncCommentsSection() {
+                const section = document.getElementById("comments-section");
+                if (!section || !this.state.contentId) return;
+
+                const next = `${this.state.contentType}_${this.state.contentId}_s${this.state.seasonNum}_e${this.state.episodeNum}`;
+                if (section.getAttribute("data-content-id") === next) return;
+
+                section.setAttribute("data-content-id", next);
+                document.dispatchEvent(
+                    new CustomEvent("multicanaishd:comments-context-change", {
+                        detail: { contentId: next },
+                    }),
+                );
+            },
+            // true enquanto não dá pra saber se o viewer é VIP: snapshot não diz VIP e o
+            // authStore ainda não confirmou. Teto de 5s pra um auth pendurado não travar o player.
+            waitingVipCheck() {
+                if (this.isVip()) return false;
+                let initialized = true;
+                try {
+                    initialized = authStore.get()?.initialized !== false;
+                } catch (e) {}
+                if (initialized) return false;
+                if (!this._vipWaitStart) this._vipWaitStart = Date.now();
+                if (Date.now() - this._vipWaitStart >= 5000) return false;
+                clearTimeout(this._vipWaitTimer);
+                this._vipWaitTimer = setTimeout(() => this.updatePlayer(), 5100 - (Date.now() - this._vipWaitStart));
+                return true;
+            },
+            updatePlayer() {
+                // Antes do guard do iframe: o episódio mudou de qualquer forma, e os
+                // comentários precisam acompanhar mesmo que o player não esteja montado.
+                this.syncCommentsSection();
+
+                const pf = document.getElementById(
+                    "playerFrame",
+                ) as HTMLIFrameElement;
+                if (!pf) return;
+
+                // Guard: temporada sem episódios na resposta do TMDB (metadata, não tem
+                // relação com onde o vídeo roda).
+                if (
+                    !this.state.epDataList ||
+                    this.state.epDataList.length === 0
+                ) {
+                    console.warn("⚠️ [Player] Temporada sem episódios.");
+                    pf.src = "about:blank";
+                    import("../../store/toastStore").then((m) =>
+                        m.showToast(
+                            this.state.lang === "pt"
+                                ? "Não encontramos episódios para esta temporada."
+                                : "We couldn't find episodes for this season.",
+                            "error",
+                        ),
+                    );
+                    return;
+                }
+
+                // Se o snapshot otimista já diz VIP, carrega com chave na hora. Se não diz, só
+                // carrega depois do check real: trocar a URL pra "com chave" depois não adianta,
+                // o anúncio da StreamBetter já disparou nos primeiros segundos sem chave (VIP
+                // via anúncio na 1ª carga e não no reload). updateVIPUI() chama isto de novo
+                // quando o authStore inicializa.
+                if (this.waitingVipCheck()) return;
+                const embedUrl = this.buildEmbedUrl();
+                const playerKey = `${this.state.contentId}|${this.state.seasonNum}|${this.state.episodeNum}`;
+
+                // O player avançou de episódio sozinho (autoplay interno, sem recarregar o
+                // iframe) e já sincronizamos o estado com ele. Trocar o src aqui recarregaria
+                // o iframe e cortaria a reprodução que acabou de começar — e isto roda a cada
+                // mudança do authStore, via updateVIPUI().
+                if (
+                    this.state.playerSelfAdvanced &&
+                    this.state.lastLoadedPlayerKey === playerKey
+                ) {
+                    return;
+                }
+
+                if (
+                    embedUrl &&
+                    (!this.sameEmbedTarget(pf.src, embedUrl) ||
+                        this.state.lastLoadedPlayerKey !== playerKey)
+                ) {
+                    const trocouDeEpisodio =
+                        this.state.lastLoadedPlayerKey &&
+                        this.state.lastLoadedPlayerKey !== playerKey;
+
+                    pf.src = embedUrl;
+                    this.state.lastLoadedPlayerKey = playerKey;
+                    this.state.playerSelfAdvanced = false;
+                    // Marca o instante da troca: o iframe anterior ainda vai emitir progresso
+                    // por alguns segundos, e syncEpisodeFromPlayer usa isto pra descartar.
+                    this._episodeSwitchAt = Date.now();
+
+                    // O histórico guarda uma posição por série, então trocar de episódio
+                    // necessariamente descarta a do anterior (o card passa a apontar pro novo
+                    // episódio). Zeramos aqui pra um flush atrasado do episódio antigo não
+                    // reaparecer como progresso do novo.
+                    if (trocouDeEpisodio) {
+                        this._progress = {
+                            currentTime: 0,
+                            duration: 0,
+                            season: null,
+                            episode: null,
+                            lastPersist: 0,
+                            dirty: false,
+                        };
+                    }
+
+                    this.saveHistory();
+                }
+            },
+            saveHistory() {
+                const dl = document.getElementById("slug-data-layer");
+                const state = authStore.get();
+                if (!state.user || !dl) return;
+                const history = state.history ? [...state.history] : [];
+                const currentUrl = `${window.location.pathname}?season=${this.state.seasonNum}&episode=${this.state.episodeNum}`;
+                const idx = history.findIndex(
+                    (i) => i?.id == this.state.contentId,
+                );
+                const existingItem = idx > -1 ? history[idx] : null;
+                const item = {
+                    ...(existingItem || {}),
+                    id: this.state.contentId,
+                    title: dl.dataset.title,
+                    poster: dl.dataset.poster,
+                    backdrop: dl.dataset.backdrop,
+                    type: "tv",
+                    slug: dl.dataset.slug,
+                    url: currentUrl,
+                    timestamp: Date.now(),
+                    genreName: dl.dataset.genres?.split(",")[0]?.trim() || "",
+                    totalEps: parseInt(dl.dataset.totalEpisodes || "0"),
+                    ...this.resumeFieldsFor(existingItem),
+                    watched_seconds: existingItem?.watched_seconds || 0,
+                };
+                if (idx > -1) history.splice(idx, 1);
+                history.unshift(item);
+                updateCloudStats({ history: history.slice(0, 50) });
+            },
+            // O histórico guarda UMA entrada por série, então a posição salva precisa vir
+            // carimbada com o episódio a que pertence: sem isso, trocar de episódio herdaria
+            // os segundos do anterior e a barra do "Continuar assistindo" mostraria progresso
+            // de um episódio no card de outro.
+            resumeFieldsFor(existingItem) {
+                const mesmoEpisodio =
+                    existingItem &&
+                    Number(existingItem.resume_season) ===
+                        Number(this.state.seasonNum) &&
+                    Number(existingItem.resume_episode) ===
+                        Number(this.state.episodeNum);
+
+                return {
+                    resume_season: this.state.seasonNum,
+                    resume_episode: this.state.episodeNum,
+                    resume_seconds: mesmoEpisodio
+                        ? existingItem.resume_seconds || 0
+                        : 0,
+                    duration_seconds: mesmoEpisodio
+                        ? existingItem.duration_seconds || 0
+                        : 0,
+                };
+            },
+            // Progresso vindo do iframe da StreamBetter (postMessage `streambetter:progress`,
+            // ~15s + nos eventos de play/pause/seek/end). É a ÚNICA fonte de posição que temos:
+            // o embed não aceita comando de volta, então isso serve pra exibir onde parou —
+            // não dá pra mandar o player retomar sozinho.
+            _progress: {
+                currentTime: 0,
+                duration: 0,
+                season: null,
+                episode: null,
+                lastPersist: 0,
+                dirty: false,
+            },
+            onPlayerProgress(data) {
+                // `tmdbId` vem no payload: confirma que o progresso é desta série. Sem isso,
+                // um player remanescente de outra página (navegação SPA) gravaria posição no
+                // conteúdo errado.
+                if (
+                    data?.tmdbId != null &&
+                    String(data.tmdbId) !== String(this.state.contentId)
+                ) {
+                    return;
+                }
+
+                // O autoplay troca de episódio SEM recarregar o iframe. Antes de `season`/
+                // `episode` virem no payload, o progresso do episódio novo continuava sendo
+                // gravado como se fosse o anterior.
+                if (data?.season != null && data?.episode != null) {
+                    this.syncEpisodeFromPlayer(data.season, data.episode);
+                }
+
+                if (data?.state === "ended") {
+                    this.handlePlaybackEnded(
+                        data?.season ?? this.state.seasonNum,
+                        data?.episode ?? this.state.episodeNum,
+                    );
+                    return;
+                }
+
+                const currentTime = Number(data?.currentTime);
+                const duration = Number(data?.duration);
+                // duration só é confiável depois que o player leu os metadados; até lá vem 0/NaN.
+                if (
+                    !Number.isFinite(currentTime) ||
+                    !Number.isFinite(duration) ||
+                    duration <= 0 ||
+                    currentTime < 0
+                ) {
+                    return;
+                }
+
+                this._progress.currentTime = currentTime;
+                this._progress.duration = duration;
+                // Carimba com o episódio que o PLAYER informou, não com o nosso estado: é o
+                // que garante que a posição não caia no episódio errado.
+                this._progress.season = data?.season ?? this.state.seasonNum;
+                this._progress.episode = data?.episode ?? this.state.episodeNum;
+                this._progress.dirty = true;
+
+                // Grava no máximo a cada 30s: o evento chega a cada ~15s e updateCloudStats
+                // escreve o histórico inteiro no Supabase a cada chamada.
+                if (Date.now() - this._progress.lastPersist >= 30000) {
+                    this.persistProgress();
+                }
+            },
+            persistProgress() {
+                if (!this._progress?.dirty) return;
+                const state = authStore.get();
+                if (!state.user) return;
+                const history = state.history ? [...state.history] : [];
+                const idx = history.findIndex(
+                    (i) => i?.id == this.state.contentId,
+                );
+                // Sem entrada no histórico ainda (saveHistory não rodou): nada a atualizar.
+                if (idx === -1) return;
+
+                history[idx] = {
+                    ...history[idx],
+                    resume_season: this._progress.season,
+                    resume_episode: this._progress.episode,
+                    resume_seconds: Math.round(this._progress.currentTime),
+                    duration_seconds: Math.round(this._progress.duration),
+                };
+                this._progress.dirty = false;
+                this._progress.lastPersist = Date.now();
+                // `timestamp` fica como está de propósito: o card não precisa pular pro topo
+                // do "Continuar assistindo" a cada 30s de reprodução.
+                updateCloudStats({ history });
+            },
+            // Autoplay interno da StreamBetter: o player passou pro próximo episódio sozinho,
+            // sem recarregar o iframe. Alinhamos nosso estado com ele SEM tocar no src — quem
+            // manda aqui é o player, e recarregar cortaria a reprodução que acabou de começar.
+            syncEpisodeFromPlayer(season, episode) {
+                const s = String(season);
+                const e = String(episode);
+                if (
+                    s === String(this.state.seasonNum) &&
+                    e === String(this.state.episodeNum)
+                ) {
+                    return;
+                }
+
+                // Logo depois de uma troca manual, o iframe que está sendo descartado ainda
+                // manda alguns eventos de progresso — e eles descrevem o episódio que o
+                // usuário ACABOU de deixar. Sem este guard, esse eco caía aqui e revertia a
+                // seleção: clicava no episódio 5, a tela voltava pro 3, e só ia no segundo
+                // clique (quando o iframe antigo já tinha morrido). Avanço real de autoplay
+                // chega no fim do episódio, minutos depois — muito fora desta janela.
+                if (Date.now() - (this._episodeSwitchAt || 0) < ECO_DO_PLAYER_ANTIGO_MS) {
+                    return;
+                }
+
+                this.state.seasonNum = s;
+                this.state.episodeNum = e;
+                this.state.lastLoadedPlayerKey = `${this.state.contentId}|${s}|${e}`;
+                this.state.playerSelfAdvanced = true;
+                this._endedHandled = false;
+                this._progress = {
+                    currentTime: 0,
+                    duration: 0,
+                    season: null,
+                    episode: null,
+                    lastPersist: 0,
+                    dirty: false,
+                };
+
+                // replaceState, não pushState: o usuário não navegou, então isso não pode
+                // virar uma entrada nova no histórico do navegador (o botão voltar ficaria
+                // preso repetindo episódios).
+                try {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set("season", s);
+                    url.searchParams.set("episode", e);
+                    window.history.replaceState({}, "", url);
+                } catch (err) {}
+
+                this.saveHistory();
+                this.renderEpisodes();
+                this.updateWatchedUI();
+            },
+            // `state: 'ended'` do player. Antes disso só dava pra inferir pelo currentTime perto
+            // da duration, o que errava com quem pula os créditos ou pausa no fim.
+            async handlePlaybackEnded(season, episode) {
+                if (this._endedHandled) return;
+                this._endedHandled = true;
+
+                // Zera a posição salva: sem isso o card ficaria travado em "1min restantes"
+                // pra sempre, e reabrir o episódio cairia direto nos créditos via `start`.
+                this._progress = {
+                    currentTime: 0,
+                    duration: 0,
+                    season: null,
+                    episode: null,
+                    lastPersist: 0,
+                    dirty: false,
+                };
+
+                const state = authStore.get();
+                if (!state.user) return;
+
+                const history = (state.history || []).map((i) =>
+                    i?.id == this.state.contentId
+                        ? { ...i, resume_seconds: 0, duration_seconds: 0 }
+                        : i,
+                );
+
+                // Marcação automática: só ADICIONA. Nunca desmarca, senão reassistir um
+                // episódio já visto o tiraria da lista de assistidos ao terminar.
+                const curId = `S${season}E${episode}`;
+                const watched = [
+                    ...(state.watchedEpisodes?.[this.state.contentId] || []),
+                ];
+                const jaMarcado = watched.includes(curId);
+                if (!jaMarcado) watched.push(curId);
+
+                await updateCloudStats({
+                    history,
+                    ...(jaMarcado
+                        ? {}
+                        : {
+                              watchedEpisodes: {
+                                  ...(state.watchedEpisodes || {}),
+                                  [this.state.contentId]: watched,
+                              },
+                          }),
+                });
+                this.updateWatchedUI();
+                this.renderEpisodes();
+            },
+            renderEpisodes() {
+                const container = document.getElementById(
+                    "episodeListContainer",
+                );
+                if (!container) return;
+                const dl = document.getElementById("slug-data-layer");
+                const state = authStore.get();
+                const watched =
+                    state.watchedEpisodes?.[this.state.contentId] || [];
+                container.innerHTML = "";
+
+                const epList = Array.isArray(this.state.epDataList)
+                    ? this.state.epDataList
+                    : [];
+
+                if (epList.length === 0) {
+                    const tNoEpisodes =
+                        dl?.dataset.lang === "en"
+                            ? "No episodes found."
+                            : "Nenhum episódio encontrado.";
+                    const tTryAgain =
+                        dl?.dataset.lang === "en"
+                            ? "Try Again"
+                            : "Tentar Novamente";
+
+                    container.innerHTML = `
+                        <div class="flex flex-col items-center justify-center p-8 text-center h-full animate-fade-in" style="min-height: 300px;">
+                            <div class="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-3">
+                                <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                </svg>
+                            </div>
+                            <p class="text-white text-xs font-bold">${tNoEpisodes}</p>
+                            <button id="retryEpisodesBtn" class="mt-4 px-4 py-2 bg-[#DF0912] hover:bg-[#cf0811] text-white text-[10px] font-black uppercase tracking-wider rounded-lg transition-all transform hover:scale-105 active:scale-95 shadow-lg shadow-[#DF0912]/25">
+                                ${tTryAgain}
+                            </button>
+                        </div>
+                    `;
+                    const retryBtn =
+                        document.getElementById("retryEpisodesBtn");
+                    if (retryBtn) {
+                        retryBtn.onclick = () => {
+                            this.loadEpisodes(this.state.seasonNum);
+                        };
+                    }
+                    return;
+                }
+
+                epList.forEach((ep) => {
+                    const isCurrent =
+                        parseInt(ep.episode_number) ===
+                        parseInt(this.state.episodeNum);
+                    const isWatched = watched.includes(
+                        `S${this.state.seasonNum}E${ep.episode_number}`,
+                    );
+
+                    // Lógica para badge de NOVO (últimos 7 dias)
+                    let isNew = false;
+                    if (ep.air_date) {
+                        const airDate = new Date(ep.air_date + "T00:00:00");
+                        const now = new Date();
+                        const diffTime = now.getTime() - airDate.getTime();
+                        const diffDays = diffTime / (1000 * 3600 * 24);
+                        if (diffDays >= 0 && diffDays <= 7) isNew = true;
+                    }
+
+                    const it = document.createElement("div");
+                    it.className = `flex items-start gap-4 p-3 rounded-2xl cursor-pointer transition-all border ${isCurrent ? "bg-[#DF0912]/10 border-[#DF0912]" : "bg-[#0E111A]/50 border-white/5 hover:bg-[#1D2437]"}`;
+                    if (isCurrent) {
+                        it.setAttribute("id", "current-playing-episode");
+                    }
+                    it.onclick = () => {
+                        this.state.episodeNum = ep.episode_number.toString();
+                        const url = new URL(window.location.href);
+                        url.searchParams.set("episode", this.state.episodeNum);
+                        url.searchParams.set("season", this.state.seasonNum);
+                        window.history.pushState({}, "", url);
+                        this.updatePlayer();
+                        this.renderEpisodes();
+                        this.updateWatchedUI();
+                    };
+                    const backdrop = dl?.dataset.backdrop || "";
+                    const epImage = ep.still_path
+                        ? `https://image.tmdb.org/t/p/w300${ep.still_path}`
+                        : backdrop || "";
+
+                    const tNew = dl?.dataset.tNew || "NOVO";
+
+                    it.innerHTML = `
+                        <div class="relative w-32 h-[84px] flex-shrink-0 rounded-xl overflow-hidden bg-[#1a1a1a] border border-white/5 group-hover:border-[#DF0912]/30 transition-colors">
+                            ${
+                                epImage
+                                    ? `
+                                <img 
+                                    src="${epImage}" 
+                                    class="w-full h-full object-cover ${ep.still_path ? "" : "opacity-20 grayscale"}"
+                                    onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');"
+                                >
+                            `
+                                    : ""
+                            }
+                            <div class="${epImage && ep.still_path ? "hidden" : ""} absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#0E111A] to-[#1D2437]">
+                                <span class="text-[10px] font-black text-[#DF0912]/40 italic tracking-tighter">MULTICANAISHD</span>
+                            </div>
+                            
+                            <div class="absolute top-1 left-1 flex flex-col gap-1">
+                                ${
+                                    isNew
+                                        ? `
+                                    <div class="bg-yellow-500 text-black text-[8px] font-black px-1.5 py-0.5 rounded shadow-lg animate-pulse">
+                                        ${tNew}
+                                    </div>
+                                `
+                                        : ""
+                                }
+                            </div>
+
+                            ${isWatched ? '<div class="absolute top-1 right-1 bg-green-500 rounded-full p-0.5 shadow-lg"><svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-width="3"/></svg></div>' : ""}
+                            <div class="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent"></div>
+                            <span class="absolute bottom-1 right-1 text-[9px] font-black bg-[#DF0912] px-1.5 py-0.5 rounded shadow-lg text-white">E${ep.episode_number}</span>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-white text-sm font-bold truncate">${ep.name}</p>
+                            <p class="text-[10px] text-gray-500 line-clamp-2 mt-1">${ep.overview || "Sem sinopse."}</p>
+                        </div>
+                    `;
+                    container.appendChild(it);
+                });
+
+                // Rola o episódio atual para o centro visível do container (Pilar 1)
+                setTimeout(() => {
+                    const activeEp = document.getElementById(
+                        "current-playing-episode",
+                    );
+                    if (activeEp && container) {
+                        activeEp.scrollIntoView({
+                            behavior: "smooth",
+                            block: "nearest",
+                        });
+                    }
+                }, 100);
+            },
+            toggleFavorite() {
+                const dl = document.getElementById("slug-data-layer");
+                const state = authStore.get();
+                if (!state.user || !dl) return;
+                const favs = favoritesStore.get() || [];
+                const isFav = favs.some((f) => f.id == this.state.contentId);
+                const newList = isFav
+                    ? favs.filter((f) => f.id != this.state.contentId)
+                    : [
+                          {
+                              id: this.state.contentId,
+                              title: dl.dataset.title,
+                              poster: dl.dataset.poster,
+                              backdrop: dl.dataset.backdrop,
+                              type: "tv",
+                              slug: dl.dataset.slug,
+                              timestamp: Date.now(),
+                          },
+                          ...favs,
+                      ];
+                favoritesStore.set(newList);
+                updateCloudStats({ favorites: newList });
+                showToast(
+                    isFav ? "Removido" : "Adicionado!",
+                    isFav ? "error" : "success",
+                );
+            },
+            updateFavoriteUI(favorites) {
+                const btn = document.getElementById("favBtn");
+                const dl = document.getElementById("slug-data-layer");
+                let user = null;
+                try {
+                    if (typeof authStore !== "undefined") {
+                        user = authStore.get()?.user;
+                    }
+                } catch (e) {}
+                if (!user || !btn) {
+                    btn?.classList.add("hidden");
+                    btn?.classList.remove("flex");
+                    return;
+                }
+                btn.classList.remove("hidden");
+                btn.classList.add("flex");
+                const isFav =
+                    Array.isArray(favorites) &&
+                    favorites.some((f) => f.id == this.state.contentId);
+                btn.className = isFav
+                    ? "flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#DF0912] text-white text-xs font-bold transition-all shadow-lg shadow-red-900/20"
+                    : "flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#1D2437] hover:bg-[#333] text-gray-300 text-xs font-bold transition-all border border-white/5";
+                document
+                    .getElementById("favIcon")
+                    ?.setAttribute("fill", isFav ? "currentColor" : "none");
+                const text = document.getElementById("favText");
+                if (text)
+                    text.textContent = isFav
+                        ? dl?.dataset.tSaved || "Salvo"
+                        : dl?.dataset.tWatchlist || "Minha Lista";
+            },
+            updateWatchedUI() {
+                const state = authStore.get();
+                const btn = document.getElementById("markWatchedBtn");
+                const container = document.getElementById(
+                    "watchedBtnContainer",
+                );
+                if (!state.user || !btn) {
+                    container?.classList.add("hidden");
+                    container?.classList.remove("flex");
+                    return;
+                }
+                container?.classList.remove("hidden");
+                container?.classList.add("flex");
+                const dl = document.getElementById("slug-data-layer");
+                const curId = `S${this.state.seasonNum}E${this.state.episodeNum}`;
+                const isWatched = (
+                    state.watchedEpisodes?.[this.state.contentId] || []
+                ).includes(curId);
+                btn.className = isWatched
+                    ? "w-full flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl bg-green-500/10 text-green-400 border border-green-500/30 font-black"
+                    : "w-full flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl bg-[#1D2437] text-gray-300 border border-white/5 font-black";
+                const text = document.getElementById("watchedText");
+                if (text)
+                    text.textContent = isWatched
+                        ? dl?.dataset.tEpWatched?.replace(
+                              "{n}",
+                              this.state.episodeNum,
+                          ) || "Visto"
+                        : dl?.dataset.tMarkEpWatched?.replace(
+                              "{n}",
+                              this.state.episodeNum,
+                          ) || "Marcar Visto";
+            },
+            async toggleWatched() {
+                const state = authStore.get();
+                if (!state.user) return;
+                const curId = `S${this.state.seasonNum}E${this.state.episodeNum}`;
+                let watched = [
+                    ...(state.watchedEpisodes?.[this.state.contentId] || []),
+                ];
+                if (watched.includes(curId))
+                    watched = watched.filter((id) => id !== curId);
+                else watched.push(curId);
+                await updateCloudStats({
+                    watchedEpisodes: {
+                        ...(state.watchedEpisodes || {}),
+                        [this.state.contentId]: watched,
+                    },
+                });
+                this.updateWatchedUI();
+                this.renderEpisodes();
+            },
+            nextEpisode() {
+                const curEp = parseInt(this.state.episodeNum);
+                const nextEp = this.state.epDataList.find(
+                    (ep) => ep.episode_number === curEp + 1,
+                );
+                if (nextEp) {
+                    this.state.episodeNum = nextEp.episode_number.toString();
+                    const url = new URL(window.location.href);
+                    url.searchParams.set("episode", this.state.episodeNum);
+                    window.history.pushState({}, "", url);
+                    this.updatePlayer();
+                    this.renderEpisodes();
+                    this.updateWatchedUI();
+                } else showToast("Último episódio!", "error");
+            },
+            updateVIPUI() {
+                const isVip = this.isVip();
+                const noAdsBtn = document.getElementById("noAdsBtn");
+                if (isVip) {
+                    noAdsBtn?.classList.add("hidden");
+                    const vipBtn = document.getElementById("vipBtn");
+                    if (vipBtn) {
+                        const badge = document.createElement("span");
+                        badge.className =
+                            "flex items-center gap-2 px-4 py-2 text-xs font-black rounded-lg border bg-indigo-500/10 text-indigo-400 border-indigo-500/30";
+                        badge.innerHTML = "VIP Ativo 💎";
+                        vipBtn.parentNode?.replaceChild(badge, vipBtn);
+                    }
+                } else {
+                    noAdsBtn?.classList.remove("hidden");
+                }
+                // updatePlayer() só troca o pf.src se a URL (com/sem chave) realmente mudou —
+                // seguro chamar toda vez que o VIP resolve/muda (inclusive antes do primeiro
+                // load, quando authStore ainda não confirmou e updatePlayer mostra o loading).
+                this.updatePlayer();
+            },
+            toggleCinemaMode() {
+                const wrapper = document.getElementById("player-main-grid");
+                const header = document.getElementById("main-header");
+                if (!wrapper) return;
+                const isCinema = wrapper.classList.toggle("cinema-mode");
+
+                if (isCinema) {
+                    header?.classList.add("opacity-0", "pointer-events-none");
+                    wrapper.scrollIntoView({
+                        behavior: "smooth",
+                        block: "start",
+                    });
+                    document.body.style.overflow = "hidden";
+                    showToast("Modo Cinema Ativado", "info");
+                } else {
+                    header?.classList.remove(
+                        "opacity-0",
+                        "pointer-events-none",
+                    );
+                    document.body.style.overflow = "";
+                    showToast("Modo Cinema Desativado", "info");
+                }
+            },
+            startHeartbeat() {
+                if (this._heartbeatInterval) {
+                    clearInterval(this._heartbeatInterval);
+                }
+
+                this._lastInteraction = Date.now();
+                this._isStillWatchingWaiting = false;
+
+                const activityEvents = [
+                    "mousemove",
+                    "click",
+                    "keypress",
+                    "touchstart",
+                    "scroll",
+                ];
+                const handleActivity = () => {
+                    if (!this._isStillWatchingWaiting) {
+                        this._lastInteraction = Date.now();
+                    }
+                };
+
+                activityEvents.forEach((evt) =>
+                    document.addEventListener(evt, handleActivity),
+                );
+
+                const handleResume = () => {
+                    this._lastInteraction = Date.now();
+                    this._isStillWatchingWaiting = false;
+                    this.sendPing();
+                };
+                document.addEventListener(
+                    "multicanaishd:still-watching-resume",
+                    handleResume,
+                );
+
+                this._cleanupHeartbeat = () => {
+                    activityEvents.forEach((evt) =>
+                        document.removeEventListener(evt, handleActivity),
+                    );
+                    document.removeEventListener(
+                        "multicanaishd:still-watching-resume",
+                        handleResume,
+                    );
+                    if (this._heartbeatInterval)
+                        clearInterval(this._heartbeatInterval);
+                };
+
+                this._heartbeatInterval = setInterval(() => {
+                    const state = authStore.get();
+                    if (!state.user) return;
+                    if (document.visibilityState !== "visible") return;
+
+                    const idleTime = Date.now() - this._lastInteraction;
+                    const THREE_HOURS = 3 * 3600 * 1000;
+
+                    if (idleTime > THREE_HOURS) {
+                        if (!this._isStillWatchingWaiting) {
+                            this._isStillWatchingWaiting = true;
+                            document.dispatchEvent(
+                                new CustomEvent("multicanaishd:still-watching"),
+                            );
+                        }
+                        return;
+                    }
+
+                    this.sendPing();
+                }, 60000);
+            },
+            async sendPing() {
+                const { token, user } = authStore.get();
+                if (!token || !user) return;
+
+                try {
+                    const res = await fetch("/api/watch/heartbeat", {
+                        method: "POST",
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            mediaId: this.state.contentId,
+                            type: this.state.contentType,
+                        }),
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        console.log(
+                            `%c💓 [Heartbeat] Ping enviado. Segundos ativos: ${data.activeSeconds}`,
+                            "color: #df0912; font-weight: bold;",
+                        );
+
+                        const current = authStore.get();
+                        let updatedHistory = current.history
+                            ? [...current.history]
+                            : [];
+                        const itemIdx = updatedHistory.findIndex(
+                            (i) => i.id == this.state.contentId,
+                        );
+
+                        if (itemIdx > -1) {
+                            const item = { ...updatedHistory[itemIdx] };
+                            item.watched_seconds =
+                                (item.watched_seconds || 0) + 60;
+                            item.timestamp = Date.now();
+                            updatedHistory[itemIdx] = item;
+
+                            authStore.set({
+                                ...current,
+                                activeSeconds: data.activeSeconds,
+                                history: updatedHistory,
+                            });
+                            updateCloudStats({ history: updatedHistory });
+                        } else {
+                            this.saveHistory();
+                            const reCurrent = authStore.get();
+                            let reHistory = reCurrent.history
+                                ? [...reCurrent.history]
+                                : [];
+                            const reIdx = reHistory.findIndex(
+                                (i) => i.id == this.state.contentId,
+                            );
+                            if (reIdx > -1) {
+                                const item = { ...reHistory[reIdx] };
+                                item.watched_seconds = 60;
+                                reHistory[reIdx] = item;
+
+                                authStore.set({
+                                    ...reCurrent,
+                                    activeSeconds: data.activeSeconds,
+                                    history: reHistory,
+                                });
+                                updateCloudStats({ history: reHistory });
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error(
+                        "❌ [Heartbeat] Falha ao enviar batida:",
+                        e.message,
+                    );
+                }
+            },
+        };
+
+        // Inscrições globais únicas
+        if (!(window as any)._BetterPlayerSubscribed) {
+            authStore.subscribe(() => {
+                if (window.BetterPlayer?.state?.initialized) {
+                    window.BetterPlayer.updateWatchedUI();
+                    window.BetterPlayer.renderEpisodes?.();
+                    window.BetterPlayer.updateVIPUI?.();
+                }
+            });
+            favoritesStore.subscribe((favs) => {
+                if (window.BetterPlayer?.state?.initialized) {
+                    window.BetterPlayer.updateFavoriteUI?.(favs);
+                }
+            });
+
+            // Progresso do player da StreamBetter. Registrado uma vez só e delegando pro
+            // window.BetterPlayer da página atual — o ViewTransitions troca esse objeto a
+            // cada navegação SPA sem recarregar este módulo.
+            window.addEventListener("message", (event: any) => {
+                if (event.data?.type !== "streambetter:progress") return;
+
+                // A doc manda filtrar por `type` porque o embed publica com targetOrigin '*'.
+                // Só isso não basta aqui: a página roda scripts de anúncio de terceiros em
+                // iframes, e qualquer um poderia forjar esse evento e envenenar o histórico.
+                const embedBase = (
+                    document.getElementById("slug-data-layer") as any
+                )?.dataset?.embedBase;
+                if (embedBase) {
+                    let expectedOrigin = "";
+                    try {
+                        expectedOrigin = new URL(embedBase).origin;
+                    } catch (e) {}
+                    if (expectedOrigin && event.origin !== expectedOrigin) {
+                        console.warn(
+                            `[BetterPlayer] Progresso ignorado: origem ${event.origin} não confere com ${expectedOrigin}.`,
+                        );
+                        return;
+                    }
+                }
+
+                if (!window.BetterPlayer?.state?.initialized) return;
+                window.BetterPlayer.onPlayerProgress?.(event.data);
+            });
+
+            // Fecha a aba / minimiza no celular: grava o que ainda não passou pelo throttle.
+            window.addEventListener("pagehide", () => {
+                window.BetterPlayer?.persistProgress?.();
+            });
+
+            (window as any)._BetterPlayerSubscribed = true;
+        }
+
+        if ((window as any)._BetterPlayerPageLoadHandler) {
+            document.removeEventListener(
+                "astro:page-load",
+                (window as any)._BetterPlayerPageLoadHandler,
+            );
+        }
+        (window as any)._BetterPlayerPageLoadHandler = () =>
+            window.BetterPlayer?.init?.();
+        document.addEventListener(
+            "astro:page-load",
+            (window as any)._BetterPlayerPageLoadHandler,
+        );
+
+        if ((window as any)._BetterPlayerBeforePrepHandler) {
+            document.removeEventListener(
+                "astro:before-preparation",
+                (window as any)._BetterPlayerBeforePrepHandler,
+            );
+        }
+        (window as any)._BetterPlayerBeforePrepHandler = () => {
+            if (window.BetterPlayer) {
+                // Navegação SPA pra outra página: descarrega o progresso pendente antes de
+                // perder o contexto do episódio atual.
+                window.BetterPlayer.persistProgress?.();
+                window.BetterPlayer.state.initialized = false;
+                window.BetterPlayer.state.initializing = false;
+                if (
+                    typeof window.BetterPlayer._cleanupHeartbeat === "function"
+                ) {
+                    window.BetterPlayer._cleanupHeartbeat();
+                }
+            }
+            (window as any)._bf_sintonized = false; // Reset sintonized state on navigation!
+        };
+        document.addEventListener(
+            "astro:before-preparation",
+            (window as any)._BetterPlayerBeforePrepHandler,
+        );
+
+    </script>
+
+    <TrailerModal />
+    <TorrentModal />
+</BaseLayout>
+
+<style>
+    @reference 'tailwindcss';
+
+    #player-main-grid.cinema-mode {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        position: relative !important;
+        z-index: 40 !important;
+        background: #000 !important;
+        margin: -2rem -1rem !important;
+        padding: 2rem 1rem !important;
+        width: calc(100% + 2rem) !important;
+        max-width: none !important;
+    }
+    @media (min-width: 1024px) {
+        #player-main-grid.cinema-mode {
+            margin: -4rem -5vw !important;
+            padding: 4rem 5vw !important;
+            width: calc(100% + 10vw) !important;
+        }
+    }
+    #player-main-grid.cinema-mode #player-left-col {
+        width: 100% !important;
+        max-width: 1280px !important;
+        margin: 0 auto !important;
+    }
+    #player-main-grid.cinema-mode #player-right-col,
+    #player-main-grid.cinema-mode .player-info-container,
+    #player-main-grid.cinema-mode + .related-content {
+        display: none !important;
+    }
+</style>

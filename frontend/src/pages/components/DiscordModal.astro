@@ -1,0 +1,95 @@
+---
+// src/pages/components/DiscordModal.astro
+---
+
+<div id="discord-modal-overlay" class="fixed inset-0 z-[500] hidden items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity duration-300">
+    <div id="discord-modal-content" class="relative w-[90%] max-w-md rounded-2xl border border-white/10 bg-[#121212] p-6 shadow-2xl scale-95 opacity-0 transition-all duration-300">
+        <!-- Close Button -->
+        <button id="discord-modal-close" class="absolute right-4 top-4 text-gray-500 hover:text-white transition-colors" aria-label="Fechar">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+
+        <div class="text-left mt-2">
+            <h2 id="community-modal-title" class="text-xl font-bold text-white mb-4 leading-tight">Venha fazer parte da nossa comunidade!</h2>
+            <div class="bg-white/5 rounded-xl p-4 mb-6 border border-white/5">
+                <p id="community-modal-desc" class="text-sm text-gray-300 leading-relaxed">
+                    Junte-se ao nosso Telegram para solicitar filmes, relatar problemas e conversar com outros apaixonados por cinema!
+                </p>
+            </div>
+
+            <div class="flex flex-col gap-3">
+                <a href="https://t.me/+LzTPE6nAUoQwMGNh" target="_blank" id="telegram-modal-join" class="flex w-full items-center justify-center gap-2 rounded-xl bg-[#229ED9] px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-[#1c85b7] hover:scale-[1.02]">
+                    <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.13-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
+                    </svg>
+                    Entrar no Telegram
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("astro:page-load", () => {
+        const modalId = "bf_discord_modal_closed";
+        const overlay = document.getElementById("discord-modal-overlay");
+        const content = document.getElementById("discord-modal-content");
+        const closeBtn = document.getElementById("discord-modal-close");
+        const telegramBtn = document.getElementById("telegram-modal-join");
+        
+        const titleEl = document.getElementById("community-modal-title");
+        const descEl = document.getElementById("community-modal-desc");
+
+        if (!overlay || !content) return;
+
+        const openModal = (e?: any) => {
+            // Se houver dados contextuais no evento, atualiza o texto
+            if (e?.detail) {
+                if (titleEl && e.detail.title) titleEl.textContent = e.detail.title;
+                if (descEl && e.detail.description) descEl.textContent = e.detail.description;
+            } else {
+                // Reset para o padrão se for abertura automática ou sem dados
+                if (titleEl) titleEl.textContent = "Venha fazer parte da nossa comunidade!";
+                if (descEl) descEl.textContent = "Junte-se ao nosso Telegram para solicitar filmes, relatar problemas e conversar com outros apaixonados por cinema!";
+            }
+
+            overlay.classList.remove("hidden");
+            overlay.classList.add("flex");
+            
+            setTimeout(() => {
+                content.classList.remove("scale-95", "opacity-0");
+                content.classList.add("scale-100", "opacity-100");
+            }, 50);
+        };
+
+        const closeModal = () => {
+            content.classList.remove("scale-100", "opacity-100");
+            content.classList.add("scale-95", "opacity-0");
+            localStorage.setItem(modalId, "true");
+            
+            setTimeout(() => {
+                overlay.classList.remove("flex");
+                overlay.classList.add("hidden");
+            }, 300);
+        };
+
+        // Escuta gatilho manual
+        document.addEventListener("multicanaishd:open-community", openModal);
+
+        // Auto-show se ainda não foi fechado
+        const isBot = navigator.webdriver === true || /lighthouse|pagespeed|bot|crawler|spider/i.test(navigator.userAgent);
+
+        if (!isBot && !localStorage.getItem(modalId)) {
+            setTimeout(openModal, 12000); // 12s delay para humanos
+        }
+
+        closeBtn?.addEventListener("click", closeModal);
+        telegramBtn?.addEventListener("click", closeModal);
+        
+        overlay.addEventListener("click", (e) => {
+            if (e.target === overlay) closeModal();
+        });
+    });
+</script>

@@ -1,0 +1,10 @@
+---
+// src/pages/en/genero/[slug].astro
+export const prerender = false;
+const { slug } = Astro.params;
+// A query string precisa ser REPASSADA: sem ela, /en/genero/acao?page=2 reescrevia para
+// /genero/acao?lang=en e o SSR do gênero (genero/[id].astro:23) caía sempre na página 1 —
+// a paginação em inglês simplesmente não existia para o crawler.
+const query = Astro.url.searchParams.toString();
+return Astro.rewrite(`/genero/${slug}?lang=en${query ? `&${query}` : ''}`);
+---

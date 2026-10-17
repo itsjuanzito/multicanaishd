@@ -1,0 +1,158 @@
+/* src/styles/pagamento.css — página própria de checkout VeloraPay (PIX/cripto) */
+
+.pagamento-wrap {
+    display: flex;
+    justify-content: center;
+    padding: 2.5rem 1rem;
+}
+
+.pagamento-card {
+    width: 100%;
+    max-width: 26rem;
+    background: #141414;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 32px;
+    padding: 2.25rem 2rem;
+    text-align: center;
+}
+
+.pagamento-card h1 {
+    color: #fff;
+    font-weight: 900;
+    text-transform: uppercase;
+    font-style: italic;
+    font-size: 1.5rem;
+    letter-spacing: -0.03em;
+    margin-bottom: 0.5rem;
+}
+
+.pagamento-sub {
+    color: #9ca3af;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+}
+
+.pagamento-loading {
+    color: #9ca3af;
+    font-size: 0.8rem;
+    padding: 2rem 0;
+}
+
+.pagamento-qr {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1.25rem;
+}
+
+.pagamento-qr img {
+    width: 220px;
+    height: 220px;
+    border-radius: 16px;
+    background: #fff;
+    padding: 10px;
+}
+
+.pagamento-copy {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.pagamento-copy input {
+    flex: 1;
+    min-width: 0;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    color: #fff;
+    font-size: 0.7rem;
+    font-family: monospace;
+}
+
+.pagamento-copy button {
+    background: #df0912;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 0 1.25rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.pagamento-copy button:hover {
+    background: #cf0811;
+}
+
+.pagamento-crypto-amount {
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+}
+
+.pagamento-crypto-note {
+    color: #6b7280;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    line-height: 1.5;
+    margin-top: 0.5rem;
+}
+
+.pagamento-status {
+    margin-top: 1.5rem;
+    padding: 0.9rem 1rem;
+    border-radius: 14px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.pagamento-status.pending {
+    background: rgba(223, 9, 18, 0.08);
+    color: #df0912;
+    border: 1px solid rgba(223, 9, 18, 0.2);
+}
+
+.pagamento-status.paid {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.pagamento-status.expired,
+.pagamento-status.failed {
+    background: rgba(107, 114, 128, 0.1);
+    color: #9ca3af;
+    border: 1px solid rgba(107, 114, 128, 0.2);
+}
+
+.pagamento-countdown {
+    margin-top: 0.6rem;
+    font-size: 0.7rem;
+    color: #6b7280;
+}
+
+.pagamento-back {
+    margin-top: 1.5rem;
+}
+
+.pagamento-back a {
+    color: #9ca3af;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.pagamento-back a:hover {
+    color: #fff;
+}

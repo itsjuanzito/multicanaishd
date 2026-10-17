@@ -1,0 +1,62 @@
+---
+// src/pages/app.astro
+// @ts-nocheck
+import "../styles/global.css";
+export const prerender = false;
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+// i18n
+import { getLangFromUrl, useTranslations } from "../i18n/utils";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+
+// Textos
+const title = isPt ? "App para Celular" : "Mobile App";
+const description = isPt 
+    ? "Em breve, entre nas nossas redes sociais pra se atualizar sobre o app para celular."
+    : "Soon, join our social networks to get updates about our mobile app.";
+const telegramLabel = isPt ? "Entrar no Telegram" : "Join Telegram";
+---
+
+<BaseLayout
+    title={title}
+    description={description}
+    robots="noindex, nofollow"
+>
+    <!-- Layout linear robusto com estilos inline forçados para evitar cache/falhas de compilação do Tailwind -->
+    <main 
+        style="margin-top: 180px !important; margin-bottom: 100px !important;" 
+        class="flex-grow flex flex-col items-center justify-start px-4 relative overflow-visible"
+    >
+        <div class="relative w-full max-w-lg mx-auto z-10">
+            <div class="relative bg-[#0E111A]/60 backdrop-blur-2xl border border-white/5 rounded-3xl p-8 sm:p-12 shadow-2xl transition-all duration-500 hover:border-[#DF0912]/20 text-center overflow-visible">
+
+                <h1 class="text-3xl sm:text-4xl font-black text-white tracking-tight mb-4">
+                    MultiCanaisHD <span class="text-[#DF0912]">Mobile</span>
+                </h1>
+
+                <p class="text-gray-300 text-sm sm:text-base leading-relaxed mb-8 max-w-md mx-auto">
+                    {description}
+                </p>
+
+                <!-- Botões Premium -->
+                <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+
+                    <!-- Botão Telegram -->
+                    <a 
+                        href="https://t.me/+LzTPE6nAUoQwMGNh" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        class="w-full sm:w-1/2 flex items-center justify-center gap-3 bg-[#229ED9] hover:bg-[#1c85b7] text-white font-extrabold text-sm px-6 py-4 rounded-2xl transition-all duration-300 hover:scale-[1.03] active:scale-95 shadow-lg shadow-sky-950/20"
+                    >
+                        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                            <path d="M11.944 0C5.344 0 0 5.344 0 11.944c0 6.6 5.344 11.944 11.944 11.944 6.6 0 11.944-5.344 11.944-11.944C23.888 5.344 18.544 0 11.944 0zm5.82 8.356l-1.9 8.95c-.14.62-.51.77-1.03.48l-2.9-2.14-1.4 1.35c-.15.15-.28.28-.58.28l.2-2.94 5.36-4.84c.23-.21-.05-.33-.36-.12l-6.63 4.17-2.85-.89c-.62-.19-.63-.62.13-.91l11.13-4.29c.51-.19.96.11.83.91z"/>
+                        </svg>
+                        {telegramLabel}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </main>
+</BaseLayout>

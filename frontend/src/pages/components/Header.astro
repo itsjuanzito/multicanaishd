@@ -1,0 +1,504 @@
+---
+// src/components/Header.astro
+import Navigation from "./Navigation.astro";
+import SearchWidget from "./SearchWidget.astro";
+
+// i18n
+import { getLangFromUrl, useTranslations } from "../../i18n/utils";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+const langPrefix = isPt ? "" : `/${lang}`;
+
+// Prepare Target URL for Language Switcher
+const currentUrlForSwitch = new URL(Astro.url);
+const path = currentUrlForSwitch.pathname;
+currentUrlForSwitch.searchParams.delete('lang');
+const search = currentUrlForSwitch.search;
+const cleanPath = path.startsWith('/en') ? path.replace(/^\/en/, '') : path;
+const finalCleanPath = (cleanPath === '' ? '/' : cleanPath);
+const targetUrl = (isPt ? `/en${finalCleanPath === '/' ? '' : finalCleanPath}` : finalCleanPath) + search;
+---
+
+<header id="main-header" class="fixed top-4 sm:top-6 left-1/2 -translate-x-1/2 w-[96%] max-w-[1400px] z-[100] transition-all duration-500">
+    <script type="application/ld+json" set:html={JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "SiteNavigationElement",
+        "name": [t('nav.home'), t('nav.movies'), t('nav.series'), t('nav.explore'), t('nav.channels')],
+        "url": [
+            Astro.url.origin,
+            `${Astro.url.origin}${langPrefix}/explorar?type=movie`,
+            `${Astro.url.origin}${langPrefix}/explorar?type=tv`,
+            `${Astro.url.origin}${langPrefix}/explorar?type=anime`,
+            `${Astro.url.origin}${langPrefix}/canais`
+        ]
+    })} />
+    <div 
+        id="header-container"
+        data-t-vip={t('nav.vip')}
+        data-t-vip-no-ads={t('nav.vip_no_ads')}
+        data-lang={lang}
+        class="relative flex items-center justify-between h-14 sm:h-16"
+    >
+        
+        <!-- Left: Logo -->
+        <div class="flex-shrink-0 flex items-center gap-3">
+            <a href={langPrefix === "" ? "/" : langPrefix} data-astro-reload class="flex items-center group" aria-label="MultiCanaisHD Home">
+                <span class="text-lg sm:text-xl font-black text-white tracking-tighter uppercase group-hover:text-[#DF0912] transition-colors">
+                    Multi<span class="text-[#DF0912]">CanaisHD</span>
+                </span>
+            </a>
+        </div>
+
+        <!-- Middle: Navigation -->
+        <div class="hidden lg:flex items-center justify-center h-full mx-1 xl:mx-2 min-w-0 flex-shrink flex-grow">
+            <Navigation />
+        </div>
+
+        <!-- Right: Actions -->
+        <div class="flex-shrink-0 flex items-center gap-2 sm:gap-4 relative z-10">
+            <!-- Secondary Actions -->
+            <div class="flex items-center gap-2 sm:gap-3">
+                <SearchWidget />
+                <a id="language-switcher" href={targetUrl} title={isPt ? "View in English" : "Ver em Português"} aria-label={isPt ? "Switch to English" : "Mudar para Português"} class="w-9 h-9 flex items-center justify-center group hover:bg-white/10 rounded-lg transition-all overflow-hidden relative">
+                    <span class="text-xs font-black text-white/50 group-hover:text-[#DF0912] uppercase tracking-tighter transition-colors">{isPt ? "EN" : "PT"}</span>
+                </a>
+            </div>
+            <div class="hidden xl:flex items-center gap-2 border-l border-white/10 pl-4 ml-2">
+                <!-- API: aponta pro produto em streambetter.shop, em nova aba. `rel="noopener"`
+                     é obrigatório com target="_blank": sem ele a página aberta ganha
+                     window.opener e pode redirecionar a nossa. / Opens the API product in a
+                     new tab; rel="noopener" keeps the opened page from touching ours. -->
+                <a href="https://streambetter.shop" target="_blank" rel="noopener" title="API StreamBetter" aria-label="API Documentation" class="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-emerald-600 rounded-full transition-all font-black text-[10px] tracking-tighter">
+                    API
+                </a>
+                <a href="https://t.me/+LzTPE6nAUoQwMGNh" target="_blank" title="Telegram" aria-label="Join our Telegram channel" class="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-[#229ED9] rounded-full transition-all">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.13-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
+                    </svg>
+                </a>
+                <a id="nav-minha-lista-link" href={`${langPrefix}/minha-lista`} aria-label="My Favorites" class="hidden w-8 h-8 sm:w-10 sm:h-10 items-center justify-center text-gray-400 hover:text-[#DF0912] hover:bg-white/5 rounded-full transition-all">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
+                </a>
+            </div>
+            <button
+                id="mobile-menu-toggle"
+                aria-label={isPt ? "Abrir menu de navegação" : "Open navigation menu"}
+                class="relative lg:hidden w-9 h-9 flex items-center justify-center text-white hover:bg-white/10 rounded-full transition-all"
+            >
+                <span class="changelog-new-badge hidden absolute top-1 right-1 w-2 h-2 bg-[#DF0912] rounded-full shadow-[0_0_8px_#DF0912]"></span>
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+            </button>
+            
+            <!-- VIP & Auth Actions -->
+            <div class="hidden sm:flex items-center gap-2 ml-1 flex-shrink-0">
+                <a href={`${langPrefix}/vip`} id="nav-seja-vip" class="flex items-center justify-center flex-shrink-0 h-9 px-4 rounded-full bg-[#DF0912] hover:bg-[#AE181E] text-white text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all whitespace-nowrap">
+                    {t('nav.vip')}
+                </a>
+
+                <div class="relative">
+                    <button
+                        id="notif-bell-btn"
+                        type="button"
+                        aria-label={isPt ? "Notificações" : "Notifications"}
+                        class="relative w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-gray-400 hover:text-[#DF0912] hover:bg-white/5 rounded-full transition-all"
+                    >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+                        <span id="notif-bell-badge" class="hidden absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-[#DF0912] text-white text-[9px] font-black shadow-[0_0_8px_#DF0912]"></span>
+                    </button>
+                    <div id="notif-bell-dropdown" class="hidden absolute right-0 mt-2 w-80 max-w-[90vw] max-h-[70vh] overflow-y-auto bg-[#0E111A] border border-white/10 rounded-2xl shadow-2xl z-50">
+                        <div class="p-4 border-b border-white/10">
+                            <span class="text-sm font-black text-white uppercase tracking-wide">{isPt ? "Notificações" : "Notifications"}</span>
+                        </div>
+                        <div id="notif-bell-list" class="divide-y divide-white/5">
+                            <div class="p-4 text-xs text-gray-500">{isPt ? "Nenhuma notificação ainda." : "No notifications yet."}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="auth-nav-link" class="flex items-center">
+                    <!-- Perfil (Logado) -->
+                    <a href={`${langPrefix}/perfil`} id="auth-profile-link" aria-label={isPt ? "Meu Perfil" : "My Profile"} class="hidden items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-white/10 transition-all group">
+                        <div class="w-5 h-5 text-gray-400 group-hover:text-[#DF0912] transition-colors">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                        </div>
+                    </a>
+                    <!-- Entrar (Deslogado) -->
+                    <a href={`${langPrefix}/login`} id="auth-login-link" class="flex items-center gap-2 px-4 h-9 hover:bg-white/10 rounded-full transition-all">
+                        <span class="text-[10px] font-black text-white uppercase tracking-tighter">{t('nav.login')}</span>
+                    </a>
+                    <!-- Loading State -->
+                    <div id="auth-loading-state" class="hidden w-9 h-9 rounded-full bg-white/5 animate-pulse"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Nav Overlay -->
+    <div id="mobile-nav" class="lg:hidden absolute top-full left-0 right-0 mt-4 mx-auto w-[90%] max-h-[calc(100dvh-120px)] overflow-y-auto scrollbar-hide bg-[#0E111A]/95 backdrop-blur-2xl border border-white/10 rounded-3xl py-6 px-4 shadow-2xl scale-95 opacity-0 pointer-events-none transition-all duration-300 origin-top">
+        <Navigation isMobile={true} />
+    </div>
+
+    <!-- Pre-paint Synchronous UI Sync to Prevent Flicker -->
+    <script is:inline>
+        (function() {
+            try {
+                const hasSupabaseSessionMarker = () => {
+                    try {
+                        for (let i = 0; i < localStorage.length; i++) {
+                            const key = localStorage.key(i);
+                            if (key && (key.startsWith('sb-') || key.includes('supabase.auth.token'))) {
+                                return true;
+                            }
+                        }
+                    } catch (err) {}
+                    return false;
+                };
+
+                let sessionData = {};
+                try {
+                    const rawSession = localStorage.getItem('bf_session_optimistic');
+                    if (rawSession && rawSession !== "undefined") {
+                        sessionData = JSON.parse(rawSession);
+                    }
+                } catch (err) {}
+                
+                const hasUser = hasSupabaseSessionMarker() && !!(sessionData && (sessionData.user || sessionData.token || sessionData.isAuthenticated === true));
+                window.__bf_optimistic_has_user = hasUser;
+                
+                // Desktop elements
+                const vipBtn = document.getElementById('nav-seja-vip');
+                const loginLink = document.getElementById('auth-login-link');
+                const profileLink = document.getElementById('auth-profile-link');
+                const minhaLista = document.getElementById('nav-minha-lista-link');
+
+                // Mobile elements
+                const profileMobile = document.getElementById('nav-profile-mobile');
+                const loginMobile = document.getElementById('nav-login-mobile');
+                const vipMobile = document.getElementById('nav-vip-mobile');
+                const minhaListaMobile = document.getElementById('nav-minha-lista-mobile');
+
+                if (hasUser) {
+                    if (profileLink) { profileLink.classList.remove('hidden'); profileLink.classList.add('flex'); }
+                    if (minhaLista) { minhaLista.classList.remove('hidden'); minhaLista.classList.add('flex'); }
+                    if (profileMobile) { profileMobile.classList.remove('hidden'); profileMobile.classList.add('flex'); }
+                    if (minhaListaMobile) { minhaListaMobile.classList.remove('hidden'); minhaListaMobile.classList.add('flex'); }
+                    if (loginLink) { loginLink.classList.remove('flex'); loginLink.classList.add('hidden'); }
+                    if (loginMobile) { loginMobile.classList.remove('flex'); loginMobile.classList.add('hidden'); }
+                    
+                    if (vipBtn) { vipBtn.classList.remove('hidden'); }
+                    if (vipMobile) { vipMobile.classList.remove('hidden'); vipMobile.classList.add('flex'); }
+                } else {
+                    if (loginLink) { loginLink.classList.remove('hidden'); loginLink.classList.add('flex'); }
+                    if (loginMobile) { loginMobile.classList.remove('hidden'); loginMobile.classList.add('flex'); }
+                    if (profileLink) { profileLink.classList.remove('flex'); profileLink.classList.add('hidden'); }
+                    if (profileMobile) { profileMobile.classList.remove('flex'); profileMobile.classList.add('hidden'); }
+                    if (minhaListaMobile) { minhaListaMobile.classList.remove('flex'); minhaListaMobile.classList.add('hidden'); }
+                    if (vipBtn) { vipBtn.classList.remove('hidden'); }
+                    if (vipMobile) { vipMobile.classList.remove('hidden'); vipMobile.classList.add('flex'); }
+                }
+            } catch(e) {
+                // Silently fallback if localStorage fails
+            }
+        })();
+    </script>
+</header>
+
+<script>
+    let authStore;
+    let headerLastStableAuth = null;
+    let headerSawOptimisticUser = false;
+
+    async function initHeader() {
+        const header = document.getElementById('main-header');
+        if (!header) return;
+
+        const isBot = navigator.webdriver === true || /lighthouse|pagespeed|bot|crawler|spider/i.test(navigator.userAgent);
+        if (isBot) return;
+
+        const mobileToggle = document.getElementById('mobile-menu-toggle');
+        const mobileNav = document.getElementById('mobile-nav');
+        
+        if (window.__bf_optimistic_has_user === true) {
+            headerSawOptimisticUser = true;
+            headerLastStableAuth = true;
+        }
+        
+        function syncHeaderUI() {
+            try {
+                const state = authStore.get();
+                const { user, loading, initialized } = state;
+                const profileLink = document.getElementById('auth-profile-link');
+                const loginLink = document.getElementById('auth-login-link');
+                const loginState = document.getElementById('auth-loading-state');
+                const vipBtn = document.getElementById('nav-seja-vip');
+                const minhaListaLink = document.getElementById('nav-minha-lista-link');
+                
+                // Mobile Elements
+                const profileMobile = document.getElementById('nav-profile-mobile');
+                const loginMobile = document.getElementById('nav-login-mobile');
+                const vipMobile = document.getElementById('nav-vip-mobile');
+                const minhaListaMobile = document.getElementById('nav-minha-lista-mobile');
+
+                const renderLoggedIn = () => {
+                    profileLink?.classList.remove('hidden');
+                    profileLink?.classList.add('flex');
+                    minhaListaLink?.classList.remove('hidden');
+                    minhaListaLink?.classList.add('flex');
+                    profileMobile?.classList.remove('hidden');
+                    profileMobile?.classList.add('flex');
+                    minhaListaMobile?.classList.remove('hidden');
+                    minhaListaMobile?.classList.add('flex');
+                    
+                    loginLink?.classList.add('hidden');
+                    loginLink?.classList.remove('flex');
+                    loginMobile?.classList.add('hidden');
+                    loginMobile?.classList.remove('flex');
+                    loginState?.classList.add('hidden');
+                };
+
+                const renderLoggedOut = () => {
+                    loginLink?.classList.remove('hidden');
+                    loginLink?.classList.add('flex');
+                    loginMobile?.classList.remove('hidden');
+                    loginMobile?.classList.add('flex');
+                    
+                    profileLink?.classList.add('hidden');
+                    profileLink?.classList.remove('flex');
+                    minhaListaLink?.classList.add('hidden');
+                    minhaListaLink?.classList.remove('flex');
+                    profileMobile?.classList.add('hidden');
+                    profileMobile?.classList.remove('flex');
+                    minhaListaMobile?.classList.add('hidden');
+                    minhaListaMobile?.classList.remove('flex');
+                    loginState?.classList.add('hidden');
+                };
+
+                const renderLoading = () => {
+                    loginLink?.classList.add('hidden');
+                    loginLink?.classList.remove('flex');
+                    loginMobile?.classList.add('hidden');
+                    loginMobile?.classList.remove('flex');
+                    profileLink?.classList.add('hidden');
+                    profileLink?.classList.remove('flex');
+                    profileMobile?.classList.add('hidden');
+                    profileMobile?.classList.remove('flex');
+                    minhaListaLink?.classList.add('hidden');
+                    minhaListaLink?.classList.remove('flex');
+                    minhaListaMobile?.classList.add('hidden');
+                    minhaListaMobile?.classList.remove('flex');
+                    loginState?.classList.remove('hidden');
+                };
+
+                const hasUser = !!user;
+                const isSettledLoggedOut = initialized === true && loading === false && !hasUser;
+                const shouldHoldLoggedIn = headerLastStableAuth === true || headerSawOptimisticUser === true;
+
+                if (hasUser) {
+                    headerLastStableAuth = true;
+                    headerSawOptimisticUser = true;
+                    renderLoggedIn();
+                } else if (isSettledLoggedOut) {
+                    headerLastStableAuth = false;
+                    headerSawOptimisticUser = false;
+                    renderLoggedOut();
+                } else if (shouldHoldLoggedIn) {
+                    // Evita flicker para "Entrar" durante estados transitórios do auth bootstrap.
+                    renderLoggedIn();
+                } else if (loading || initialized !== true) {
+                    renderLoading();
+                } else {
+                    renderLoggedOut();
+                }
+
+                if (vipBtn) {
+                    const container = document.getElementById('header-container');
+                    const lang = container?.dataset.lang || 'pt';
+                    vipBtn.classList.remove('hidden');
+                    // Texto padrão do Header: SEJA VIP
+                    const tVip = container?.dataset.tVip;
+                    vipBtn.textContent = tVip || (lang === 'pt' ? 'Seja VIP' : 'Become VIP');
+                }
+                if (vipMobile) {
+                    const container = document.getElementById('header-container');
+                    const lang = container?.dataset.lang || 'pt';
+                    const tVip = container?.dataset.tVip;
+                    vipMobile.classList.remove('hidden');
+                    vipMobile.textContent = tVip || (lang === 'pt' ? 'Seja VIP' : 'Become VIP');
+                }
+            } catch (e) {
+                console.error("[Header] Sync Error:", e);
+            }
+        }
+
+        const setupHeaderAuth = () => {
+            if (window._unsubscribeHeader) window._unsubscribeHeader();
+            let syncTicking = false;
+            const debouncedSync = () => {
+                if (!syncTicking) {
+                    window.requestAnimationFrame(() => {
+                        syncHeaderUI();
+                        syncTicking = false;
+                    });
+                    syncTicking = true;
+                }
+            };
+            window._unsubscribeHeader = authStore.subscribe(debouncedSync);
+            syncHeaderUI();
+        };
+
+        if (window._authStore) {
+            authStore = window._authStore;
+            setupHeaderAuth();
+        } else {
+            const onAuthReady = (e) => {
+                authStore = e.detail?.authStore || window._authStore || e.detail;
+                if (authStore) {
+                    setupHeaderAuth();
+                }
+                document.removeEventListener("multicanaishd:auth-ready", onAuthReady);
+            };
+            document.addEventListener("multicanaishd:auth-ready", onAuthReady);
+        }
+        
+        let scrollTicking = false;
+        window.addEventListener('scroll', () => {
+            if (!scrollTicking) {
+                window.requestAnimationFrame(() => {
+                    const currentScroll = window.scrollY;
+                    header.classList.toggle('top-2', currentScroll > 10);
+                    header.classList.toggle('sm:top-4', currentScroll > 10);
+                    scrollTicking = false;
+                });
+                scrollTicking = true;
+            }
+        }, { passive: true });
+
+        if (mobileToggle && mobileNav) {
+            mobileToggle.onclick = (e) => {
+                e.stopPropagation();
+                const isOpen = !mobileNav.classList.contains('opacity-0');
+                mobileNav.classList.toggle('opacity-0', isOpen);
+                mobileNav.classList.toggle('scale-95', isOpen);
+                mobileNav.classList.toggle('pointer-events-none', isOpen);
+            };
+            
+            // Clean up old listener to prevent memory leaks in ViewTransitions
+            if (window._closeMobileNav) {
+                document.removeEventListener('click', window._closeMobileNav);
+            }
+            
+            window._closeMobileNav = () => {
+                mobileNav.classList.add('opacity-0', 'scale-95', 'pointer-events-none');
+            };
+            
+            document.addEventListener('click', window._closeMobileNav);
+        }
+
+        const langSwitcher = document.getElementById('language-switcher');
+        if (langSwitcher) {
+            langSwitcher.onclick = (e) => {
+                e.preventDefault();
+                try {
+                    const currentUrl = new URL(window.location.href);
+                    const container = document.getElementById('header-container');
+                    const currentLang = container?.dataset.lang || 'pt';
+                    const nextLang = currentLang === 'pt' ? 'en' : 'pt';
+                    
+                    document.cookie = `multicanaishd_locale=${nextLang}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+                    document.cookie = `multicanaishd_locale_manual=true; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
+
+                    let newPath = currentUrl.pathname;
+                    if (nextLang === 'en') {
+                        if (!newPath.startsWith('/en')) newPath = '/en' + (newPath === '/' ? '' : newPath);
+                    } else {
+                        newPath = newPath.replace(/^\/en/, '') || '/';
+                    }
+                    currentUrl.pathname = newPath;
+                    currentUrl.searchParams.set('lang', nextLang);
+                    window.location.href = currentUrl.toString();
+                } catch (err) {
+                    window.location.reload();
+                }
+            };
+        }
+
+        // Adiada com requestIdleCallback (mesmo padrão do sistema de toast em BaseLayout):
+        // o import dinâmico de notificationsStore + fetch de /api/notifications não é
+        // crítico pro LCP, mas rodava síncrono no page-load e aparecia na cadeia de
+        // dependências de rede do PageSpeed, alongando a latência crítica.
+        const startNotifBell = () => setupNotifBell();
+        if (window.requestIdleCallback) {
+            window.requestIdleCallback(() => setTimeout(startNotifBell, 1200));
+        } else {
+            setTimeout(startNotifBell, 1500);
+        }
+    }
+
+    async function setupNotifBell() {
+        const btn = document.getElementById('notif-bell-btn');
+        const dropdown = document.getElementById('notif-bell-dropdown');
+        const badge = document.getElementById('notif-bell-badge');
+        const list = document.getElementById('notif-bell-list');
+        if (!btn || !dropdown || !badge || !list || btn.dataset.bound === 'true') return;
+        btn.dataset.bound = 'true';
+
+        const { notificationsStore, startNotificationsPolling, markNotificationsRead } = await import('../../store/notificationsStore.ts');
+
+        const lang = document.getElementById('header-container')?.dataset.lang || 'pt';
+        const isPt = lang === 'pt';
+
+        const escapeHtml = (str) => String(str || '').replace(/[&<>"']/g, (c) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[c]));
+
+        const renderList = (items) => {
+            if (!items || items.length === 0) {
+                list.innerHTML = `<div class="p-4 text-xs text-gray-500">${isPt ? "Nenhuma notificação ainda." : "No notifications yet."}</div>`;
+                return;
+            }
+            list.innerHTML = items.map(n => `
+                <a href="${n.link ? escapeHtml(n.link) : '#'}" class="block p-4 hover:bg-white/5 transition-colors">
+                    <p class="text-sm font-bold text-white">${escapeHtml(n.title)}</p>
+                    <p class="text-xs text-gray-400 mt-1">${escapeHtml(n.message)}</p>
+                </a>
+            `).join('');
+        };
+
+        const renderBadge = (count) => {
+            if (count > 0) {
+                badge.textContent = count > 99 ? '99+' : String(count);
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        };
+
+        notificationsStore.subscribe((state) => {
+            renderList(state.items);
+            renderBadge(state.unreadCount);
+        });
+
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            const isHidden = dropdown.classList.contains('hidden');
+            dropdown.classList.toggle('hidden', !isHidden);
+            if (isHidden) markNotificationsRead();
+        };
+
+        document.addEventListener('click', (e) => {
+            if (!dropdown.contains(e.target) && e.target !== btn) {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        startNotificationsPolling();
+    }
+
+    document.addEventListener("astro:page-load", initHeader);
+</script>
+
+<style>
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+</style>

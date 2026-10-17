@@ -1,0 +1,614 @@
+---
+// src/pages/ranking.astro
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+// i18n
+import { getLangFromUrl, useTranslations } from "../i18n/utils";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+
+const keywords = isPt
+    ? "ranking multicanaishd, maratonistas multicanaishd, rank de assistir, leaderboards multicanaishd, quem assistiu mais, melhor rank de maratona"
+    : "multicanaishd leaderboard, top marathoners multicanaishd, watch ranking, most watched hours multicanaishd, viewer honor roll";
+
+// Pódio na ordem VISUAL (2º à esquerda, campeão ao centro, 3º à direita), não na ordem
+// numérica: o DOM seguia 1-2-3 e por isso o campeão renderizava na ponta esquerda, o que
+// quebra a leitura de pódio. As classes ficam completas em cada slot porque o Tailwind
+// varre o source estaticamente — montar `border-[${cor}]` em runtime não gera o CSS.
+const podium = [
+    {
+        rank: 2,
+        avatar: "w-16 h-16 sm:w-20 sm:h-20",
+        ring: "border-[#C9D1D9]/50",
+        badge: "bg-[#C9D1D9] text-[#060911]",
+        name: "text-[#C9D1D9]",
+        numeral: "text-[#C9D1D9]/[0.07]",
+        pedestal: "podium-pedestal-2 bg-gradient-to-b from-[#C9D1D9]/[0.10] to-transparent border-[#C9D1D9]/15",
+    },
+    {
+        rank: 1,
+        avatar: "w-20 h-20 sm:w-28 sm:h-28",
+        ring: "border-[#E8B923]/70",
+        badge: "bg-[#E8B923] text-[#060911]",
+        name: "text-[#E8B923]",
+        numeral: "text-[#E8B923]/[0.09]",
+        pedestal: "podium-pedestal-1 bg-gradient-to-b from-[#E8B923]/[0.16] to-transparent border-[#E8B923]/20",
+    },
+    {
+        rank: 3,
+        avatar: "w-16 h-16 sm:w-20 sm:h-20",
+        ring: "border-[#C87533]/50",
+        badge: "bg-[#C87533] text-[#060911]",
+        name: "text-[#C87533]",
+        numeral: "text-[#C87533]/[0.07]",
+        pedestal: "podium-pedestal-3 bg-gradient-to-b from-[#C87533]/[0.10] to-transparent border-[#C87533]/15",
+    },
+];
+---
+
+<BaseLayout
+    title={isPt ? "Ranking de Maratonistas" : "Marathoner Leaderboard"}
+    description={isPt ? "Veja quem são os maiores maratonistas do MultiCanaisHD. Rank liderado por horas totais assistidas." : "Check the top marathoners on MultiCanaisHD. Leaderboard ordered by total watched hours."}
+    keywords={keywords}
+>
+    <main class="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-12 mt-24 sm:mt-28 relative z-10">
+        
+        <!-- Header Hero -->
+        <div class="text-center max-w-2xl mx-auto mb-12 sm:mb-16 select-none">
+            <p class="text-[#DF0912] tracking-[0.3em] text-[10px] sm:text-xs font-black uppercase mb-3">
+                {isPt ? "QUADRO DE HONRA" : "HALL OF FAME"}
+            </p>
+            <h1 class="text-4xl sm:text-6xl font-black text-white tracking-tighter italic uppercase mb-4 leading-none">
+                {isPt ? "Ranking Geral" : "Leaderboard"}
+            </h1>
+            <p class="text-gray-400 text-sm sm:text-base font-medium leading-relaxed">
+                {isPt 
+                    ? "Conheça as lendas do MultiCanaisHD! O rank é atualizado em tempo real com base no tempo total dedicado a assistir filmes e episódios." 
+                    : "Meet the legends of MultiCanaisHD! The rank updates in real-time based on total time dedicated to watching movies and episodes."
+                }
+            </p>
+        </div>
+
+        <!-- Pódio Top 3 — degraus carregam as estatísticas reais em vez de ficarem vazios -->
+        <div class="max-w-3xl mx-auto mb-12 sm:mb-16 select-none" id="ranking-podium">
+            <div class="grid grid-cols-3 gap-2 sm:gap-5 items-end">
+                {podium.map((slot) => (
+                    <div class="flex flex-col items-center transition-opacity duration-300" data-podium-slot={slot.rank}>
+                        {slot.rank === 1 && (
+                            <div class="text-lg sm:text-2xl leading-none mb-2 animate-bounce">👑</div>
+                        )}
+
+                        <a href="#" id={`podium-link-${slot.rank}`} class="group flex flex-col items-center w-full min-w-0">
+                            <div class="relative">
+                                <div
+                                    class={`${slot.avatar} rounded-full border-2 ${slot.ring} bg-[#141414] overflow-hidden group-hover:border-[#DF0912] group-hover:scale-105 transition-all duration-300`}
+                                    id={`podium-avatar-${slot.rank}`}
+                                >
+                                </div>
+                                <div class={`absolute -bottom-1.5 left-1/2 -translate-x-1/2 ${slot.badge} font-black rounded-full w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-xs sm:text-sm border-2 border-[#060911]`}>
+                                    {slot.rank}
+                                </div>
+                            </div>
+
+                            <div class="text-center w-full min-w-0 mt-3.5">
+                                <div class="flex items-center justify-center gap-1 min-w-0 px-1">
+                                    <span
+                                        class={`text-xs sm:text-sm font-black ${slot.name} truncate group-hover:text-[#DF0912] transition-colors`}
+                                        id={`podium-name-${slot.rank}`}
+                                    >---</span>
+                                    <span id={`podium-badge-${slot.rank}`} class="flex-shrink-0"></span>
+                                </div>
+                                <p class="text-[10px] text-gray-500 font-bold lowercase leading-none h-3 mt-1 truncate px-1" id={`podium-nick-${slot.rank}`}></p>
+                                <p class="text-sm sm:text-lg font-black text-white italic tracking-tight mt-1.5" id={`podium-hours-${slot.rank}`}>0.0h</p>
+                            </div>
+                        </a>
+
+                        <div class={`relative w-full mt-3.5 rounded-t-2xl border border-b-0 overflow-hidden flex items-end justify-center ${slot.pedestal}`}>
+                            <span class={`pointer-events-none absolute inset-0 flex items-center justify-center font-black italic leading-none ${slot.numeral} text-[4.5rem] sm:text-[7rem]`}>
+                                {slot.rank}
+                            </span>
+                            <div class="relative grid grid-cols-2 divide-x divide-white/[0.06] w-full">
+                                <div class="py-2 sm:py-3 text-center min-w-0">
+                                    <p class="text-sm sm:text-base font-black text-white leading-none" id={`podium-movies-${slot.rank}`}>0</p>
+                                    <p class="text-[8px] sm:text-[9px] text-gray-500 font-black uppercase tracking-widest mt-1">
+                                        {isPt ? "Filmes" : "Movies"}
+                                    </p>
+                                </div>
+                                <div class="py-2 sm:py-3 text-center min-w-0">
+                                    <p class="text-sm sm:text-base font-black text-white leading-none" id={`podium-episodes-${slot.rank}`}>0</p>
+                                    <p class="text-[8px] sm:text-[9px] text-gray-500 font-black uppercase tracking-widest mt-1">Eps</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+        <!-- Ranking Table Container -->
+        <div class="max-w-4xl mx-auto space-y-6">
+            
+            <!-- My Rank Highlight (Dynamic) -->
+            <div id="my-rank-container" class="hidden">
+                <div class="bg-[#141414] border border-[#DF0912]/20 rounded-[2rem] p-5 sm:p-6 flex flex-col sm:flex-row items-center justify-between gap-4 select-none group hover:border-[#DF0912]/40 transition-all duration-500">
+                    <div class="flex items-center gap-4">
+                        <div class="flex flex-col items-center">
+                            <span class="text-[10px] font-black text-[#DF0912] uppercase tracking-widest mb-1">Sua Posição</span>
+                            <div class="w-14 h-14 rounded-2xl bg-[#DF0912] text-white flex items-center justify-center text-2xl font-black" id="my-rank-pos">
+                                --
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-full border-2 border-white/10 overflow-hidden" id="my-rank-avatar">
+                                <!-- Loaded dynamically -->
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <h3 class="text-lg font-black text-white tracking-tight" id="my-rank-name">Carregando...</h3>
+                                    <span id="my-rank-badge"></span>
+                                </div>
+                                <p class="text-[10px] text-gray-500 font-bold tracking-tight lowercase leading-none" id="my-rank-nick"></p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center gap-6 sm:gap-10 pr-4">
+                        <div class="text-center">
+                            <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Filmes</p>
+                            <p class="text-sm font-black text-white" id="my-rank-movies">0</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Episódios</p>
+                            <p class="text-sm font-black text-white" id="my-rank-episodes">0</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Tempo Total</p>
+                            <p class="text-lg font-black text-[#DF0912] italic" id="my-rank-hours">0.0h</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white/[0.02] backdrop-blur-md border border-white/5 rounded-[32px] overflow-hidden shadow-2xl p-6 sm:p-8">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-white/5 text-[10px] sm:text-xs font-black text-gray-500 uppercase tracking-widest select-none">
+                            <th class="pb-4 pl-4 w-16 text-center">{isPt ? "Pos" : "Pos"}</th>
+                            <th class="pb-4 pl-4">{isPt ? "Usuário" : "User"}</th>
+                            <th class="pb-4 text-center w-28">{isPt ? "Filmes" : "Movies"}</th>
+                            <th class="pb-4 text-center w-28">{isPt ? "Episódios" : "Episodes"}</th>
+                            <th class="pb-4 pr-4 text-right w-36">{isPt ? "Tempo Assistido" : "Watch Time"}</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ranking-list-body" class="divide-y divide-white/5">
+                        <!-- Rows will be injected dynamically -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Loading Skeleton -->
+            <div id="ranking-loading-skeleton" class="hidden flex flex-col gap-3 py-6">
+                <div class="h-14 w-full bg-white/5 rounded-2xl animate-pulse"></div>
+                <div class="h-14 w-full bg-white/5 rounded-2xl animate-pulse"></div>
+                <div class="h-14 w-full bg-white/5 rounded-2xl animate-pulse"></div>
+            </div>
+
+            <!-- Empty State Fallback -->
+            <div id="ranking-empty-state" class="hidden flex flex-col items-center justify-center text-center py-12 select-none">
+                <svg class="w-12 h-12 text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                <p class="text-sm text-gray-400 font-bold">{isPt ? "Nenhum maratonista encontrado." : "No marathoners found."}</p>
+            </div>
+
+            <!-- Load More Button -->
+            <div class="flex justify-center mt-8 hidden" id="load-more-container">
+                <button id="load-more-btn" class="h-12 px-8 bg-white/5 hover:bg-white/10 hover:border-white/10 active:scale-95 text-white font-black uppercase text-[10px] tracking-widest rounded-2xl border border-white/5 cursor-pointer flex items-center gap-2 transition-all shadow-lg select-none">
+                    <span>{isPt ? "Carregar Mais" : "Load More"}</span>
+                    <!-- Spinner -->
+                    <svg id="load-more-spinner" class="hidden w-4 h-4 text-white animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Last Season Winners (secondary, below current ranking) -->
+        <div id="last-season-container" class="max-w-4xl mx-auto mt-16 sm:mt-20 hidden select-none opacity-90">
+            <div class="flex items-center gap-2 mb-4">
+                <span class="text-base sm:text-lg">🏆</span>
+                <h2 class="text-xs sm:text-sm font-black text-gray-400 uppercase tracking-widest" id="last-season-title">
+                    {isPt ? "Ganhadores do Mês Passado" : "Last Month's Winners"}
+                </h2>
+            </div>
+            <div class="bg-white/[0.015] backdrop-blur-md border border-white/5 rounded-[24px] overflow-hidden shadow-lg p-4 sm:p-6">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-white/5 text-[9px] sm:text-[11px] font-black text-gray-600 uppercase tracking-widest">
+                                <th class="pb-3 pl-4 w-16 text-center">{isPt ? "Pos" : "Pos"}</th>
+                                <th class="pb-3 pl-4">{isPt ? "Usuário" : "User"}</th>
+                                <th class="pb-3 text-center w-28">{isPt ? "Filmes" : "Movies"}</th>
+                                <th class="pb-3 text-center w-28">{isPt ? "Episódios" : "Episodes"}</th>
+                                <th class="pb-3 pr-4 text-right w-36">{isPt ? "Tempo Assistido" : "Watch Time"}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="last-season-list-body" class="divide-y divide-white/5">
+                            <!-- Rows injected dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+</BaseLayout>
+
+<script>
+    import { authStore } from "../store/authStore";
+
+    let currentPage = 1;
+    const limit = 15;
+
+    // Markup do selo VIP estava copiado em 4 lugares (pódio, meu rank, tabela e ganhadores
+    // da temporada), então qualquer ajuste de estilo precisava ser feito quatro vezes.
+    function vipBadgeHtml(isVIP: any, plan: any, extraClass = '') {
+        if (!isVIP) return '';
+        const base = `text-[8px] px-1.5 py-0.5 rounded font-black tracking-wider uppercase select-none ${extraClass}`;
+        const planLower = String(plan || '').toLowerCase();
+        if (planLower.includes('black')) {
+            return `<span class="${base} bg-neutral-300/10 text-neutral-200 border border-neutral-400/25 shadow shadow-black/20">⚫ BLACK</span>`;
+        }
+        if (planLower.includes('diamond')) {
+            return `<span class="${base} bg-cyan-500/20 text-cyan-400 border border-cyan-400/25 shadow shadow-cyan-500/5">💎 DIAMOND</span>`;
+        }
+        return `<span class="${base} bg-indigo-500/20 text-indigo-400 border border-indigo-500/25">VIP BÁSICO</span>`;
+    }
+
+    function getAvatarPath(avatarId: any) {
+        if (!avatarId) return `/avatars/avatar_1.svg`;
+        const avatarStr = String(avatarId);
+        if (avatarStr.startsWith('http://') || avatarStr.startsWith('https://')) {
+            return avatarStr;
+        }
+        const id = parseInt(avatarStr || '1', 10);
+        if (id > 5) {
+            return `/avatars/avatar_${id}.png`;
+        }
+        return `/avatars/avatar_${id}.svg`;
+    }
+
+    async function loadRankings(page = 1) {
+        const skeleton = document.getElementById('ranking-loading-skeleton');
+        const loadMoreBtn = document.getElementById('load-more-btn');
+        const spinner = document.getElementById('load-more-spinner');
+        const listBody = document.getElementById('ranking-list-body');
+        const emptyState = document.getElementById('ranking-empty-state');
+        const loadMoreContainer = document.getElementById('load-more-container');
+
+        if (page === 1) {
+            if (listBody) listBody.innerHTML = '';
+            skeleton?.classList.remove('hidden');
+            emptyState?.classList.add('hidden');
+            loadMoreContainer?.classList.add('hidden');
+        } else {
+            spinner?.classList.remove('hidden');
+            loadMoreBtn?.setAttribute('disabled', 'true');
+        }
+
+        try {
+            const state = authStore.get();
+            const username = state.user?.username || state.username || "";
+            const shortId = state.user?.id ? state.user.id.substring(0, 8).toUpperCase() : "";
+            
+            const searchParam = shortId || username;
+            
+            console.log(`⚙️ [Ranking] Loading page ${page} (Search: ${searchParam || 'Guest'})`);
+            
+            const response = await fetch(`/api/ranking?page=${page}&limit=${limit}&u=${encodeURIComponent(searchParam)}&t=${Date.now()}`);
+            if (!response.ok) throw new Error("Database request failed");
+            
+            const data = await response.json();
+            console.log("✅ [Ranking] Data received:", { hasMyRank: !!data.myRank, rankingsCount: data.rankings?.length });
+            
+            const items = data.rankings || [];
+
+            if (page === 1) {
+                skeleton?.classList.add('hidden');
+                
+                // Configure the Podium (Top 3)
+                setupPodium(items.slice(0, 3));
+                
+                // The rest goes to the leaderboard list table
+                renderTableRows(items.slice(3), 4);
+            } else {
+                spinner?.classList.add('hidden');
+                loadMoreBtn?.removeAttribute('disabled');
+                
+                // Render additional rows
+                renderTableRows(items, (page - 1) * limit + 1);
+            }
+
+            // Toggle visibility of the Load More container
+            if (data.hasMore) {
+                loadMoreContainer?.classList.remove('hidden');
+            } else {
+                loadMoreContainer?.classList.add('hidden');
+            }
+
+            if (page === 1 && items.length === 0) {
+                emptyState?.classList.remove('hidden');
+            }
+
+            currentPage = page;
+
+            // Render 'My Rank' if available
+            if (data.myRank) {
+                renderMyRank(data.myRank);
+            } else {
+                document.getElementById('my-rank-container')?.classList.add('hidden');
+            }
+
+        } catch (err) {
+            console.error("❌ [Ranking Page] Error loading ranking data:", err);
+            if (page === 1) {
+                skeleton?.classList.add('hidden');
+                emptyState?.classList.remove('hidden');
+            } else {
+                // Sem isso, uma falha de rede numa página >1 (comum em conexão móvel) deixava
+                // o botão preso desabilitado com o spinner girando pra sempre — "carregar mais"
+                // parecia travado porque nunca havia um caminho de volta ao estado normal.
+                spinner?.classList.add('hidden');
+                loadMoreBtn?.removeAttribute('disabled');
+            }
+        }
+    }
+
+    function renderMyRank(me: any) {
+        const container = document.getElementById('my-rank-container');
+        const posEl = document.getElementById('my-rank-pos');
+        const avatarEl = document.getElementById('my-rank-avatar');
+        const nameEl = document.getElementById('my-rank-name');
+        const nickEl = document.getElementById('my-rank-nick');
+        const badgeEl = document.getElementById('my-rank-badge');
+        const moviesEl = document.getElementById('my-rank-movies');
+        const episodesEl = document.getElementById('my-rank-episodes');
+        const hoursEl = document.getElementById('my-rank-hours');
+
+        if (!container || !me) return;
+
+        if (posEl) posEl.textContent = `${me.position}º`;
+        if (avatarEl) avatarEl.innerHTML = `<img src="${getAvatarPath(me.avatar)}" class="w-full h-full object-cover" alt="" />`;
+        if (nameEl) nameEl.textContent = me.username;
+        if (nickEl) nickEl.textContent = me.nickname ? `@${me.nickname}` : '';
+        if (moviesEl) moviesEl.textContent = me.moviesCount;
+        if (episodesEl) episodesEl.textContent = me.episodesCount;
+        if (hoursEl) hoursEl.textContent = `${me.totalHours}h`;
+
+        if (badgeEl) badgeEl.innerHTML = vipBadgeHtml(me.isVIP, me.vipPlan);
+
+        container.classList.remove('hidden');
+    }
+
+    function fillPodiumSlot(rank: number, item: any) {
+        const slotEl = document.querySelector(`[data-podium-slot="${rank}"]`);
+        const nameEl = document.getElementById(`podium-name-${rank}`);
+        const nickEl = document.getElementById(`podium-nick-${rank}`);
+        const badgeEl = document.getElementById(`podium-badge-${rank}`);
+        const hoursEl = document.getElementById(`podium-hours-${rank}`);
+        const avatarEl = document.getElementById(`podium-avatar-${rank}`);
+        const linkEl = document.getElementById(`podium-link-${rank}`);
+        const moviesEl = document.getElementById(`podium-movies-${rank}`);
+        const episodesEl = document.getElementById(`podium-episodes-${rank}`);
+
+        // Posição ainda não conquistada: esmaece o degrau inteiro em vez de deixar um bloco
+        // colorido com "---" dentro, que lia como componente quebrado.
+        slotEl?.classList.toggle('opacity-30', !item);
+
+        if (!item) {
+            linkEl?.setAttribute('href', '#');
+            if (nameEl) nameEl.textContent = '---';
+            if (nickEl) nickEl.textContent = '';
+            if (badgeEl) badgeEl.innerHTML = '';
+            if (hoursEl) hoursEl.textContent = '0.0h';
+            if (avatarEl) avatarEl.innerHTML = '';
+            if (moviesEl) moviesEl.textContent = '0';
+            if (episodesEl) episodesEl.textContent = '0';
+            return;
+        }
+
+        const profileQuery = item.nickname || (item.username === 'Membro MultiCanaisHD' ? item.id : item.username);
+        linkEl?.setAttribute('href', `/perfil?u=${encodeURIComponent(profileQuery)}`);
+        if (nameEl) nameEl.textContent = item.username;
+        if (nickEl) nickEl.textContent = item.nickname ? `@${item.nickname}` : '';
+        if (badgeEl) badgeEl.innerHTML = vipBadgeHtml(item.isVIP, item.vipPlan, 'ml-1');
+        if (hoursEl) hoursEl.textContent = `${item.totalHours}h`;
+        if (moviesEl) moviesEl.textContent = item.moviesCount;
+        if (episodesEl) episodesEl.textContent = item.episodesCount;
+        if (avatarEl) {
+            avatarEl.innerHTML = `<img src="${getAvatarPath(item.avatar)}" class="w-full h-full object-cover rounded-full" alt="" />`;
+        }
+    }
+
+    function setupPodium(top3: any[]) {
+        for (let rank = 1; rank <= 3; rank++) {
+            fillPodiumSlot(rank, top3[rank - 1]);
+        }
+    }
+ 
+    function renderTableRows(items: any[], startPos: number) {
+        const listBody = document.getElementById('ranking-list-body');
+        if (!listBody) return;
+ 
+        items.forEach((item, index) => {
+            const pos = startPos + index;
+            const vipBadge = vipBadgeHtml(item.isVIP, item.vipPlan);
+
+            const profileQuery = item.nickname || (item.username === 'Membro MultiCanaisHD' ? item.id : item.username);
+            const targetUrl = `/perfil?u=${encodeURIComponent(profileQuery)}`;
+
+            const tr = document.createElement('tr');
+            tr.className = "hover:bg-white/[0.01] transition-colors duration-200 text-xs sm:text-sm text-gray-300 group cursor-pointer";
+            tr.onclick = (e) => {
+                // Se o usuário clicar em algo que seja tag de link (A), deixa o comportamento padrão acontecer
+                if ((e.target as HTMLElement).tagName === 'A') return;
+                window.location.href = targetUrl;
+            };
+
+            tr.innerHTML = `
+                <td class="py-4 pl-4 text-center font-black text-gray-500 group-hover:text-[#DF0912] transition-colors">${pos}º</td>
+                <td class="py-4 pl-4">
+                    <div class="flex items-center gap-3">
+                        <img src="${getAvatarPath(item.avatar)}" class="w-8 h-8 rounded-full border border-white/10 group-hover:border-[#DF0912]/30 transition-colors" alt="" />
+                        <div class="flex flex-col min-w-0">
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <a href="${targetUrl}" class="font-bold text-white tracking-tight truncate max-w-[120px] sm:max-w-[280px] hover:text-[#DF0912] transition-colors">${item.username}</a>
+                                ${vipBadge}
+                            </div>
+                            <span class="text-[10px] text-gray-500 font-bold tracking-tight lowercase leading-none mt-1">
+                                ${item.nickname ? `@${item.nickname}` : ''}
+                            </span>
+                        </div>
+                    </div>
+                </td>
+                <td class="py-4 text-center font-bold text-gray-400">${item.moviesCount}</td>
+                <td class="py-4 text-center font-bold text-gray-400">${item.episodesCount}</td>
+                <td class="py-4 pr-4 text-right font-black text-white italic tracking-tight">${item.totalHours}h</td>
+            `;
+            listBody.appendChild(tr);
+        });
+    }
+
+    const SEASON_MONTH_NAMES_PT = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+    const SEASON_MONTH_NAMES_EN = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+    function formatSeasonLabel(seasonLabel: string, isPt: boolean) {
+        const [year, month] = seasonLabel.split('-').map(Number);
+        const names = isPt ? SEASON_MONTH_NAMES_PT : SEASON_MONTH_NAMES_EN;
+        const name = names[(month || 1) - 1] || '';
+        return isPt ? `${name} de ${year}` : `${name} ${year}`;
+    }
+
+    async function loadLastSeasonWinners(isPt: boolean) {
+        const container = document.getElementById('last-season-container');
+        const titleEl = document.getElementById('last-season-title');
+        const listBody = document.getElementById('last-season-list-body');
+        if (!container || !listBody) return;
+
+        try {
+            const response = await fetch(`/api/ranking/winners?t=${Date.now()}`);
+            if (!response.ok) throw new Error("Failed to load winners");
+            const data = await response.json();
+            const winners = data.winners || [];
+
+            if (winners.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+
+            if (titleEl && data.seasonLabel) {
+                titleEl.textContent = isPt
+                    ? `Ganhadores de ${formatSeasonLabel(data.seasonLabel, true)}`
+                    : `Winners — ${formatSeasonLabel(data.seasonLabel, false)}`;
+            }
+
+            listBody.innerHTML = '';
+            winners.forEach((item: any) => {
+                const vipBadge = vipBadgeHtml(item.is_vip, item.vip_plan);
+
+                const profileQuery = item.nickname || (item.username === 'Membro MultiCanaisHD' ? item.id : item.username);
+                const targetUrl = `/perfil?u=${encodeURIComponent(profileQuery)}`;
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-white/[0.01] transition-colors duration-200 text-xs sm:text-sm text-gray-300 group cursor-pointer";
+                tr.onclick = (e) => {
+                    if ((e.target as HTMLElement).tagName === 'A') return;
+                    window.location.href = targetUrl;
+                };
+
+                tr.innerHTML = `
+                    <td class="py-4 pl-4 text-center font-black text-gray-500 group-hover:text-[#DF0912] transition-colors">${item.position}º</td>
+                    <td class="py-4 pl-4">
+                        <div class="flex items-center gap-3">
+                            <img src="${getAvatarPath(item.avatar)}" class="w-8 h-8 rounded-full border border-white/10 group-hover:border-[#DF0912]/30 transition-colors" alt="" />
+                            <div class="flex flex-col min-w-0">
+                                <div class="flex items-center gap-1.5 flex-wrap">
+                                    <a href="${targetUrl}" class="font-bold text-white tracking-tight truncate max-w-[120px] sm:max-w-[280px] hover:text-[#DF0912] transition-colors">${item.username}</a>
+                                    ${vipBadge}
+                                </div>
+                                <span class="text-[10px] text-gray-500 font-bold tracking-tight lowercase leading-none mt-1">
+                                    ${item.nickname ? `@${item.nickname}` : ''}
+                                </span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="py-4 text-center font-bold text-gray-400">${item.movies_count}</td>
+                    <td class="py-4 text-center font-bold text-gray-400">${item.episodes_count}</td>
+                    <td class="py-4 pr-4 text-right font-black text-white italic tracking-tight">${item.total_hours}h</td>
+                `;
+                listBody.appendChild(tr);
+            });
+
+            container.classList.remove('hidden');
+        } catch (err) {
+            console.error("❌ [Ranking Page] Error loading last season winners:", err);
+            container.classList.add('hidden');
+        }
+    }
+
+    // Astro single page app navigation load event listener
+    document.addEventListener("astro:page-load", () => {
+        if (!document.getElementById('ranking-list-body')) return;
+
+        let initialLoaded = false;
+        loadLastSeasonWinners(document.documentElement.lang !== 'en');
+
+        // Subscrito para garantir que o rank apareça assim que o auth carregar
+        authStore.subscribe((state) => {
+            if (!state.loading && !initialLoaded) {
+                initialLoaded = true;
+                console.log("👤 [Ranking] Auth ready, starting load...");
+                loadRankings(1);
+            }
+        });
+
+        // Fallback: Se após 3s o auth ainda estiver carregando, forçamos o load como guest
+        setTimeout(() => {
+            if (!initialLoaded) {
+                console.log("🕒 [Ranking] Auth timeout, loading as guest...");
+                initialLoaded = true;
+                loadRankings(1);
+            }
+        }, 3000);
+
+        document.getElementById('load-more-btn')?.addEventListener('click', () => {
+            loadRankings(currentPage + 1);
+        });
+    });
+</script>
+
+<style>
+    /* Proporção dos degraus (1º mais alto que o 2º, 2º mais alto que o 3º) em qualquer
+       viewport. É min-height e não height: o degrau agora tem conteúdo dentro (filmes/eps),
+       então altura fixa cortaria os números em telas estreitas. */
+    .podium-pedestal-1 {
+        min-height: 7rem;
+    }
+    .podium-pedestal-2 {
+        min-height: 5.5rem;
+    }
+    .podium-pedestal-3 {
+        min-height: 4.5rem;
+    }
+
+    @media (min-width: 640px) {
+        .podium-pedestal-1 {
+            min-height: 10rem;
+        }
+        .podium-pedestal-2 {
+            min-height: 7.5rem;
+        }
+        .podium-pedestal-3 {
+            min-height: 6rem;
+        }
+    }
+</style>

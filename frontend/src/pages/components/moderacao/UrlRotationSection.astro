@@ -1,0 +1,344 @@
+---
+// src/pages/components/moderacao/UrlRotationSection.astro
+---
+
+<div id="url-rotation-section" class="hidden space-y-4 animate-in fade-in duration-500">
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-[#141414] p-4 rounded-xl border border-white/10">
+        <div class="flex items-center gap-2.5">
+            <span class="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
+            <h3 class="text-white text-sm font-semibold">
+                Substituição &amp; rotação de URL <span class="text-gray-500 font-normal">— Anti-DMCA</span>
+            </h3>
+        </div>
+        <div class="flex items-center gap-2">
+            <button id="sync-rotations-btn" type="button" class="text-gray-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition-colors text-xs font-medium px-3 py-2 rounded-lg">
+                Sincronizar
+            </button>
+            <button id="clear-rotations-btn" type="button" class="text-gray-400 hover:text-[#DF0912] bg-white/[0.04] hover:bg-[#DF0912]/10 border border-white/10 hover:border-[#DF0912]/30 transition-colors text-xs font-medium px-3 py-2 rounded-lg">
+                Limpar todas
+            </button>
+        </div>
+    </div>
+
+    <!-- Explicação -->
+    <div class="bg-[#141414] border border-white/10 rounded-xl p-5">
+        <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5">
+            <p class="text-gray-400 text-xs leading-relaxed max-w-2xl">
+                Quando o Google remove uma URL por direitos autorais (Lumen Database), cole o link aqui. O sistema
+                altera o slug adicionando ou incrementando o sufixo numérico (-1, -2, -3...) sem alterar os dados,
+                permitindo reenviar a nova URL para indexação imediata.
+            </p>
+
+            <div class="flex items-center bg-[#060911] p-1 rounded-lg border border-white/10 shrink-0">
+                <button id="rot-mode-single" type="button" class="px-3.5 py-1.5 rounded-md text-xs font-medium transition-colors bg-[#DF0912] text-white">
+                    URL única
+                </button>
+                <button id="rot-mode-batch" type="button" class="px-3.5 py-1.5 rounded-md text-xs font-medium transition-colors text-gray-400 hover:text-white">
+                    Lote de URLs
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Verificação de bloqueio legal (451 do Cloudflare) -->
+    <div class="bg-[#141414] border border-white/10 rounded-xl p-5 space-y-4">
+        <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            <div class="space-y-1.5">
+                <h4 class="text-white text-sm font-semibold flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 bg-[#DF0912] rounded-full"></span>
+                    URLs bloqueadas por notificação <span class="text-gray-500 font-normal">(erro HTTP 451)</span>
+                </h4>
+                <p class="text-gray-400 text-xs leading-relaxed max-w-2xl">
+                    Testa o endereço <strong class="text-gray-300">atual</strong> de cada rotação e lista as que devolvem
+                    <code class="text-amber-300 font-mono">451 Unavailable For Legal Reasons</code> — o bloqueio caiu em cima
+                    do slug canônico de hoje. Rotacionar essas obras move o canônico para um slug novo, que volta a
+                    responder 200 e é anunciado no sitemap.
+                </p>
+                <p class="text-[11px] text-gray-500 leading-relaxed max-w-2xl">
+                    O teste é sempre contra o <strong class="text-gray-400">domínio canônico atual</strong>. Bloqueios que
+                    ficaram nas zonas de domínios antigos não aparecem aqui — depois de uma migração, o resultado
+                    normal é zero.
+                </p>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                <button id="check-blocks-btn" type="button" class="text-gray-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition-colors text-xs font-medium px-3 py-2 rounded-lg flex items-center gap-2">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
+                    <span>Verificar bloqueios</span>
+                    <div id="check-blocks-spinner" class="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full hidden"></div>
+                </button>
+                <button id="rotate-blocked-btn" type="button" disabled class="bg-[#DF0912] hover:bg-[#be080f] disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold transition-colors text-xs px-3 py-2 rounded-lg flex items-center gap-2">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    <span id="rotate-blocked-label">Rotacionar bloqueadas</span>
+                    <div id="rotate-blocked-spinner" class="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full hidden"></div>
+                </button>
+            </div>
+        </div>
+
+        <div id="blocked-feedback" class="hidden p-3.5 rounded-lg border text-xs"></div>
+        <div id="blocked-list" class="hidden divide-y divide-white/[0.06] max-h-[420px] overflow-y-auto rounded-lg border border-white/10"></div>
+
+        <p class="text-[10px] text-gray-600 leading-relaxed">
+            A verificação testa a URL em português. Se o bloqueio estiver na URL <span class="font-mono">/en/</span> da
+            obra, rotacione essa obra com o idioma <span class="font-mono">en</span> (ou "Ambos") no formulário abaixo —
+            o slug inglês passa a ter rotação própria e a URL antiga responde 301.
+        </p>
+    </div>
+
+    <!-- Checagem sob demanda de qualquer URL -->
+    <div class="bg-[#141414] border border-white/10 rounded-xl p-5 space-y-4">
+        <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            <div class="space-y-1.5">
+                <h4 class="text-white text-sm font-semibold flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 bg-[#DF0912] rounded-full"></span>
+                    Checar URLs soltas <span class="text-gray-500 font-normal">(status HTTP real)</span>
+                </h4>
+                <p class="text-gray-400 text-xs leading-relaxed max-w-2xl">
+                    Cole uma URL por linha para ver o status que o <strong class="text-gray-300">Googlebot</strong> recebe
+                    hoje. Serve para URLs que ainda não têm rotação cadastrada — inclusive as de
+                    <span class="font-mono">/en/</span>. HEAD com fallback para GET, timeout de 10s.
+                </p>
+                <p class="text-[11px] text-gray-500 leading-relaxed max-w-2xl">
+                    Até 50 URLs por chamada, 5 em paralelo. A checagem roda no servidor, então o resultado é o status
+                    público — não depende do seu navegador.
+                </p>
+            </div>
+            <button id="check-urls-btn" type="button" class="text-gray-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition-colors text-xs font-medium px-3 py-2 rounded-lg flex items-center gap-2 shrink-0">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                <span>Checar URLs</span>
+                <div id="check-urls-spinner" class="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full hidden"></div>
+            </button>
+        </div>
+
+        <textarea
+            id="check-urls-input"
+            rows="4"
+            placeholder="https://multicanaishd.lol/en/filme/603-the-matrix&#10;https://multicanaishd.lol/serie/1396-breaking-bad&#10;/filme/157336-interstellar"
+            class="w-full bg-[#060911] border border-white/10 rounded-lg p-3.5 text-xs text-white placeholder:text-gray-600 focus:outline-none focus:border-[#DF0912]/60 transition-colors font-mono leading-relaxed"
+        ></textarea>
+
+        <div id="check-urls-feedback" class="hidden p-3.5 rounded-lg border text-xs"></div>
+        <div id="check-urls-list" class="hidden divide-y divide-white/[0.06] max-h-[420px] overflow-y-auto rounded-lg border border-white/10"></div>
+    </div>
+
+    <!-- Detecção automática de bloqueio legal (451) -->
+    <div class="bg-[#141414] border border-white/10 rounded-xl p-5 space-y-4">
+        <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            <div class="space-y-1.5">
+                <h4 class="text-white text-sm font-semibold flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full"></span>
+                    Detecção automática <span class="text-gray-500 font-normal">(451 do Cloudflare)</span>
+                </h4>
+                <p class="text-gray-400 text-xs leading-relaxed max-w-2xl">
+                    Um job de cron lê a cada 10 minutos o relatório da Analytics API do Cloudflare com as URLs que
+                    responderam <code class="text-amber-300 font-mono">451</code>. Quando o caminho bloqueado é o
+                    <strong class="text-gray-300">canônico atual</strong> da obra, o slug é rotacionado sozinho (PT e
+                    EN, cada um no seu idioma). Slugs antigos já rotacionados são registrados como
+                    <span class="font-mono">ignorado</span> e não geram rotação nova.
+                </p>
+                <p class="text-[11px] text-gray-500 leading-relaxed max-w-2xl">
+                    O token da API fica na env var <span class="font-mono">CLOUDFLARE_ANALYTICS_TOKEN</span> (secret do
+                    deploy) e a zona é resolvida pelo domínio canônico, com cache de 24h no KV — trocar de domínio não
+                    exige mexer no código.
+                </p>
+            </div>
+
+            <!-- Toggle no mesmo padrão do provedor de anúncios (Configurações) -->
+            <div class="flex items-center gap-3 shrink-0">
+                <div class="space-y-1">
+                    <label for="dmca-auto-rotate-select" class="block text-[10px] uppercase tracking-wider text-gray-500">Auto-rotação</label>
+                    <select
+                        id="dmca-auto-rotate-select"
+                        data-active-auto-rotate="on"
+                        class="bg-[#060911] border border-white/10 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#DF0912]/60 transition-colors"
+                    >
+                        <option value="on">Ligada</option>
+                        <option value="off">Desligada</option>
+                    </select>
+                </div>
+                <div id="dmca-toggle-spinner" class="animate-spin h-3.5 w-3.5 border-2 border-[#DF0912] border-t-transparent rounded-full hidden self-end mb-3"></div>
+            </div>
+        </div>
+
+        <div id="dmca-token-alerta" class="hidden p-3.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-300 text-xs leading-relaxed">
+            <strong>Token de analytics não configurado.</strong> Sem
+            <span class="font-mono">CLOUDFLARE_ANALYTICS_TOKEN</span> no ambiente do deploy, o job do cron devolve
+            <span class="font-mono">token_ausente</span> e nada é detectado. O log abaixo pode continuar vazio mesmo com
+            URLs bloqueadas.
+        </div>
+
+        <div id="dmca-log-feedback" class="hidden p-3.5 rounded-lg border text-xs"></div>
+
+        <div class="rounded-lg border border-white/10 overflow-hidden">
+            <div class="hidden sm:grid grid-cols-[130px_1fr_70px_120px_1fr] gap-3 px-4 py-2.5 bg-white/[0.03] border-b border-white/10 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
+                <span>Quando</span>
+                <span>Caminho bloqueado</span>
+                <span class="text-right">Req.</span>
+                <span>Ação</span>
+                <span>Slug novo</span>
+            </div>
+            <div id="dmca-log-list" class="hidden divide-y divide-white/[0.06] max-h-[420px] overflow-y-auto"></div>
+            <div id="dmca-log-empty" class="p-8 text-center">
+                <p class="text-gray-500 text-xs">Nenhuma detecção registrada ainda.</p>
+                <p class="text-[10px] text-gray-600 mt-1">O job roda a cada 10 minutos; a lista aparece no primeiro 451 detectado.</p>
+            </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <p class="text-[10px] text-gray-600 leading-relaxed">
+                "Recarregar log" só relê o histórico gravado no KV. Quem dispara a detecção é o cron, com o
+                <span class="font-mono">CRON_SECRET</span> — que não vai para o navegador.
+            </p>
+            <button id="dmca-refresh-btn" type="button" class="text-gray-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition-colors text-xs font-medium px-3 py-2 rounded-lg flex items-center justify-center gap-2 shrink-0">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                <span>Recarregar log</span>
+                <div id="dmca-refresh-spinner" class="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full hidden"></div>
+            </button>
+        </div>
+    </div>
+
+    <!-- Migration SQL Box (exibido só se a tabela não existir) -->
+    <div id="rot-migration-alert" class="hidden bg-[#141414] border border-amber-500/20 rounded-xl p-5 space-y-3">
+        <div class="flex items-center gap-2.5">
+            <svg class="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <h4 class="text-white text-sm font-semibold">Ação no banco necessária: tabela <code class="text-amber-300 font-mono">url_rotations</code></h4>
+        </div>
+        <p class="text-xs text-gray-400">
+            Execute o script abaixo no SQL Editor do seu Supabase. Ele cria a tabela se ainda não existir e, numa tabela
+            já existente, adiciona as colunas da rotação por idioma (<span class="font-mono">ALTER TABLE ... ADD COLUMN
+            IF NOT EXISTS</span>) — rodar de novo é seguro.
+        </p>
+        <pre id="rot-sql-code" class="bg-[#060911] border border-white/10 p-4 rounded-lg text-[11px] text-gray-300 font-mono overflow-x-auto select-all"></pre>
+    </div>
+
+    <!-- Grid principal: formulário + histórico -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+        <!-- Formulário (esquerda) -->
+        <div class="lg:col-span-7 bg-[#141414] border border-white/10 rounded-xl p-5 space-y-5">
+            <!-- Modo URL única -->
+            <form id="single-rotation-form" class="space-y-4">
+                <div class="space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs text-gray-400">URL completa ou slug da obra</label>
+                        <span class="text-[10px] text-gray-600">Ex: multicanaishd.lol/filme/1396-breaking-bad</span>
+                    </div>
+                    <input
+                        type="text"
+                        id="rot-input-url"
+                        placeholder="Cole aqui a URL que foi notificada no Google..."
+                        class="w-full bg-[#060911] border border-white/10 rounded-lg px-4 py-3 text-xs text-white placeholder:text-gray-600 focus:outline-none focus:border-[#DF0912]/60 transition-colors font-mono"
+                        required
+                    />
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="space-y-1.5">
+                        <label class="text-xs text-gray-400">Tipo de conteúdo</label>
+                        <select id="rot-forced-type" class="w-full bg-[#060911] border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white focus:outline-none focus:border-[#DF0912]/60 transition-colors">
+                            <option value="">Auto-detectar pela URL</option>
+                            <option value="movie">Filme (/filme/)</option>
+                            <option value="series">Série (/serie/)</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-xs text-gray-400">Idioma da rotação</label>
+                        <!-- "Ambos" faz duas chamadas de API (pt e en): a obra tem uma linha só,
+                             com colunas separadas por idioma em url_rotations. -->
+                        <select id="rot-lang" class="w-full bg-[#060911] border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white focus:outline-none focus:border-[#DF0912]/60 transition-colors">
+                            <option value="pt">Português (pt) — padrão</option>
+                            <option value="en">Inglês (/en/)</option>
+                            <option value="ambos">Ambos (pt + en)</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-xs text-gray-400">Slug personalizado (opcional)</label>
+                        <input
+                            type="text"
+                            id="rot-custom-slug"
+                            placeholder="Vazio = autoincremento (-1, -2...)"
+                            class="w-full bg-[#060911] border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-gray-600 focus:outline-none focus:border-[#DF0912]/60 transition-colors font-mono"
+                        />
+                    </div>
+                </div>
+
+                <button
+                    type="submit"
+                    id="btn-submit-rotation"
+                    class="w-full bg-[#DF0912] hover:bg-[#be080f] text-white font-semibold py-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
+                >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    <span>Rotacionar URL da obra</span>
+                    <div id="rot-single-spinner" class="animate-spin h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full hidden"></div>
+                </button>
+            </form>
+
+            <!-- Modo lote de URLs (hidden por padrão) -->
+            <form id="batch-rotation-form" class="space-y-4 hidden">
+                <div class="space-y-1.5">
+                    <label class="text-xs text-gray-400">Idioma do lote</label>
+                    <!-- "Ambos" faz duas chamadas de lote (pt e en): uma linha por obra na tabela,
+                         com colunas separadas por idioma. -->
+                    <select id="rot-batch-lang" class="w-full bg-[#060911] border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white focus:outline-none focus:border-[#DF0912]/60 transition-colors">
+                        <option value="pt">Português (pt) — padrão</option>
+                        <option value="en">Inglês (/en/)</option>
+                        <option value="ambos">Ambos (pt + en)</option>
+                    </select>
+                </div>
+                <div class="space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs text-gray-400">URLs ou slugs em lote (uma por linha)</label>
+                        <button
+                            type="button"
+                            id="btn-format-batch"
+                            class="text-[10px] font-medium px-2.5 py-1 rounded-md border border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition-colors flex items-center gap-1"
+                            title="Desofusca hxxps://, [.], &amp; e remove parâmetros residuais (?season=...)"
+                        >
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                            <span>Formatar / desofuscar</span>
+                        </button>
+                    </div>
+                    <textarea
+                        id="rot-batch-input"
+                        rows="6"
+                        placeholder="https://multicanaishd.lol/filme/603-matrix&#10;https://multicanaishd.lol/serie/1396-breaking-bad&#10;157336-interstellar"
+                        class="w-full bg-[#060911] border border-white/10 rounded-lg p-3.5 text-xs text-white placeholder:text-gray-600 focus:outline-none focus:border-[#DF0912]/60 transition-colors font-mono leading-relaxed"
+                        required
+                    ></textarea>
+                </div>
+
+                <button
+                    type="submit"
+                    id="btn-submit-batch"
+                    class="w-full bg-[#DF0912] hover:bg-[#be080f] text-white font-semibold py-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
+                >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                    <span>Executar rotação em lote</span>
+                    <div id="rot-batch-spinner" class="animate-spin h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full hidden"></div>
+                </button>
+            </form>
+
+            <!-- Feedback de ação -->
+            <div id="rot-action-feedback" class="hidden p-3.5 rounded-lg border text-xs"></div>
+        </div>
+
+        <!-- Histórico de rotações (direita) -->
+        <div class="lg:col-span-5 bg-[#141414] border border-white/10 rounded-xl overflow-hidden flex flex-col">
+            <div class="p-4 border-b border-white/10 flex items-center justify-between">
+                <h4 class="text-white text-sm font-semibold flex items-center gap-2">
+                    Histórico (<span id="rot-history-count" class="font-mono text-gray-400">0</span>)
+                </h4>
+                <button id="refresh-rotations-btn" type="button" class="text-gray-400 hover:text-white transition-colors text-xs font-medium flex items-center gap-1.5">
+                    Atualizar
+                    <div id="rot-history-loader" class="animate-spin h-2.5 w-2.5 border-2 border-[#DF0912] border-t-transparent rounded-full hidden"></div>
+                </button>
+            </div>
+
+            <div id="rot-history-list" class="divide-y divide-white/[0.06] max-h-[520px] overflow-y-auto">
+                <!-- Dynamic Items -->
+            </div>
+
+            <div id="rot-history-empty" class="p-10 text-center">
+                <p class="text-gray-500 text-xs">Nenhuma rotação ativa cadastrada.</p>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,35 @@
+---
+// src/pages/components/OndeAssistir.astro
+// Seção "Onde assistir X" nas páginas de filme e série.
+//
+// Existe para atender uma intenção de busca que o site não cobria: "onde assistir X",
+// "X está em qual streaming". É uma pergunta diferente de "assistir X online" — o SERP dela
+// é ocupado por sites de notícia de cinema, não por catálogos — e a página do título só
+// concorre nela se a pergunta estiver respondida nela.
+//
+// A resposta é o MultiCanaisHD, ponto. Uma versão anterior listava os provedores de streaming
+// vindos da TMDB; foi removida de propósito. O que faz a página casar com a busca é o H2 e
+// a frase-resposta abaixo — citar catálogo de terceiro não acrescentava ranking e mandava o
+// leitor pensar em outro serviço no momento exato em que ele decide onde assistir.
+//
+// "Where to watch X" section: a search intent distinct from "watch X online". Third-party
+// provider listings were deliberately dropped — the heading and answer text carry the
+// ranking signal, the competitor names only carried the reader away.
+const { nome, isPt = true } = Astro.props;
+
+// Frase-resposta em texto corrido: é o trecho que o Google pode extrair como snippet.
+const resumo = isPt
+    ? `Você pode assistir ${nome} online agora mesmo aqui no MultiCanaisHD, de graça e em HD, dublado ou legendado. É só abrir o player nesta página — sem assinatura, sem cadastro e sem instalar nada.`
+    : `You can watch ${nome} online right here on MultiCanaisHD, free and in HD, dubbed or subtitled. Just open the player on this page — no subscription, no signup and nothing to install.`;
+---
+
+<section class="mt-12 sm:mt-16" id="onde-assistir" aria-labelledby="onde-assistir-titulo">
+    <h2
+        id="onde-assistir-titulo"
+        class="text-2xl sm:text-3xl font-black uppercase italic tracking-tighter text-white mb-4"
+    >
+        {isPt ? `Onde assistir ${nome}` : `Where to watch ${nome}`}
+    </h2>
+
+    <p class="text-sm sm:text-base text-gray-400 leading-relaxed max-w-3xl">{resumo}</p>
+</section>

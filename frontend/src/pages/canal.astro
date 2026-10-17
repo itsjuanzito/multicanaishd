@@ -1,0 +1,15 @@
+---
+export const prerender = false;
+
+import { slugify } from "../utils/slugify.js";
+
+const name = Astro.url.searchParams.get("nome") || Astro.url.searchParams.get("name") || "";
+const id = Astro.url.searchParams.get("id") || "";
+const targetSlug = slugify(name) || slugify(id.replace(/^jogo[_-]?/i, ""));
+
+if (targetSlug) {
+    return Astro.redirect(`/canal/${targetSlug}`, 301);
+}
+
+return Astro.redirect("/canais", 301);
+---

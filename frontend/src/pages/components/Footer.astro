@@ -1,0 +1,68 @@
+---
+// src/pages/components/Footer.astro
+const currentYear = new Date().getFullYear();
+
+// i18n
+import { getLangFromUrl, useTranslations } from "../../i18n/utils";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+const langPrefix = isPt ? "" : `/${lang}`;
+---
+
+<footer class="mt-auto border-t border-white/10 py-12">
+    <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex flex-col md:flex-row items-center justify-between gap-8">
+            <!-- Left Side: Brand & Social -->
+            <div class="flex items-center gap-6">
+                <a href={isPt ? "/" : "/en"} class="flex items-center gap-2 group">
+                    <span class="text-xl font-black text-white tracking-tighter">
+                        MULTI<span class="text-[#DF0912]">CANAISHD</span>
+                    </span>
+                </a>
+                
+                <div class="flex items-center gap-4">
+                <button
+                    onclick={`document.dispatchEvent(new CustomEvent('multicanaishd:open-community', { detail: { title: '${t('footer.support_telegram_title')}', description: '${t('footer.support_telegram_desc')}' } }))`}
+                    class="p-2 bg-white/5 hover:bg-[#229ED9] rounded-xl text-gray-400 hover:text-white transition-all"
+                    title="Telegram"
+                    aria-label="Join our Telegram channel"
+                >
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.13-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/></svg>
+                </button>
+                </div>
+            </div>
+
+            <!-- Right Side: Navigation Links -->
+            <nav class="flex flex-wrap items-center justify-center md:justify-end gap-x-6 gap-y-2">
+                <a href={langPrefix + "/"} class="text-xs font-medium text-gray-400 hover:text-white transition-colors">{t('nav.home')}</a>
+                <a href={langPrefix + "/filmes-online"} class="text-xs font-medium text-gray-400 hover:text-white transition-colors">{t('nav.movies')}</a>
+                <a href={langPrefix + "/series-online"} class="text-xs font-medium text-gray-400 hover:text-white transition-colors">{t('nav.series')}</a>
+                <a href={langPrefix + "/calendario"} class="text-xs font-medium text-gray-400 hover:text-white transition-colors">{t('nav.calendar')}</a>
+                <a href={langPrefix + "/animes-online"} class="text-xs font-medium text-gray-400 hover:text-white transition-colors">{t('nav.explore')}</a>
+                <a href="https://streambetter.shop" target="_blank" rel="noopener" class="text-xs font-medium text-gray-400 hover:text-white transition-colors">{t('nav.api')}</a>
+                <a id="footer-minha-lista" href={langPrefix + "/minha-lista"} class="hidden text-xs font-medium text-gray-400 hover:text-white transition-colors">{t('nav.my_list')}</a>
+            </nav>
+        </div>
+
+        <!-- SEO Semantic Content Block -->
+        <div class="mt-10 pt-8 border-t border-white/5">
+            <div class="space-y-4">
+                <h4 class="text-xs font-black text-white/60 uppercase tracking-[0.2em]">MultiCanaisHD - {t('footer.platform_subtitle')}</h4>
+                <p class="text-[11px] leading-relaxed text-gray-400 font-medium text-justify">
+                    {t('footer.description')}
+                </p>
+            </div>
+        </div>
+
+        <!-- Copyright (Subtle) -->
+        <div class="mt-8 pt-6 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4">
+            <p class="text-[10px] text-gray-300 font-medium tracking-wide uppercase">
+                &copy; {currentYear} MultiCanaisHD. {t('footer.copyright')}
+            </p>
+            <p class="text-[9px] text-gray-400 italic max-w-sm text-center md:text-right">
+                {t('footer.disclaimer')}
+            </p>
+        </div>
+    </div>
+</footer>

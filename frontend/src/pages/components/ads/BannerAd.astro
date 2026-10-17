@@ -1,0 +1,74 @@
+---
+// Banner display Adsterra: 728x90 no desktop, 320x50 no mobile. Não roda por trás de
+// getConfig/KV de propósito: é um slot fixo, sem troca de provedor — ver adSettings.js.
+import { BANNER_AD, BANNER_AD_MOBILE } from "../../../services/adSettings.js";
+---
+
+<div class="hidden sm:flex justify-center" style={`height:${BANNER_AD.height}px;`}>
+    <div
+        class="bf-banner-ad"
+        style={`width:${BANNER_AD.width}px;height:${BANNER_AD.height}px;`}
+        data-bf-banner-ad
+        data-bf-key={BANNER_AD.key}
+        data-bf-src={BANNER_AD.scriptSrc}
+        data-bf-width={BANNER_AD.width}
+        data-bf-height={BANNER_AD.height}
+    >
+    </div>
+</div>
+
+<div class="flex sm:hidden justify-center" style={`height:${BANNER_AD_MOBILE.height}px;`}>
+    <div
+        class="bf-banner-ad"
+        style={`width:${BANNER_AD_MOBILE.width}px;height:${BANNER_AD_MOBILE.height}px;`}
+        data-bf-banner-ad
+        data-bf-key={BANNER_AD_MOBILE.key}
+        data-bf-src={BANNER_AD_MOBILE.scriptSrc}
+        data-bf-width={BANNER_AD_MOBILE.width}
+        data-bf-height={BANNER_AD_MOBILE.height}
+    >
+    </div>
+</div>
+
+<script>
+    document.addEventListener("astro:page-load", () => {
+        const containers = document.querySelectorAll("[data-bf-banner-ad]:not([data-bf-injected])");
+        if (containers.length === 0) return;
+
+        let isVIP = false;
+        try {
+            const raw = localStorage.getItem("bf_session_optimistic");
+            if (raw && raw !== "undefined") {
+                const session = JSON.parse(raw);
+                // vipUntil vencido = sessão otimista velha de ex-VIP: volta a ver o banner.
+                isVIP = session.isVIP === true && (!session.vipUntil || new Date(session.vipUntil) > new Date());
+            }
+        } catch (e) {}
+        if (window._authStore) isVIP = window._authStore.get().isVIP || isVIP;
+        if (isVIP) {
+            containers.forEach((c) => c.parentElement?.remove());
+            return;
+        }
+
+        containers.forEach((container) => {
+            // Só injeta a variante que o CSS está de fato exibindo nesse breakpoint —
+            // offsetParent é null para elementos com display:none (a outra variante,
+            // escondida pelo breakpoint oposto). Ela não deve gastar impressão/request.
+            if (container.offsetParent === null) return;
+
+            container.dataset.bfInjected = "true";
+            const { bfKey, bfSrc, bfWidth, bfHeight } = container.dataset;
+
+            const optionsScript = document.createElement("script");
+            optionsScript.setAttribute("data-cfasync", "false");
+            optionsScript.text = `atOptions = { 'key': '${bfKey}', 'format': 'iframe', 'height': ${bfHeight}, 'width': ${bfWidth}, 'params': {} };`;
+            container.appendChild(optionsScript);
+
+            const invokeScript = document.createElement("script");
+            invokeScript.async = true;
+            invokeScript.setAttribute("data-cfasync", "false");
+            invokeScript.src = bfSrc;
+            container.appendChild(invokeScript);
+        });
+    });
+</script>

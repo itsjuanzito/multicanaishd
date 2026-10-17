@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "MultiCanaisHD",
+    "slug": "multicanaishd",
+    "version": "1.0.0",
+    "scheme": "multicanaishd",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#050505"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#050505"
+      },
+      "navigationBar": {
+        "backgroundColor": "#050505",
+        "barStyle": "light-content"
+      },
+      "androidNavigationBar": {
+        "enforceContrast": false
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "softwareKeyboardLayoutMode": "pan"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-asset",
+      "expo-web-browser"
+    ]
+  }
+}

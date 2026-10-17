@@ -1,0 +1,929 @@
+---
+// src/pages/changelog.astro
+// @ts-nocheck
+import "../styles/global.css";
+export const prerender = false;
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+// i18n
+import { getLangFromUrl, useTranslations } from "../i18n/utils";
+import { getSiteUrl } from "../services/env-adapter.js";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+const siteUrl = getSiteUrl(Astro.url);
+
+// Configuração
+const LATEST_VERSION = "3.0.0";
+const ITEMS_PER_PAGE = 3; // Quantas versões mostrar inicialmente
+
+const versoes = [
+    {
+        versao: "3.0.0",
+        data: isPt ? "6 de Setembro, 2026" : "September 6, 2026",
+        tipo: "major",
+        titulo: isPt ? "Perfis Múltiplos, Perfil Infantil e Player Único" : "Multiple Profiles, Kids Profile and Single Player",
+        desc: isPt
+            ? "Agora dá para gerenciar até 5 perfis na mesma conta, cada um com sua própria lista e histórico, incluindo um perfil infantil dedicado que filtra o catálogo e esconde canais e jogos ao vivo. Também simplificamos a página de Status e corrigimos vários bugs."
+            : "You can now manage up to 5 profiles on the same account, each with its own list and watch history, including a dedicated kids profile that filters the catalog and hides live channels and games. We also simplified the Status page and fixed several bugs."
+        ,
+        mudancas: [
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Perfis Múltiplos (MultiCanaisHD VIP Black): Crie até 5 perfis na mesma conta, cada um com lista, histórico e progresso independentes — acesse em /perfis ou pelo seu Perfil."
+                    : "Multiple Profiles (MultiCanaisHD VIP Black): Create up to 5 profiles on the same account, each with independent list, history and progress — access it at /profiles or from your Profile page.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Perfil Infantil: Um perfil dedicado para as crianças, com catálogo filtrado por gênero e classificação indicativa, e sem acesso a canais e jogos ao vivo."
+                    : "Kids Profile: A dedicated profile for children, with a catalog filtered by genre and content rating, and no access to live channels or games.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Foto por Perfil: Cada perfil pode ter sua própria foto customizada, além dos avatares predefinidos."
+                    : "Per-Profile Photo: Each profile can have its own custom photo, in addition to the preset avatars.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Player Único: Filmes, séries, animes, doramas e todo o resto do catálogo agora tocam num player só, mais rápido e estável."
+                    : "Single Player: Movies, series, anime, doramas and the rest of the catalog now play through a single, faster and more stable player.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Nova API: API renovada para desenvolvedores."
+                    : "New API: Refreshed API for developers.",
+            },
+        ],
+    },
+    {
+        versao: "2.13.0",
+        data: isPt ? "13 de Julho, 2026" : "July 13, 2026",
+        tipo: "major",
+        titulo: isPt ? "Página de Status, Agenda Esportiva e Novo Plano de API" : "Status Page, Sports Schedule and New API Plan",
+        desc: isPt
+            ? "Mais transparência e flexibilidade nesta atualização! Adicionamos uma página de status para acompanhar a saúde da plataforma em tempo real, uma agenda com jogos de futebol, basquete e outros esportes, um novo plano de chave de API com link direto de filme/série, um sino de notificações no header para avisos e promoções, e agora dá para comprar mais dias de chave de forma acumulativa."
+            : "More transparency and flexibility in this update! We've added a status page to track platform health in real time, a schedule for soccer, basketball and other sports games, a new API key plan with direct movie/series links, a header notification bell for announcements and promotions, and you can now purchase additional key days cumulatively."
+        ,
+        mudancas: [
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Página de Status: Acompanhe em tempo real a disponibilidade dos principais serviços da plataforma."
+                    : "Status Page: Track the real-time availability of the platform's main services.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Agenda de Eventos Esportivos: Nova página de agenda com partidas de futebol, basquete e outros esportes."
+                    : "Sports Events Schedule: New schedule page featuring soccer, basketball and other sports matches.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Novo Plano de Chave de API: Plano com link direto de filme/série disponível para desenvolvedores."
+                    : "New API Key Plan: Plan featuring direct movie/series links available for developers.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Sino de Notificações: Novo ícone no header com contador de não lidas, para acompanhar anúncios e promoções da plataforma."
+                    : "Notification Bell: New header icon with an unread counter to keep up with platform announcements and promotions.",
+            },
+            {
+                tag: isPt ? "Melhoria" : "Improvement",
+                cor: "blue",
+                texto: isPt
+                    ? "Renovação Acumulativa de Chave: Agora é possível comprar mais dias de validade para sua chave de API de forma acumulativa."
+                    : "Cumulative Key Renewal: You can now purchase additional validity days for your API key cumulatively.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Download Direto: Agora dá para baixar filmes e séries via link direto, sem torrent — exclusivo para assinantes MultiCanaisHD VIP Diamond."
+                    : "Direct Download: You can now download movies and series via a direct link, no torrent needed — exclusive to MultiCanaisHD VIP Diamond subscribers.",
+            },
+            {
+                tag: "Fix",
+                cor: "orange",
+                texto: isPt
+                    ? "Diversos bugs corrigidos em várias partes da plataforma."
+                    : "Various bugs fixed across multiple parts of the platform.",
+            },
+        ],
+    },
+    {
+        versao: "2.12.0",
+        data: isPt ? "14 de Maio, 2026" : "May 14, 2026",
+        tipo: "major",
+        titulo: isPt ? "Ecossistema de Mangás, Leituras Offline e Correções VIP" : "Manga Ecosystem, Offline Reading and VIP Fixes",
+        desc: isPt 
+            ? "Expandimos os horizontes do MultiCanaisHD para o universo Otaku! Adicionamos um acervo completo de mangás com leitor avançado, histórico de onde parou, opção de salvar nos favoritos e download de capítulos para leitura offline (exclusivo VIP). Além disso, corrigimos o fluxo de pagamento por chaves na API no Perfil."
+            : "Expanding MultiCanaisHD horizons into the Otaku universe! Introducing a complete manga library with an advanced reader, continue reading history, save to favorites option, and chapter downloads for offline reading (VIP exclusive). Additionally, we fixed the B2B key payment flow in Profile.",
+        mudancas: [
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt 
+                    ? "Acervo e Leitor de Mangás: Explore milhares de obras com um leitor limpo, rápido e imersivo."
+                    : "Manga Library & Reader: Explore thousands of titles with a clean, fast, and immersive reader.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Histórico e Favoritos: Salve seus mangás preferidos na Minha Lista e retome a leitura exatamente da página onde parou."
+                    : "History & Favorites: Save your favorite manga to My List and pick up your reading exactly from the page you left off.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Download para Leitura Offline: Membros VIP agora podem baixar capítulos inteiros para ler sem conexão à internet."
+                    : "Offline Reading Downloads: VIP members can now download entire chapters for offline reading without an internet connection.",
+            },
+            {
+                tag: "Fix",
+                cor: "orange",
+                texto: isPt
+                    ? "Correção de Compra de Chaves no Perfil: Resolvido o erro no checkout de compra de licenças B2B de desenvolvedor no Perfil."
+                    : "Key Purchase Fix in Profile: Resolved checkout error when purchasing developer B2B licenses in Profile.",
+            },
+        ],
+    },
+    {
+        versao: "2.11.0",
+        data: isPt ? "13 de Maio, 2026" : "May 13, 2026",
+        tipo: "major",
+        titulo: isPt ? "Novo Player Ad-Free Premium, Keys B2B e Expansão Watchparty" : "New Ad-Free Premium Player, B2B Keys and Watchparty Expansion",
+        desc: isPt 
+            ? "Atualização gigantesca de infraestrutura e usabilidade! Introduzimos um novo player premium limpo sem anúncios para devs/parceiros, licenciamento B2B na API, suporte a filmes e séries no Watchparty, download via torrent no player e dashboard de chaves no Perfil."
+            : "Massive infrastructure and usability update! Introducing a new premium ad-free player for devs/partners, B2B licensing in our API, movie and series support in Watchparty, torrent download in the player, and developer key dashboard in Profile.",
+        mudancas: [
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt 
+                    ? "Novo Player Sem Anúncios: Adicionado um player premium totalmente sem anúncios com várias novas funcionalidades, suporte dedicado e pedidos prioritários de conteúdos, disponível na API e para membros do plano VIP Diamond."
+                    : "New Ad-Free Player: Added a premium completely ad-free player featuring multiple new capabilities, dedicated support, and priority content requests, available in the API and for Diamond VIP plan members.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Filmes e Séries no Watchparty: Expansão do Watchparty! Agora além de canais e jogos, você e seus amigos podem maratonar filmes e séries sincronizados."
+                    : "Movies & Series on Watchparty: Watchparty expansion! Now, in addition to channels and sports, you and your friends can binge movies and series in sync.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Licenciamento de API B2B: Página da API atualizada. Desenvolvedores agora podem comprar licenças de 30 dias para utilizar nosso player premium sem anúncios em seus próprios sites."
+                    : "B2B API Licensing: Updated API page. Developers can now purchase 30-day licenses to embed our premium ad-free player directly on their websites.",
+            },
+            {
+                tag: isPt ? "Melhoria" : "Improvement",
+                cor: "blue",
+                texto: isPt
+                    ? "Dashboard de Keys no Perfil: A página de Perfil agora exibe uma dashboard completa gerenciando suas chaves de API e tempo de validade."
+                    : "Key Dashboard in Profile: The Profile page now displays a comprehensive dashboard managing your active API keys and expiration status.",
+            },
+            {
+                tag: isPt ? "Melhoria" : "Improvement",
+                cor: "blue",
+                texto: isPt
+                    ? "Botão Ver Mais na Home: As categorias da página inicial agora possuem botões diretos para explorar o catálogo completo daquele gênero."
+                    : "See More Button on Home: Home categories now feature direct buttons to explore the complete catalog for that specific genre.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Download via Torrent: Adicionado botão direto para download de conteúdos via torrent diretamente na tela do player."
+                    : "Torrent Download: Added direct button to download content via torrent straight from the player screen.",
+            },
+        ],
+    },
+    {
+        versao: "2.10.0",
+        data: isPt ? "10 de Maio, 2026" : "May 10, 2026",
+        tipo: "major",
+        titulo: isPt ? "WatchParty 2.0, Rankings, Perfil Premium e Plano Diamond" : "WatchParty 2.0, Rankings, Premium Profiles and Diamond Plan",
+        desc: isPt 
+            ? "Uma das maiores atualizações da plataforma! Trazemos suporte a watchparties de canais ao vivo e jogos, novos rankings competitivos de audiência, perfis totalmente renovados com avatares, o novo plano VIP Diamond e uma página VIP exclusiva."
+            : "One of the platform's biggest updates yet! Introducing live TV and sports watchparties, new competitive audience rankings, completely revamped profiles with avatars, the new Diamond VIP plan, and a dedicated VIP landing page.",
+        mudancas: [
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt 
+                    ? "WatchParty para Canais e Jogos: Agora você pode assistir canais de TV e partidas ao vivo de futebol junto com amigos, em salas públicas ou privadas com chat criptografado e reações rápidas em tempo real!"
+                    : "WatchParty for Channels & Games: Now you can watch TV channels and live soccer matches together with friends in public or private rooms with encrypted chat and quick reactions in real time!",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Ranking de Horas Assistidas: Participe da competição de audiência! Um ranking dinâmico que contabiliza o tempo que você passa assistindo e exibe os maiores maratonistas da plataforma."
+                    : "Watched Hours Ranking: Join the audience competition! A dynamic leaderboard that tracks your watch time and displays the platform's top binge-watchers.",
+            },
+            {
+                tag: isPt ? "Melhoria" : "Improvement",
+                cor: "blue",
+                texto: isPt
+                    ? "Página de Perfil Customizável: Ganhe uma página de perfil exclusiva para você com estatísticas, nome de exibição editável, username próprio (@username) e suporte para upload de avatar personalizado."
+                    : "Customizable Profile Page: Get your own dedicated profile page featuring stats, editable display name, custom handle (@handle), and support for uploading personal profile avatars.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Novo Plano VIP Diamond: Lançamento de um novo plano premium que oferece vantagens estendidas superiores ao básico, acompanhado de uma página de planos VIP totalmente nova e refinada."
+                    : "New Diamond VIP Plan: Launching an upgraded premium tier providing extended privileges beyond the basic plan, paired with a brand new, stunning VIP subscription page.",
+            },
+            {
+                tag: "Fix",
+                cor: "orange",
+                texto: isPt
+                    ? "Correção de Cache na API: Ajustados os mecanismos de expiração para resolver bugs de dados desatualizados nas respostas da API."
+                    : "API Cache Fix: Adjusted expiration mechanisms to resolve stale data bugs in API responses.",
+            },
+        ],
+    },
+    {
+        versao: "2.9.0",
+        data: isPt ? "06 de Maio, 2026" : "May 6, 2026",
+        tipo: "major",
+        titulo: isPt ? "VIP Automatizado, EPG em Tempo Real e API Reestruturada" : "Automated VIP, Real-time EPG and Restructured API",
+        desc: isPt 
+            ? "Esta atualização traz pagamentos automatizados de VIP, Guia de Programação (EPG) em tempo real e uma nova arquitetura de APIs de canais de TV de alta velocidade."
+            : "This update brings automated VIP payments, Real-time Program Guide (EPG), and a new high-speed TV channel API architecture.",
+        mudancas: [
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt 
+                    ? "VIP Automático com Paypal e Cartão: Integração direta com gateway Ko-fi para liberação instantânea de VIP no Pix, Paypal e Cartões de Crédito."
+                    : "Automated VIP with Paypal & Cards: Direct integration with Ko-fi gateway for instant VIP unlock on Pix, Paypal, and Credit Cards.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "EPG em Tempo Real: Programação diária ao vivo integrada nos principais canais de TV para você saber exatamente o que está assistindo agora."
+                    : "Real-time EPG: Integrated daily live schedule on main TV channels so you know exactly what is playing right now.",
+            },
+            {
+                tag: isPt ? "Melhoria" : "Improvement",
+                cor: "blue",
+                texto: isPt
+                    ? "APIs de Alta Performance: Divisão da rota de canais de TV e partidas de futebol em endpoints dedicados e independentes para velocidade máxima."
+                    : "High Performance APIs: Split of TV channels and soccer matches routes into dedicated, independent endpoints for maximum speed.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Botão Assistir na TV: Agora você pode transmitir qualquer conteúdo diretamente do seu celular ou PC para a sua Smart TV (Samsung, LG, Chromecast, Roku, etc) seguindo um passo a passo simples e prático!"
+                    : "Watch on TV Button: Now you can cast any content directly from your phone or PC to your Smart TV (Samsung, LG, Chromecast, Roku, etc) following simple step-by-step instructions!",
+            },
+        ],
+    },
+    {
+        versao: "2.8.0",
+        data: isPt ? "21 de Abril, 2026" : "April 21, 2026",
+        tipo: "major",
+        titulo: isPt ? "Internacionalização, Player Inteligente e Estabilidade" : "Internationalization, Smart Player and Stability",
+        desc: isPt 
+            ? "O MultiCanaisHD agora é global! Adicionamos suporte completo ao inglês e um sistema inteligente que escolhe automaticamente a melhor fonte de vídeo para você, garantindo a melhor experiência possível."
+            : "MultiCanaisHD is now global! We've added full English support and a smart system that automatically chooses the best video source for you, ensuring the best possible experience.",
+        mudancas: [
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt 
+                    ? "Suporte ao Inglês: A plataforma agora pode ser usada em inglês. Gringos são bem-vindos! (Nota: Algumas seções ainda podem estar em tradução)."
+                    : "English Support: The platform can now be used in English. Global users are welcome! (Note: Some sections may still be in translation).",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Player Inteligente: O site agora seleciona automaticamente a fonte ideal. VIPs recebem o player sem anúncios por padrão, e gringos recebem conteúdo em inglês."
+                    : "Smart Player: The site now automatically selects the ideal source. VIPs get the ad-free player by default, and global users get English content.",
+            },
+            {
+                tag: isPt ? "Melhoria" : "Improvement",
+                cor: "blue",
+                texto: isPt
+                    ? "Transparência em Fontes: Adicionamos avisos sobre fontes sem anúncios que podem conter fallbacks com anúncios em casos de indisponibilidade do provedor."
+                    : "Source Transparency: Added warnings about ad-free sources that may contain ad-fallbacks in case of provider unavailability.",
+            },
+            {
+                tag: isPt ? "Melhoria" : "Improvement",
+                cor: "blue",
+                texto: isPt
+                    ? "Otimização Extrema: Corrigidos gargalos críticos no sistema de cache Redis que restauraram a velocidade sub-segundo do site."
+                    : "Extreme Optimization: Fixed critical Redis cache system bottlenecks that restored sub-second site speed.",
+            },
+            {
+                tag: "Fix",
+                cor: "orange",
+                texto: isPt
+                    ? "Correção no VIP Automático: Corrigido o problema onde alguns usuários não recebiam o status VIP automaticamente após o pagamento."
+                    : "Automatic VIP Fix: Fixed issue where some users didn't receive VIP status automatically after payment.",
+            },
+            {
+                tag: "Fix",
+                cor: "orange",
+                texto: isPt
+                    ? "Ads para VIP: Eliminamos anúncios residuais que apareciam para usuários premium na fonte Opção 2."
+                    : "VIP Ads: Eliminated residual ads that appeared for premium users on Source Option 2.",
+            },
+            {
+                tag: "Fix",
+                cor: "orange",
+                texto: isPt
+                    ? "API de Canais: Corrigido o erro que fazia a API de canais retornar 'localhost' em ambiente de produção."
+                    : "Channels API: Fixed error where the channels API returned 'localhost' in production environment.",
+            },
+        ],
+    },
+    {
+        versao: "2.7.0",
+        data: isPt ? "19 de Abril, 2026" : "April 19, 2026",
+        tipo: "major",
+        titulo: isPt ? "Plano VIP, API Gratuita e Integração com Google" : "VIP Plan, Free API and Google Integration",
+        desc: isPt 
+            ? "Uma atualização massiva que introduz o ecossistema VIP, uma API pública para desenvolvedores e integração total com contas Google para sincronização em nuvem e progresso entre dispositivos."
+            : "A massive update introducing the VIP ecosystem, a public API for developers, and full integration with Google accounts for cloud sync and cross-device progress.",
+        mudancas: [
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt 
+                    ? "Lançamento do Plano VIP: Desbloqueia player exclusivo sem anúncios, acesso a canais pagos e transmissões de jogos ao vivo premium."
+                    : "VIP Plan Launch: Unlocks exclusive ad-free player, access to paid channels, and premium live sports broadcasts.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "API MultiCanaisHD Gratuita: Agora oferecemos uma API pública para que outros desenvolvedores possam integrar nossos conteúdos em seus próprios projetos."
+                    : "Free MultiCanaisHD API: We now offer a public API so other developers can integrate our content into their own projects.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Login via Google: Crie sua conta com um clique para salvar favoritos, retomar de onde parou e acessar sua Dashboard de estatísticas em tempo real."
+                    : "Google Login: Create your account with one click to save favorites, pick up where you left off, and access your real-time statistics Dashboard.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Seção de Jogos Ao Vivo: Nova área dedicada na Home e categoria específica na aba de Canais para acompanhar esportes em tempo real."
+                    : "Live Games Section: New dedicated area on Home and specific category in the Channels tab to follow sports in real time.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Botão de Trailer: Assista ao trailer oficial de qualquer título diretamente na página do player."
+                    : "Trailer Button: Watch the official trailer of any title directly on the player page.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Próximo Episódio: Novo indicador que mostra exatamente quando o próximo episódio de uma série será lançado."
+                    : "Next Episode: New indicator showing exactly when the next episode of a series will be released.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Badge de 'Novo': O navegador de episódios agora destaca visualmente os lançamentos mais recentes da semana."
+                    : "New Badge: The episode browser now visually highlights the most recent releases of the week.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Telegram Oficial: Além do Discord, agora temos um canal no Telegram para suporte rápido e novidades."
+                    : "Official Telegram: In addition to Discord, we now have a Telegram channel for quick support and news.",
+            },
+            {
+                tag: isPt ? "Novo" : "New",
+                cor: "green",
+                texto: isPt
+                    ? "Botão de Tela Cheia Premium: Adicionado botão customizado no player para garantir compatibilidade total em todos os navegadores."
+                    : "Premium Fullscreen Button: Added custom button in the player to ensure full compatibility across all browsers.",
+            },
+        ],
+    },
+    {
+        versao: "2.6.0",
+        data: "15 de Abril, 2026",
+        tipo: "major",
+        titulo: "Perfil, Recomendações Personalizadas e Comentários de Volta",
+        desc: "Atualização focada em personalização e interação. Adicionado sistema de perfil com estatísticas, recomendações baseadas no histórico de visualização, botão para marcar filmes como vistos e retorno dos comentários.",
+        mudancas: [
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Botão de Perfil no menu de navegação. Exibe estatísticas personalizadas como filmes vistos, episódios assistidos, favoritos e rank de maratona.",
+            },
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Seção de Recomendações Personalizadas na home. Baseado no último conteúdo assistido, o sistema sugere títulos similares.",
+            },
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Botão para marcar filmes como visto no player. Os filmes marcados aparecem com distintivo verde nos cards.",
+            },
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Retorno dos comentários (Disqus) na página de player. Cada conteúdo agora tem sua própria seção de comentários.",
+            },
+        ],
+    },
+    {
+        versao: "2.5.0",
+        data: "14 de Abril, 2026",
+        tipo: "major",
+        titulo: "Redesign da Home e Novas Fontes no Player",
+        desc: "Uma grande atualização visual na página principal e melhorias na estabilidade de conexão, além de novas opções de fontes para o player.",
+        mudancas: [
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Página Principal (Home) totalmente refeita com nova identidade visual, focada em estética e fluidez.",
+            },
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Adicionadas duas novas fontes de player. A fonte 'Opção 4' agora permite seleção manual de idioma (Dublado/Legendado) para diversos títulos.",
+            },
+        ],
+    },
+    {
+        versao: "2.4.0",
+        data: "11 de Abril, 2026",
+        tipo: "major",
+        titulo: "Player Novo, Doramas na Home e Nova Grade de Canais",
+        desc: "Uma atualização focada em melhorar o player com uma navegação aprimorada de episódios, mais conteúdos na página principal e várias refatorações vitais no site.",
+        mudancas: [
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "O Player foi refatorado. Agora a lista de episódios aparece ao lado, exibindo foto, sinopse e duração.",
+            },
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Adicionada uma categoria dedicada a Doramas na página principal.",
+            },
+            {
+                tag: "Melhoria",
+                cor: "blue",
+                texto: "Refatoração na área de Canais de TV, com a adição de diversos novos canais e uma organização em dezenas de categorias.",
+            },
+            {
+                tag: "Fix",
+                cor: "orange",
+                texto: "Corrigido um bug na página 404 que impedia o uso.",
+            },
+        ],
+    },
+    {
+        versao: "2.3.0",
+        data: "06 de Março, 2026",
+        tipo: "major",
+        titulo: "Top 10 de cara nova, Explorar Avançado e Melhorias no Player",
+        desc: "Uma atualização massiva com foco na descoberta de conteúdo e na experiência do player. Adicionamos a página Explorar com filtros, detalhes de equipe no player, novos controles e muito mais.",
+        mudancas: [
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Seção 'Top 10 na Semana' com cara nova.",
+            },
+            {
+                tag: "Melhoria",
+                cor: "blue",
+                texto: "O 'Continuar Assistindo' agora possui uma barra de progresso.",
+            },
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Tooltip com a sinopse rápida ao passar o mouse.",
+            },
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Assista trailers ao passar o mouse nos destaques do carrossel.",
+            },
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Página Explorar: busque gêneros por ano, tipo, nota, etc.",
+            },
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Adicionado botão de Compartilhar no player.",
+            },
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Adicionado Modo Cinema na tela do player.",
+            },
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Marque episódios de séries como vistos diretamente no player.",
+            },
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Informações de Elenco, Diretor e Criador na seção do player.",
+            },
+            {
+                tag: "Removido",
+                cor: "orange",
+                texto: "A funcionalidade de comentários (Disqus) foi removida.",
+            },
+            {
+                tag: "Melhoria",
+                cor: "blue",
+                texto: "Controles da página do player remodelados e alinhados.",
+            },
+        ],
+    },
+    {
+        versao: "2.2.0",
+        data: "17 de Janeiro, 2026",
+        tipo: "major", // major, minor, patch
+        titulo: "Busca por gênero, aplicativo pra celular, melhoria na UI e correções de bugs e comentários",
+        desc: "Foi adicionado a opção de pesquisar por gêneros, melhoramos a página inicial colocando algumas categorias e corrigimos alguns bugs e o mais impactante, adicionamos a opção de usar o projeto no celular, basta aperta na opção de app na tela inicial. Também adicionamos a opção de comentar nos conteúdos. Deixem feedbacks e sugestões na opção de sugestões, estamos lendo tudo que mandam.",
+        mudancas: [
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Adicionado opção pra baixar pra celular. Android/IOS",
+            },
+            { tag: "Novo", cor: "green", texto: "Adicionado busca por gênero" },
+            { tag: "Novo", cor: "green", texto: "Opção de comentar" },
+            { tag: "Melhoria", cor: "blue", texto: "Melhoramos a UI" },
+            { tag: "Fix", cor: "orange", texto: "Foi corrigido alguns bugs" },
+        ],
+    },
+    {
+        versao: "2.1.0",
+        data: "14 de Janeiro, 2026",
+        tipo: "major", // major, minor, patch
+        titulo: "Segunda atualização no ano",
+        desc: "Algumas adições normais.",
+        mudancas: [
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Adicionado botão de sugerir coisas pra adicionarmos no site.",
+            },
+            { tag: "Novo", cor: "green", texto: "Adicionado canais de bbb." },
+        ],
+    },
+    {
+        versao: "2.0",
+        data: "06 de Janeiro, 2026",
+        tipo: "major", // major, minor, patch
+        titulo: "Atualização de começo de ano",
+        desc: "Redesign completo da interface, novo player inteligente e melhorias massivas de performance.",
+        mudancas: [
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Identidade visual mudou pra cinza e vermelho salmão.",
+            },
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Botão próximo episódio automático.",
+            },
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Hero Carousel interativo na home.",
+            },
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Suporte a gestos (Swipe) no mobile.",
+            },
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Adicionado opção de salvar filmes e séries em uma lista e ver o seu histórico.",
+            },
+        ],
+    },
+    {
+        versao: "1.3.0",
+        data: "02 de setembro, 2025",
+        tipo: "minor",
+        titulo: "Correções de Fim de Ano e algumas adições",
+        desc: "Veja filmes, séries, animes e mais junto com seus amigos!",
+        mudancas: [
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Agora é possível criar salas e convidar seus amigos para assistirem juntos! Visite a página de watchparty.",
+            },
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Nova fonte adicionada para caso uma não pegue ou esteja com problemas, você poder escolher a segunda.",
+            },
+            { tag: "Fix", cor: "orange", texto: "Bugs corrigidos" },
+        ],
+    },
+    {
+        versao: "1.2.0",
+        data: "23 de outubro, 2025",
+        tipo: "minor",
+        titulo: "Novas funcionalidades",
+        desc: "Implementação de recomendação por i.a",
+        mudancas: [
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Recomendação de conteúdos por i.a adicionado! Basta pedir pra ela o que você quer ver e ela irá recomendar. Mas, é um recurso beta, em estado de testes, pode não funcionar perfeitamente.",
+            },
+            {
+                tag: "Melhoria",
+                cor: "blue",
+                texto: "Algumas páginas carregam mais rápido agora.",
+            },
+        ],
+    },
+    {
+        versao: "1.1.0",
+        data: "20 de outubro, 2025",
+        tipo: "minor",
+        titulo: "Novas funcionalidades",
+        desc: "Calendário adicionado",
+        mudancas: [
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Calendário adiconado! Acompanhe os lançamentos recentes através da página de caléndario.",
+            },
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Novos canais de tv adicionados, foi refeito o container de canais de tv, adicionamos algumas animações e colocamos a opção de filtrar por categorias.",
+            },
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Foi adicionado um botão para reportar problemas do player na página de player, diretamente no discord, assim fica mais acessvíel resolver essas questões.",
+            },
+        ],
+    },
+    {
+        versao: "1.0.1",
+        data: "19 de outubro, 2025",
+        tipo: "patch",
+        titulo: "Melhorando o site",
+        desc: "Correção de bugs",
+        mudancas: [
+            {
+                tag: "Melhoria",
+                cor: "blue",
+                texto: "Pequenas correções de bugs",
+            },
+            {
+                tag: "Melhoria",
+                cor: "blue",
+                texto: "Página principal carrega mais rápido",
+            },
+            { tag: "Melhoria", cor: "blue", texto: "Adicionado favicon" },
+        ],
+    },
+    {
+        versao: "1.0.0",
+        data: "16 de Outubro, 2025",
+        tipo: "major",
+        titulo: "Lançamento Inicial",
+        desc: "O começo de tudo. A MultiCanaisHD nasce.",
+        mudancas: [
+            {
+                tag: "Novo",
+                cor: "green",
+                texto: "Lançamento oficial da plataforma.",
+            },
+        ],
+    },
+];
+
+const keywords = isPt
+    ? "changelog multicanaishd, atualizações multicanaishd, novidades multicanaishd, versoes multicanaishd, o que mudou multicanaishd, notas de lançamento"
+    : "multicanaishd changelog, multicanaishd updates, multicanaishd release notes, what is new multicanaishd, multicanaishd versions";
+
+const changelogSchema = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "MultiCanaisHD",
+    "operatingSystem": "All",
+    "applicationCategory": "EntertainmentApplication",
+    "softwareVersion": LATEST_VERSION,
+    "releaseNotes": `${siteUrl}${Astro.url.pathname}`,
+    "offers": {
+        "@type": "Offer",
+        "price": "0.00",
+        "priceCurrency": "USD"
+    }
+};
+---
+
+<BaseLayout
+    title={t('changelog.title')}
+    description={t('changelog.desc')}
+    keywords={keywords}
+    jsonLd={changelogSchema}
+>
+    <main class="flex-grow container mx-auto px-4 py-12 mt-24 sm:mt-32 max-w-3xl">
+            <div class="mb-12">
+                <h2 class="text-3xl md:text-4xl font-black text-white mb-2">
+                    {t('changelog.header')}
+                </h2>
+                <p class="text-gray-400 text-sm">
+                    {t('changelog.subtitle')}
+                </p>
+            </div>
+
+            <div class="space-y-6" id="changelog-list">
+                {
+                    versoes.map((v, index) => (
+                        <article
+                            class={`changelog-item bg-[#161B28] border border-white/5 rounded-xl p-6 transition-all duration-300 hover:border-[#DF0912]/30 ${index >= ITEMS_PER_PAGE ? "hidden" : ""}`}
+                        >
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 border-b border-white/5 pb-4">
+                                <div>
+                                    <div class="flex items-center gap-3">
+                                        <h3 class="text-xl font-bold text-white">
+                                            v{v.versao}
+                                        </h3>
+                                        {index === 0 && (
+                                            <span class="px-2 py-0.5 rounded bg-[#DF0912] text-white text-[10px] font-bold uppercase tracking-wider">
+                                                {t('changelog.current_badge')}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <span class="text-sm text-gray-500 font-mono">
+                                        {v.data}
+                                    </span>
+                                </div>
+                                {v.titulo && (
+                                    <div class="sm:text-right">
+                                        <h4 class="text-gray-300 font-bold text-sm">
+                                            {v.titulo}
+                                        </h4>
+                                    </div>
+                                )}
+                            </div>
+
+                            {v.desc && (
+                                <p class="text-gray-400 text-sm mb-6 leading-relaxed">
+                                    {v.desc}
+                                </p>
+                            )}
+
+                            <ul class="space-y-2">
+                                {v.mudancas.map((m) => {
+                                    let badgeColor =
+                                        "bg-gray-700 text-gray-300"; // default
+                                    if (m.cor === "green")
+                                        badgeColor =
+                                            "bg-green-500/10 text-green-400 border border-green-500/20";
+                                    if (m.cor === "blue")
+                                        badgeColor =
+                                            "bg-blue-500/10 text-blue-400 border border-blue-500/20";
+                                    if (m.cor === "orange")
+                                        badgeColor =
+                                            "bg-orange-500/10 text-orange-400 border border-orange-500/20";
+
+                                    return (
+                                        <li class="flex items-start gap-3 text-sm">
+                                            <span
+                                                class={`flex-shrink-0 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide mt-0.5 ${badgeColor}`}
+                                            >
+                                                {m.tag}
+                                            </span>
+                                            <span class="text-gray-300 leading-snug">
+                                                {m.texto}
+                                            </span>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </article>
+                    ))
+                }
+            </div>
+
+            {
+                versoes.length > ITEMS_PER_PAGE && (
+                    <div class="mt-8 text-center">
+                        <button
+                            id="loadMoreBtn"
+                            class="px-6 py-3 bg-[#161B28] hover:bg-[#DF0912] text-gray-300 hover:text-white font-bold rounded-lg border border-white/5 hover:border-[#DF0912] transition-all duration-300 shadow-lg hover:shadow-red-900/20 text-sm"
+                        >
+                            {t('changelog.load_more')}
+                        </button>
+                    </div>
+                )
+            }
+        </main>
+
+
+        <script>
+            // @ts-nocheck
+            document.addEventListener("astro:page-load", () => {
+                const loadMoreBtn = document.getElementById("loadMoreBtn");
+                const hiddenItems = document.querySelectorAll(
+                    ".changelog-item.hidden",
+                );
+                let currentIndex = 0;
+                const itemsPerLoad = 3;
+
+                if (loadMoreBtn) {
+                    loadMoreBtn.addEventListener("click", () => {
+                        let revealedCount = 0;
+
+                        // Revela os próximos itens ocultos
+                        for (let i = 0; i < hiddenItems.length; i++) {
+                            const item = hiddenItems[i];
+                            if (item.classList.contains("hidden")) {
+                                item.classList.remove("hidden");
+                                // Pequena animação de entrada
+                                item.style.opacity = "0";
+                                item.style.transform = "translateY(10px)";
+                                setTimeout(() => {
+                                    item.style.transition = "all 0.3s ease";
+                                    item.style.opacity = "1";
+                                    item.style.transform = "translateY(0)";
+                                }, 50);
+
+                                revealedCount++;
+                                if (revealedCount >= itemsPerLoad) break;
+                            }
+                        }
+
+                        // Verifica se ainda tem itens ocultos
+                        const remainingHidden = document.querySelectorAll(
+                            ".changelog-item.hidden",
+                        ).length;
+                        if (remainingHidden === 0) {
+                            loadMoreBtn.style.display = "none";
+                        }
+                    });
+                }
+            });
+        </script>
+    </BaseLayout>
+
+<style>
+    @reference 'tailwindcss';
+    ::-webkit-scrollbar {
+        width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+        background: #0E111A;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: #333;
+        border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: #df0912;
+    }
+</style>

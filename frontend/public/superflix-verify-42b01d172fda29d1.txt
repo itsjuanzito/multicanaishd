@@ -1,0 +1,2 @@
+domain=betterflix.lat
+token=tj8mktg1jpnkdurepc1ubujsgbwhdx8v

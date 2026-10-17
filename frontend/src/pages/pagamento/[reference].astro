@@ -1,0 +1,264 @@
+---
+// src/pages/pagamento/[reference].astro
+//
+// Página de checkout PRÓPRIA: a VeloraPay não hospeda checkout pra cobrança
+// criada via API (só existe pra Links de Pagamento, que exigem sessão de
+// painel, não API key) — PIX e cripto devolvem dado de pagamento direto
+// (QR/copia-e-cola ou endereço de carteira). Não há sessão de servidor neste
+// projeto (auth é 100% client-side via Supabase JS), então os dados do
+// pagamento são buscados no cliente, autenticados pelo token da sessão —
+// nunca lidos aqui no frontmatter.
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import "../../styles/pagamento.css";
+import { getLangFromUrl, useTranslations } from "../../i18n/utils";
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+const { reference } = Astro.params;
+---
+
+<BaseLayout
+    title={isPt ? "Pagamento - MultiCanaisHD VIP" : "Payment - MultiCanaisHD VIP"}
+    description={isPt ? "Finalize o pagamento da sua assinatura MultiCanaisHD VIP." : "Complete your MultiCanaisHD VIP subscription payment."}
+    robots="noindex, nofollow"
+>
+    <main class="flex-grow mt-24 sm:mt-28 relative z-10">
+        <div class="pagamento-wrap">
+            <div class="pagamento-card" id="pagamento-card" data-reference={reference}>
+                <h1>MultiCanaisHD<span style="color:#DF0912"> VIP</span></h1>
+                <p class="pagamento-sub" id="pagamento-plan-label">{isPt ? "Carregando pagamento..." : "Loading payment..."}</p>
+
+                <div id="pagamento-loading" class="pagamento-loading">
+                    {isPt ? "Buscando os dados da sua cobrança..." : "Fetching your charge details..."}
+                </div>
+
+                <div id="pagamento-pix" class="hidden">
+                    <div class="pagamento-qr">
+                        <img id="pagamento-qr-img" src="" alt="QR Code PIX" />
+                    </div>
+                    <div class="pagamento-copy">
+                        <input type="text" readonly id="pagamento-copy-input" value="" />
+                        <button type="button" id="pagamento-copy-btn">{isPt ? "Copiar" : "Copy"}</button>
+                    </div>
+                </div>
+
+                <div id="pagamento-crypto" class="hidden">
+                    <p class="pagamento-crypto-amount" id="pagamento-crypto-amount"></p>
+                    <div class="pagamento-copy">
+                        <input type="text" readonly id="pagamento-crypto-input" value="" />
+                        <button type="button" id="pagamento-crypto-copy-btn">{isPt ? "Copiar" : "Copy"}</button>
+                    </div>
+                    <p class="pagamento-crypto-note" id="pagamento-crypto-note"></p>
+                </div>
+
+                <p class="pagamento-status hidden" id="pagamento-status-box"></p>
+                <p class="pagamento-countdown hidden" id="pagamento-countdown"></p>
+
+                <div class="pagamento-back">
+                    <a href={isPt ? "/vip" : "/en/vip"}>{isPt ? "Voltar" : "Back"}</a>
+                </div>
+            </div>
+        </div>
+    </main>
+</BaseLayout>
+
+<script>
+    import { authStore, initAuth } from "../../store/authStore";
+    import { getSupabase } from "../../services/supabase";
+
+    async function initPagamentoPage() {
+        const card = document.getElementById("pagamento-card");
+        if (!card) return;
+
+        const reference = card.dataset.reference || "";
+        const isPt = document.documentElement.lang !== "en";
+
+        const planLabel = document.getElementById("pagamento-plan-label");
+        const loadingBox = document.getElementById("pagamento-loading");
+        const pixBox = document.getElementById("pagamento-pix");
+        const qrImg = document.getElementById("pagamento-qr-img") as HTMLImageElement;
+        const copyInput = document.getElementById("pagamento-copy-input") as HTMLInputElement;
+        const copyBtn = document.getElementById("pagamento-copy-btn");
+        const cryptoBox = document.getElementById("pagamento-crypto");
+        const cryptoAmount = document.getElementById("pagamento-crypto-amount");
+        const cryptoInput = document.getElementById("pagamento-crypto-input") as HTMLInputElement;
+        const cryptoCopyBtn = document.getElementById("pagamento-crypto-copy-btn");
+        const cryptoNote = document.getElementById("pagamento-crypto-note");
+        const statusBox = document.getElementById("pagamento-status-box");
+        const countdownBox = document.getElementById("pagamento-countdown");
+
+        async function getToken() {
+            try {
+                const supabase = getSupabase();
+                const { data } = await supabase.auth.getSession();
+                if (data?.session?.access_token) return data.session.access_token;
+            } catch (err) {
+                console.warn("[Pagamento] Não foi possível recuperar sessão fresca:", err);
+            }
+            const currentToken = authStore.get()?.token;
+            if (currentToken) return currentToken;
+            try {
+                await initAuth(true);
+                return authStore.get()?.token || "";
+            } catch {
+                return "";
+            }
+        }
+
+        // Cronômetro mm:ss até `expiresAt`. Só de exibição — não interrompe o
+        // polling nem marca nada como expirado sozinho: quem decide
+        // "expirou de verdade" é sempre a VeloraPay (via verifyPayment no
+        // servidor), então um pagamento concluído depois do relógio zerar
+        // ainda é creditado normal.
+        let countdownTimer: ReturnType<typeof setInterval> | null = null;
+        function startCountdown(expiresAtIso: string | null) {
+            if (countdownTimer) clearInterval(countdownTimer);
+            if (!countdownBox || !expiresAtIso) return;
+            const expiresAt = new Date(expiresAtIso).getTime();
+            if (!Number.isFinite(expiresAt)) return;
+
+            countdownBox.classList.remove("hidden");
+
+            function tick() {
+                if (!countdownBox) return;
+                const remainingMs = expiresAt - Date.now();
+                if (remainingMs <= 0) {
+                    countdownBox.textContent = isPt
+                        ? "Prazo estimado esgotado — se você já pagou, aguarde a confirmação."
+                        : "Estimated window is over — if you already paid, wait for confirmation.";
+                    if (countdownTimer) clearInterval(countdownTimer);
+                    return;
+                }
+                const totalSeconds = Math.floor(remainingMs / 1000);
+                const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+                const seconds = String(totalSeconds % 60).padStart(2, "0");
+                countdownBox.textContent = (isPt ? "Tempo estimado pra pagar: " : "Estimated time to pay: ") + `${minutes}:${seconds}`;
+            }
+
+            tick();
+            countdownTimer = setInterval(tick, 1000);
+        }
+
+        function stopCountdown() {
+            if (countdownTimer) clearInterval(countdownTimer);
+            countdownBox?.classList.add("hidden");
+        }
+
+        function renderStatus(status: string) {
+            if (!statusBox) return;
+            statusBox.classList.remove("hidden");
+            statusBox.className = `pagamento-status ${status}`;
+            const labels: Record<string, string> = {
+                pending: isPt ? "Aguardando confirmação do pagamento..." : "Waiting for payment confirmation...",
+                paid: isPt ? "Pagamento confirmado! Redirecionando..." : "Payment confirmed! Redirecting...",
+                failed: isPt ? "Não foi possível confirmar este pagamento." : "Could not confirm this payment.",
+                expired: isPt ? "Esta cobrança expirou. Volte à página VIP para gerar outra." : "This charge expired. Go back to the VIP page to generate another."
+            };
+            statusBox.textContent = labels[status] || labels.pending;
+        }
+
+        function renderDetails(data: any) {
+            const valorFormatado = typeof data.amount === "number"
+                ? `R$ ${(data.amount / 100).toFixed(2).replace(".", ",")}`
+                : "";
+            if (planLabel) {
+                planLabel.textContent = data.planLabel
+                    ? `${data.planLabel}${valorFormatado ? " · " + valorFormatado : ""}`
+                    : (valorFormatado || "MultiCanaisHD VIP");
+            }
+
+            if (data.method === "crypto") {
+                if (cryptoBox) cryptoBox.classList.remove("hidden");
+                if (cryptoAmount) {
+                    cryptoAmount.textContent = isPt
+                        ? `Envie exatamente ${data.cryptoPayAmount} ${data.cryptoCurrencyLabel || ""}`
+                        : `Send exactly ${data.cryptoPayAmount} ${data.cryptoCurrencyLabel || ""}`;
+                }
+                if (cryptoInput) cryptoInput.value = data.cryptoPayAddress || "";
+                if (cryptoNote && data.cryptoExpiresAt) {
+                    const expires = new Date(data.cryptoExpiresAt).toLocaleString(isPt ? "pt-BR" : "en-US");
+                    cryptoNote.textContent = isPt
+                        ? `Pagamento parcial é aceito (credita proporcional). Endereço válido até ${expires}.`
+                        : `Partial payment is accepted (credits proportionally). Address valid until ${expires}.`;
+                }
+            } else {
+                if (pixBox) pixBox.classList.remove("hidden");
+                if (qrImg && data.pixQrBase64) qrImg.src = data.pixQrBase64;
+                if (copyInput) copyInput.value = data.pixCopyPaste || "";
+            }
+        }
+
+        copyBtn?.addEventListener("click", async () => {
+            if (!copyInput?.value) return;
+            try {
+                await navigator.clipboard.writeText(copyInput.value);
+                copyBtn.textContent = isPt ? "Copiado!" : "Copied!";
+                setTimeout(() => { copyBtn.textContent = isPt ? "Copiar" : "Copy"; }, 2000);
+            } catch {
+                copyInput.select();
+            }
+        });
+
+        cryptoCopyBtn?.addEventListener("click", async () => {
+            if (!cryptoInput?.value) return;
+            try {
+                await navigator.clipboard.writeText(cryptoInput.value);
+                cryptoCopyBtn.textContent = isPt ? "Copiado!" : "Copied!";
+                setTimeout(() => { cryptoCopyBtn.textContent = isPt ? "Copiar" : "Copy"; }, 2000);
+            } catch {
+                cryptoInput.select();
+            }
+        });
+
+        if (!reference) return;
+
+        const token = await getToken();
+        if (!token) {
+            if (loadingBox) loadingBox.textContent = isPt ? "Faça login para ver este pagamento." : "Log in to see this payment.";
+            return;
+        }
+
+        let detailsRendered = false;
+        let pollInterval: ReturnType<typeof setInterval> | null = null;
+
+        async function poll() {
+            try {
+                const res = await fetch(`/api/payment-status/${encodeURIComponent(reference)}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                const data = await res.json();
+
+                if (!data.success) {
+                    if (loadingBox) loadingBox.textContent = data.error || (isPt ? "Pagamento não encontrado." : "Payment not found.");
+                    if (pollInterval) clearInterval(pollInterval);
+                    return;
+                }
+
+                if (loadingBox) loadingBox.classList.add("hidden");
+                if (!detailsRendered) {
+                    renderDetails(data);
+                    detailsRendered = true;
+                    if (data.status === "pending") startCountdown(data.expiresAt);
+                }
+                renderStatus(data.status);
+
+                if (data.status === "paid") {
+                    if (pollInterval) clearInterval(pollInterval);
+                    stopCountdown();
+                    setTimeout(() => { window.location.href = isPt ? "/perfil" : "/en/perfil"; }, 1800);
+                } else if (data.status === "expired" || data.status === "failed") {
+                    if (pollInterval) clearInterval(pollInterval);
+                    stopCountdown();
+                }
+            } catch (err) {
+                console.error("[Pagamento] Falha ao consultar status:", err);
+            }
+        }
+
+        await poll();
+        pollInterval = setInterval(poll, 5000);
+    }
+
+    document.addEventListener("astro:page-load", initPagamentoPage);
+</script>

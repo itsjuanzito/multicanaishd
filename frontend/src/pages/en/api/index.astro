@@ -1,0 +1,5 @@
+---
+// src/pages/en/api/index.astro
+export const prerender = false;
+return Astro.rewrite(`/api?lang=en&${Astro.url.searchParams.toString()}`);
+---

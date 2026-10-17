@@ -1,0 +1,395 @@
+---
+// @ts-nocheck
+import "../styles/global.css";
+export const prerender = false;
+import BaseLayout from "../layouts/BaseLayout.astro";
+// contentSlug em vez de cópia local de slugify: título não-latino virava slug vazio → link quebrado.
+import { contentSlug } from "../utils/slugify.js";
+
+// i18n
+import { getLangFromUrl, useTranslations } from "../i18n/utils";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+const langPrefix = isPt ? "" : `/${lang}`;
+
+// Busca dados do calendário
+let calendario = { hoje: [], proximos: [], total: 0, erro: null };
+let carregando = true;
+
+try {
+  const reqMock = new Request(new URL(`/api/calendario`, Astro.url.origin));
+  const response = await import('./api/calendario.js').then(m => m.GET({ request: reqMock }));
+  if (response && response.ok) {
+    calendario = await response.json();
+  } else {
+    calendario.erro = t('player.error_loading_episodes');
+  }
+  carregando = false;
+} catch (error) {
+  console.error('Erro ao carregar calendário no Astro:', error);
+  calendario.erro = t('player.error_loading_episodes');
+  carregando = false;
+}
+
+// Lógica de imagem: retorna null quando não há pôster/still disponível,
+// para o template renderizar um placeholder visual em vez de uma <img> quebrada.
+function getImageUrl(item) {
+  if (item.still_path)
+    return `https://image.tmdb.org/t/p/w454_and_h254_bestv2${item.still_path}`;
+
+  const path = item.backdrop || item.backdrop_path;
+  if (path) return path.startsWith("http") ? path : `https://image.tmdb.org/t/p/w780${path}`;
+
+  // poster_path do StreamBetter já vem como URL completa do TMDB
+  const poster = item.poster || item.poster_path;
+  if (poster) return poster.startsWith("http") ? poster : `https://image.tmdb.org/t/p/w500${poster}`;
+
+  return null;
+}
+
+function buildPlayerUrl(item) {
+  const slug = contentSlug(item.title);
+  // langPrefix: /en/calendario reescreve para /calendario?lang=en, e sem o prefixo todos os
+  // cards da versão em inglês apontavam para a URL PT. A página EN nunca recebia link
+  // interno do próprio idioma, então o hreflang en→EN ficava sem sustentação nenhuma.
+  if (item.kind === "movie") return `${langPrefix}/filme/${item.tmdb_id}-${slug}`;
+  return `${langPrefix}/serie/${item.tmdb_id}-${slug}?season=${item.season}&episode=${item.number}`;
+}
+
+function getGroupLabel(dataStr) {
+  const data = new Date(dataStr + "T00:00:00");
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const diff = Math.round((data - hoje) / (1000 * 60 * 60 * 24));
+
+  if (diff === 0) return t('calendar.today');
+  if (diff === 1) return t('calendar.tomorrow');
+
+  const label = data.toLocaleDateString(isPt ? "pt-BR" : "en-US", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+  });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+// Agrupa hoje + próximos em blocos por data, ordenados cronologicamente
+function groupByDate(hoje, proximos) {
+  const combinados = [...hoje, ...proximos].sort(
+    (a, b) => new Date(a.air_date) - new Date(b.air_date),
+  );
+
+  const grupos = [];
+  let grupoAtual = null;
+  combinados.forEach((item) => {
+    if (!grupoAtual || grupoAtual.date !== item.air_date) {
+      grupoAtual = {
+        date: item.air_date,
+        label: getGroupLabel(item.air_date),
+        categoria: getGroupLabel(item.air_date) === t('calendar.today') ? "hoje" : "proximos",
+        items: [],
+      };
+      grupos.push(grupoAtual);
+    }
+    grupoAtual.items.push(item);
+  });
+  return grupos;
+}
+
+const totalAtual = calendario.hoje.length + calendario.proximos.length;
+const grupos = groupByDate(calendario.hoje, calendario.proximos);
+---
+
+<BaseLayout
+    title={t('calendar.meta_title')}
+    description={t('calendar.meta_desc')}
+    keywords={t('calendar.meta_keywords')}
+>
+  <main class="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 mt-24 sm:mt-32">
+    <div
+      class="mb-8 p-4 bg-[#161B28] border border-white/5 rounded-xl flex items-start gap-4 shadow-lg"
+    >
+      <div class="p-2 bg-yellow-500/10 rounded-lg">
+        <svg
+          class="w-5 h-5 text-yellow-500"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          ><path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+          ></path></svg
+        >
+      </div>
+      <div class="text-sm text-gray-300 leading-relaxed">
+        <p>
+          <strong>{t('calendar.info_title')}</strong> {t('calendar.info_desc')}
+        </p>
+        <p class="mt-1 text-xs text-gray-500">
+          {t('calendar.verified_notice')}
+        </p>
+        {
+          calendario.erro && (
+            <p class="mt-2 text-red-400 font-bold">⚠️ {calendario.erro}</p>
+          )
+        }
+      </div>
+    </div>
+
+    {
+      carregando && (
+        <div class="flex flex-col items-center justify-center py-20">
+          <div class="w-12 h-12 border-4 border-[#DF0912] border-t-transparent rounded-full animate-spin mb-4" />
+          <p class="text-gray-500 text-sm font-medium">{t('calendar.loading')}</p>
+        </div>
+      )
+    }
+
+    {
+      !carregando && (
+        <div>
+          <div class="flex flex-wrap gap-3 mb-10 justify-center sm:justify-start">
+            <button
+              class="filter-btn active px-5 py-2.5 rounded-full font-bold text-xs uppercase tracking-wider transition-all duration-300 bg-[#DF0912] text-white shadow-lg shadow-red-900/20"
+              data-filter="todos"
+            >
+              {t('calendar.filter_all')} ({totalAtual})
+            </button>
+            <button
+              class="filter-btn px-5 py-2.5 rounded-full font-bold text-xs uppercase tracking-wider transition-all duration-300 bg-[#161B28] text-gray-400 hover:text-white border border-white/5"
+              data-filter="hoje"
+            >
+              {t('calendar.today')} ({calendario.hoje.length})
+            </button>
+            <button
+              class="filter-btn px-5 py-2.5 rounded-full font-bold text-xs uppercase tracking-wider transition-all duration-300 bg-[#161B28] text-gray-400 hover:text-white border border-white/5"
+              data-filter="proximos"
+            >
+              {t('calendar.upcoming')} ({calendario.proximos.length})
+            </button>
+          </div>
+
+          <div id="conteudo" class="space-y-10">
+            {grupos.length === 0 && !calendario.erro && (
+              <div class="flex flex-col items-center justify-center py-20 text-center border border-dashed border-white/10 rounded-xl">
+                <svg
+                  class="w-16 h-16 text-gray-600 mb-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <p class="text-gray-400">{t('calendar.no_releases')}</p>
+              </div>
+            )}
+
+            {grupos.map((grupo) => (
+              <section class="date-group animate-fade-in" data-categoria={grupo.categoria}>
+                <div class="flex items-center gap-3 mb-5 border-b border-white/5 pb-3">
+                  <h2 class="text-lg sm:text-xl font-bold text-white">{grupo.label}</h2>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {grupo.items.map((item) => {
+                    const imageUrl = getImageUrl(item);
+                    const isMovie = item.kind === "movie";
+                    const playerUrl = buildPlayerUrl(item);
+                    const episodeInfo = `T${item.season}E${item.number}${item.episode_name ? ` — ${item.episode_name}` : ""}`;
+                    // Só existe pôster vertical (sem still/backdrop paisagem): evita cortar a arte com object-cover
+                    const isPortraitOnly = !item.still_path && !(item.backdrop || item.backdrop_path);
+
+                    return (
+                      <a
+                        href={playerUrl}
+                        class="group relative flex flex-col gap-3 w-full transition-opacity"
+                      >
+                        <div class="relative w-full aspect-video rounded-xl overflow-hidden border border-white/5 group-hover:border-[#DF0912] transition-all bg-[#161B28]">
+                          <span
+                            class={`absolute top-2 left-2 z-10 text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded ${isMovie ? "bg-blue-600" : "bg-purple-600"} text-white`}
+                          >
+                            {isMovie ? t('calendar.type_movie') : t('calendar.type_series')}
+                          </span>
+
+                          {imageUrl && (
+                            <div class="poster-wrap absolute inset-0">
+                              {isPortraitOnly && (
+                                <img
+                                  src={imageUrl}
+                                  alt=""
+                                  aria-hidden="true"
+                                  loading="lazy"
+                                  class="absolute inset-0 w-full h-full object-cover scale-110 blur-lg opacity-40"
+                                />
+                              )}
+                              <img
+                                src={imageUrl}
+                                alt={item.title}
+                                loading="lazy"
+                                onerror="this.closest('.poster-wrap').style.display='none'; this.closest('.poster-wrap').nextElementSibling.style.display='flex';"
+                                class={isPortraitOnly
+                                  ? "relative w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
+                                  : "w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"}
+                              />
+                            </div>
+                          )}
+
+                          <div
+                            class="no-poster-fallback w-full h-full flex-col items-center justify-center gap-2 text-gray-500"
+                            style={imageUrl ? "display:none;" : "display:flex;"}
+                          >
+                              <svg
+                                class="w-8 h-8"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  stroke-width="1.5"
+                                  d="M4 4h16v16H4V4zm4 0v16m8-16v16M4 8h4m8 0h4M4 16h4m8 0h4"
+                                />
+                              </svg>
+                              <span class="text-xs font-semibold">{t('calendar.no_poster_yet')}</span>
+                          </div>
+
+                          <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/30">
+                            <div class="w-12 h-12 bg-[#DF0912] rounded-full flex items-center justify-center shadow-lg transform scale-50 group-hover:scale-100 transition-transform">
+                              <svg
+                                class="w-5 h-5 text-white ml-0.5"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path d="M8 5v14l11-7z" />
+                              </svg>
+                            </div>
+                          </div>
+
+                          <div class="absolute bottom-0 left-0 right-0">
+                            {item.hasLaunched ? (
+                              <span class="block w-full text-center bg-green-600/90 backdrop-blur-md text-white text-[11px] font-bold py-1.5">
+                                {t('calendar.available_short')}
+                              </span>
+                            ) : (
+                              <span class="block w-full text-center bg-black/70 backdrop-blur-md text-white text-[11px] font-bold py-1.5">
+                                {t('calendar.not_yet')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div class="flex flex-col px-1">
+                          <h3 class="text-white font-bold text-sm leading-tight group-hover:text-[#DF0912] transition-colors line-clamp-2 mb-1">
+                            {item.title}
+                          </h3>
+
+                          {!isMovie && (
+                            <p class="text-[11px] text-gray-500 line-clamp-1">{episodeInfo}</p>
+                          )}
+                        </div>
+                      </a>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+          </div>
+        </div>
+      )
+    }
+  </main>
+
+  <script>
+    // @ts-nocheck
+    document.addEventListener("astro:page-load", function () {
+      const filterButtons = document.querySelectorAll(".filter-btn");
+      const sections = document.querySelectorAll(".date-group");
+
+      function mostrarTodas() {
+        sections.forEach((section) => (section.style.display = "block"));
+      }
+
+      function mostrarCategoria(categoria) {
+        sections.forEach((section) => {
+          if (section.getAttribute("data-categoria") === categoria) {
+            section.style.display = "block";
+          } else {
+            section.style.display = "none";
+          }
+        });
+      }
+
+      filterButtons.forEach((button) => {
+        button.addEventListener("click", function () {
+          filterButtons.forEach((btn) => {
+            btn.className =
+              "filter-btn px-5 py-2.5 rounded-full font-bold text-xs uppercase tracking-wider transition-all duration-300 bg-[#161B28] text-gray-400 hover:text-white border border-white/5";
+          });
+
+          this.className =
+            "filter-btn active px-5 py-2.5 rounded-full font-bold text-xs uppercase tracking-wider transition-all duration-300 bg-[#DF0912] text-white shadow-lg shadow-red-900/20";
+
+          const filter = this.getAttribute("data-filter");
+          if (filter === "todos") mostrarTodas();
+          else mostrarCategoria(filter);
+        });
+      });
+    });
+  </script>
+
+  <style>
+    @reference 'tailwindcss';
+
+    .line-clamp-1 {
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .line-clamp-2 {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .animate-fade-in {
+      animation: fadeIn 0.5s ease-out forwards;
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0E111A;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #333;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #df0912;
+    }
+  </style>
+
+</BaseLayout>

@@ -1,0 +1,21 @@
+---
+---
+
+                <div id="channels-section" class="hidden space-y-4 animate-in fade-in duration-500">
+                    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-[#141414] p-4 rounded-xl border border-white/10">
+                        <h3 class="text-white text-sm font-semibold flex items-center gap-2.5">
+                            <span class="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span>
+                            Canais premium (<span id="channels-total-count" class="text-gray-400 font-mono">...</span>)
+                            <div id="channels-loader" class="animate-spin h-3 w-3 border-2 border-[#DF0912] border-t-transparent rounded-full hidden"></div>
+                        </h3>
+                        <div class="flex flex-wrap gap-2 items-center">
+                            <select id="channel-category-filter" class="bg-[#060911] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#DF0912]/60 transition-colors">
+                                <option value="">Todas as categorias</option>
+                            </select>
+                            <input type="text" id="channel-search" placeholder="Filtrar nome..." class="bg-[#060911] border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-gray-600 focus:outline-none focus:border-[#DF0912]/60 transition-colors" />
+                            <button id="refresh-channels-btn" class="text-gray-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition-colors text-xs font-medium px-3 py-2 rounded-lg">Atualizar</button>
+                        </div>
+                    </div>
+                    <div id="channels-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+                </div>
+

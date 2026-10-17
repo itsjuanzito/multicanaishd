@@ -1,0 +1,384 @@
+---
+// src/components/ContinueWatching.astro
+import { getLangFromUrl, useTranslations } from "../../i18n/utils";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+---
+
+<section id="continue-watching-section" class="hidden py-8 relative z-30 mb-4">
+    <div class="container mx-auto px-4 sm:px-6 lg:px-12">
+        <div class="flex items-center justify-between mb-5">
+            <div class="flex items-center gap-3">
+                <span class="w-1.5 h-6 bg-[#DF0912]"></span>
+                <h2 class="text-xl font-black text-white uppercase tracking-tighter italic drop-shadow-lg">
+                    {t('resume.title')}
+                </h2>
+            </div>
+            <div class="flex items-center gap-4">
+                <button id="clear-history" class="px-5 py-2 border border-white/20 rounded-full text-[10px] font-black text-white/70 hover:text-white hover:bg-white/10 transition-all uppercase tracking-widest cursor-pointer">
+                    {t('resume.clear_history')}
+                </button>
+                <div id="resume-indicators" class="flex gap-1.5 opacity-40"></div>
+            </div>
+        </div>
+        <div class="relative group/resume">
+            <button id="prev-resume" class="hidden sm:flex absolute -left-2 top-1/2 -translate-y-1/2 z-40 w-11 h-11 items-center justify-center opacity-0 group-hover/resume:opacity-100 transition-all duration-300 cursor-pointer bg-black/95 hover:bg-[#DF0912] border border-white/5 shadow-2xl backdrop-blur-md transform hover:scale-110 pointer-events-none group-hover/resume:pointer-events-auto" style="display: none;">
+                <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 19l-7-7 7-7"></path></svg>
+            </button>
+            <div id="history-list" class="flex gap-4 sm:gap-6 overflow-x-auto snap-x snap-mandatory scrollbar-hide py-3 scroll-smooth w-full" style="scrollbar-width: none; -ms-overflow-style: none;"></div>
+            <button id="next-resume" class="hidden sm:flex absolute -right-2 top-1/2 -translate-y-1/2 z-40 w-11 h-11 items-center justify-center opacity-0 group-hover/resume:opacity-100 transition-all duration-300 cursor-pointer bg-black/95 hover:bg-[#DF0912] border border-white/5 shadow-2xl backdrop-blur-md transform hover:scale-110 pointer-events-none group-hover/resume:pointer-events-auto" style="display: none;">
+                <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19l7-7-7-7"></path></svg>
+            </button>
+        </div>
+    </div>
+</section>
+
+<!-- Confirmation Modal -->
+<div id="clear-history-modal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/90 backdrop-blur-md transition-all duration-300">
+    <div class="bg-[#121212] border border-white/10 p-8 rounded-2xl max-w-sm w-[90%] shadow-2xl transform scale-95 opacity-0 transition-all duration-300" id="clear-modal-content">
+        <div class="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mb-6 mx-auto">
+            <svg class="w-8 h-8 text-[#DF0912]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+        </div>
+        <h3 class="text-xl font-bold text-white text-center mb-2 uppercase tracking-tighter">{t('resume.clear_modal_title')}</h3>
+        <p class="text-gray-400 text-center text-sm mb-8 leading-relaxed">
+            {t('resume.clear_modal_desc')}
+        </p>
+        <div class="flex flex-col gap-3">
+            <button id="confirm-clear" class="w-full py-4 bg-[#DF0912] hover:bg-[#be080f] text-white font-black rounded-xl transition-all uppercase tracking-widest text-xs cursor-pointer">
+                {t('resume.confirm_clear')}
+            </button>
+            <button id="cancel-clear" class="w-full py-4 bg-white/5 hover:bg-white/10 text-white font-black rounded-xl transition-all uppercase tracking-widest text-xs border border-white/5 cursor-pointer">
+                {t('resume.cancel')}
+            </button>
+        </div>
+    </div>
+</div>
+<!-- Translation Data -->
+<span
+    id="history-i18n-data"
+    class="hidden"
+    data-visto={t('resume.visto')}
+    data-eps={t('resume.eps')}
+    data-movie={t('resume.movie')}
+    data-tv={t('resume.tv')}
+    data-resume={t('resume.badge')}
+    data-remaining={t('resume.remaining')}
+    data-clear-success={t('resume.clear_success_toast')}
+></span>
+
+<script is:inline>
+    let authStore, removeFromHistory, clearCloudHistory;
+
+    let lastStateHash = "";
+    let isInitialRender = true;
+
+    function renderHistory() {
+        const sectionMovies = document.getElementById("continue-watching-section");
+        const listMovies = document.getElementById("history-list");
+        const indicatorsMovies = document.getElementById("resume-indicators");
+
+        const state = authStore.get();
+        const isLogged = !!state.user;
+        const loading = state.loading;
+
+        const sortedHistory = [...(state.history || [])].sort((a, b) => {
+            const parseTime = (val) => {
+                if (!val) return 0;
+                const t = new Date(val).getTime();
+                return isNaN(t) ? 0 : t;
+            };
+            const timeA = parseTime(a?.timestamp);
+            const timeB = parseTime(b?.timestamp);
+            return timeB - timeA;
+        });
+
+        const moviesSeriesHistory = sortedHistory.slice(0, 10);
+
+        const watchedState = JSON.stringify(state.watchedEpisodes);
+        // [Flicker Shield] Removemos a flag 'loading' do hash de estado para evitar re-renderizações repetidas do DOM (que apagam e re-inserem todos os cards) durante o sync do Supabase.
+        // Narrowed state hash checking to only trigger renders when items, progress, or login state actually changes.
+        // `resume_seconds` entra no hash porque a barra de progresso depende dele: sem isso, o
+        // avanço do player (que chega via postMessage e só muda esse campo) nunca redesenhava o card.
+        const currentStateHash = JSON.stringify(sortedHistory.slice(0, 20).map(i => ({ id: i?.id, timestamp: i?.timestamp, chapterNum: i?.chapterNum, pageIndex: i?.pageIndex, resume: i?.resume_seconds }))) + watchedState + isLogged;
+
+        // Se está carregando e não temos histórico, retorna sem travar o hash para permitir renderizar no próximo evento
+        if (loading && sortedHistory.length === 0) return;
+
+        if (currentStateHash === lastStateHash) return;
+        lastStateHash = currentStateHash;
+
+        // Renderização Filmes e Séries
+        if (moviesSeriesHistory.length === 0 || !isLogged) {
+            sectionMovies?.classList.add("hidden");
+        } else {
+            sectionMovies?.classList.remove("hidden");
+            if (isInitialRender) sectionMovies?.classList.add("animate-fade-in-up");
+
+            const currentScroll = listMovies?.scrollLeft || 0;
+            if (listMovies) listMovies.innerHTML = "";
+            if (indicatorsMovies) indicatorsMovies.innerHTML = "";
+
+            const fragment = document.createDocumentFragment();
+            const indFragment = document.createDocumentFragment();
+
+            moviesSeriesHistory.forEach((item, idx) => {
+                const card = document.createElement("a");
+                let finalUrl = item.url || "";
+                const isInternal = finalUrl.includes('localhost') || finalUrl.includes(window.location.hostname) || finalUrl.startsWith('/');
+                if (isInternal && finalUrl.startsWith('http')) {
+                    try { const u = new URL(finalUrl, window.location.origin); finalUrl = u.pathname + u.search; } catch(e) {}
+                }
+                card.href = finalUrl;
+                // bf-resume-card: marca o card para o interceptador de smartlink do BaseLayout.
+                // Não dá pra depender do padrão de href /filme/|/serie/ usado lá — a URL de
+                // retomada vem do histórico e pode apontar pro player ou carregar timestamp.
+                card.className = "bf-resume-card flex-none w-[280px] sm:w-[340px] aspect-video snap-start group relative bg-[#0a0a0a] overflow-hidden border border-white/5 transition-all duration-500 hover:border-[#DF0912]/40 hover:scale-[1.02]";
+                
+                const i18n = document.getElementById("history-i18n-data")?.dataset || {};
+                let progress = 0;
+                let infoText = item.type === "movie" ? (i18n.movie || "Movie") : (i18n.tv || "Series");
+
+                if (item && item.type === "tv" && item.id && isLogged) {
+                    try {
+                        const episodes = state.watchedEpisodes[item.id.toString()] || [];
+                        const watchedCount = episodes.length;
+                        if (watchedCount > 0) {
+                            if (item.totalEps && item.totalEps > 0) {
+                                progress = Math.min(100, Math.round((watchedCount / item.totalEps) * 100));
+                                infoText = `${i18n.visto || 'Watched'}: ${watchedCount}/${item.totalEps} ${i18n.eps || 'eps'}`;
+                            } else {
+                                infoText = `${i18n.visto || 'Watched'}: ${watchedCount} ${i18n.eps || 'eps'}`;
+                            }
+                        }
+                    } catch (_) {}
+                }
+
+                // Posição real de reprodução, vinda do postMessage `streambetter:progress`.
+                // Tem prioridade sobre a contagem de episódios: é literalmente "onde você
+                // parou", que é o que o card promete. Séries sem esse dado (episódio nunca
+                // tocado, ou histórico antigo) continuam caindo na barra por episódios vistos.
+                const resumeSeconds = Number(item?.resume_seconds) || 0;
+                const totalSeconds = Number(item?.duration_seconds) || 0;
+                let remainingText = "";
+                if (resumeSeconds > 0 && totalSeconds > 0) {
+                    progress = Math.min(100, Math.round((resumeSeconds / totalSeconds) * 100));
+
+                    // Só a partir de 1 minuto: abaixo disso o título praticamente acabou e
+                    // "0min restantes" seria mais confuso que informativo.
+                    const minutosRestantes = Math.round((totalSeconds - resumeSeconds) / 60);
+                    if (minutosRestantes >= 1) {
+                        const horas = Math.floor(minutosRestantes / 60);
+                        const minutos = minutosRestantes % 60;
+                        // "1h 53min" / "2h" / "45min" — nada de "1h 0min".
+                        const tempo = horas > 0
+                            ? (minutos > 0 ? `${horas}h ${minutos}min` : `${horas}h`)
+                            : `${minutos}min`;
+                        remainingText = (i18n.remaining || '{time}').replace('{time}', tempo);
+                    }
+                }
+
+                const imgUrl = item.backdrop ? (item.backdrop.startsWith('http') ? item.backdrop : `https://image.tmdb.org/t/p/w300${item.backdrop}`) : (item.poster ? (item.poster.startsWith('http') ? item.poster : `https://image.tmdb.org/t/p/w342${item.poster}`) : "/placeholder.jpg");
+
+                card.innerHTML = `
+                    <img src="${imgUrl}" alt="${item.title}" onerror="this.onerror=null; this.src='https://placehold.co/300x168/141414/FF5555?text=${encodeURIComponent(item.title)}';" class="absolute inset-0 w-full h-full object-cover opacity-60 transition-all duration-700 group-hover:opacity-100" loading="lazy" decoding="async" />
+                    <div class="absolute bottom-0 left-0 right-0 p-5 space-y-1 z-10 drop-shadow-[0_2px_10px_rgba(0,0,0,1)]">
+                        <p class="text-[9px] font-black text-[#DF0912] uppercase tracking-widest leading-none mb-1">${i18n.resume || 'RESUME'} • ${infoText}</p>
+                        <h3 class="text-base font-black text-white uppercase tracking-tighter truncate leading-none">${item.title}</h3>
+                        ${(remainingText || progress > 0) ? `
+                        <div class="mt-4 space-y-1.5">
+                            ${remainingText ? `<p class="text-[10px] font-bold text-white/70 uppercase tracking-wide leading-none">${remainingText}</p>` : ''}
+                            ${progress > 0 ? `<div class="w-full h-1 bg-white/10 overflow-hidden rounded-full"><div class="h-full bg-[#DF0912] transition-all duration-[1500ms]" style="width: ${progress}%"></div></div>` : ''}
+                        </div>` : ''}
+                    </div>
+                    <button class="remove-from-history absolute top-3 right-3 z-30 w-8 h-8 flex items-center justify-center bg-black/60 hover:bg-[#DF0912] text-white rounded-full border border-white/10 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300 backdrop-blur-md transform hover:scale-110 active:scale-95" title="Remover"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                `;
+
+                card.querySelector('.remove-from-history')?.addEventListener('click', async (e) => {
+                    e.preventDefault(); e.stopPropagation();
+                    if (item?.id) removeFromHistory(item.id);
+                });
+
+                fragment.appendChild(card);
+                if (indicatorsMovies && idx < 5) {
+                    const dot = document.createElement("div");
+                    dot.className = `dot-resume w-1.5 h-3.5 transition-all duration-500 ${idx === 0 ? 'bg-[#DF0912]' : 'bg-white/10'}`;
+                    indFragment.appendChild(dot);
+                }
+            });
+
+            if (listMovies) {
+                listMovies.appendChild(fragment);
+                if (currentScroll > 0) listMovies.scrollLeft = currentScroll;
+            }
+            if (indicatorsMovies) indicatorsMovies.appendChild(indFragment);
+        }
+
+        if (isInitialRender) isInitialRender = false;
+        setupNavEvents();
+    }
+
+    function setupNavEvents() {
+        const listMovies = document.getElementById("history-list");
+        const nextMovies = document.getElementById("next-resume");
+        const prevMovies = document.getElementById("prev-resume");
+
+        function updateBtn(l, n, p, dotClass) {
+            if (!l || !n || !p) return;
+            const maxScroll = l.scrollWidth - l.clientWidth;
+            p.style.display = l.scrollLeft > 10 ? "flex" : "none";
+            n.style.display = l.scrollLeft < maxScroll - 10 ? "flex" : "none";
+
+            const dots = document.querySelectorAll(`.${dotClass}`);
+            if (dots.length > 0) {
+                const progress = maxScroll > 0 ? l.scrollLeft / maxScroll : 0;
+                const activeIndex = Math.min(dots.length -1, Math.round(progress * (dots.length - 1)));
+                dots.forEach((d, i) => {
+                    if (i === activeIndex) { d.classList.add("bg-[#DF0912]", "h-5"); d.classList.remove("bg-white/10"); }
+                    else { d.classList.remove("bg-[#DF0912]", "h-5"); d.classList.add("bg-white/10"); }
+                });
+            }
+        }
+
+        if (nextMovies && listMovies) nextMovies.onclick = () => listMovies.scrollBy({ left: listMovies.clientWidth * 0.8, behavior: "smooth" });
+        if (prevMovies && listMovies) prevMovies.onclick = () => listMovies.scrollBy({ left: -listMovies.clientWidth * 0.8, behavior: "smooth" });
+
+        let tickingMovies = false;
+        if (listMovies) {
+            listMovies.onscroll = () => {
+                if (!tickingMovies) {
+                    window.requestAnimationFrame(() => {
+                        updateBtn(listMovies, nextMovies, prevMovies, "dot-resume");
+                        tickingMovies = false;
+                    });
+                    tickingMovies = true;
+                }
+            };
+        }
+
+        // Ao invés de medir na carga inicial (Forced Reflow), medimos sob demanda no primeiro hover ou toque físico
+        const containerMovies = listMovies?.closest('.group\\/resume');
+        if (containerMovies) {
+            const initLayout = () => {
+                window.requestAnimationFrame(() => {
+                    updateBtn(listMovies, nextMovies, prevMovies, "dot-resume");
+                });
+                containerMovies.removeEventListener('mouseenter', initLayout);
+                containerMovies.removeEventListener('touchstart', initLayout);
+            };
+            containerMovies.addEventListener('mouseenter', initLayout, { passive: true });
+            containerMovies.addEventListener('touchstart', initLayout, { passive: true });
+        }
+    }
+
+    let renderAnimationFrameId = null;
+    function queueRenderHistory() {
+        if (renderAnimationFrameId) cancelAnimationFrame(renderAnimationFrameId);
+        renderAnimationFrameId = requestAnimationFrame(() => {
+            renderHistory();
+            renderAnimationFrameId = null;
+        });
+    }
+
+    async function initContinue() {
+        const isBot = navigator.webdriver === true || /lighthouse|pagespeed|bot|crawler|spider/i.test(navigator.userAgent);
+        if (isBot) return;
+
+        // Consome de forma desacoplada sem disparar preloads do Vite na Home
+        if (window._authStore) {
+            authStore = window._authStore;
+            removeFromHistory = window._removeFromHistory;
+            clearCloudHistory = window._clearCloudHistory;
+        } else {
+            const authData = await new Promise((resolve) => {
+                const handler = (e) => {
+                    resolve(e.detail);
+                    document.removeEventListener("multicanaishd:auth-ready", handler);
+                };
+                document.addEventListener("multicanaishd:auth-ready", handler);
+                setTimeout(() => {
+                    resolve(null);
+                    document.removeEventListener("multicanaishd:auth-ready", handler);
+                }, 6000);
+            });
+            if (authData) {
+                authStore = authData.authStore;
+                removeFromHistory = authData.removeFromHistory;
+                clearCloudHistory = authData.clearCloudHistory;
+            }
+        }
+
+        if (!authStore) {
+            console.error("❌ authStore não inicializado no ContinueWatching.");
+            return;
+        }
+
+        queueRenderHistory();
+        
+        const clearBtn = document.getElementById("clear-history");
+        const modal = document.getElementById("clear-history-modal");
+        const modalContent = document.getElementById("clear-modal-content");
+        const confirmBtn = document.getElementById("confirm-clear");
+        const cancelBtn = document.getElementById("cancel-clear");
+
+        if (!modal || !modalContent) return;
+
+        const openModal = () => {
+            modal.classList.remove("hidden"); modal.classList.add("flex");
+            setTimeout(() => { modalContent.classList.remove("scale-95", "opacity-0"); modalContent.classList.add("scale-100", "opacity-100"); }, 10);
+        };
+        const closeModal = () => {
+            modalContent.classList.remove("scale-100", "opacity-100"); modalContent.classList.add("scale-95", "opacity-0");
+            setTimeout(() => { modal.classList.remove("flex"); modal.classList.add("hidden"); }, 300);
+        };
+
+        clearBtn?.addEventListener("click", (e) => { e.preventDefault(); openModal(); });
+
+        confirmBtn?.addEventListener("click", () => {
+            if (clearCloudHistory) clearCloudHistory();
+            document.getElementById("continue-watching-section")?.classList.add("hidden");
+            if (document.getElementById("history-list")) document.getElementById("history-list").innerHTML = "";
+            closeModal();
+            const i18n = document.getElementById("history-i18n-data")?.dataset || {};
+            if (window.showToast) window.showToast(i18n.clearSuccess || "History cleared!", "success");
+        });
+
+        cancelBtn?.addEventListener("click", closeModal);
+        modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+
+        if (window._unsubscribeContinue) window._unsubscribeContinue();
+        window._unsubscribeContinue = authStore.subscribe(() => { queueRenderHistory(); });
+    }
+
+    document.addEventListener("astro:page-load", () => {
+        lastStateHash = ""; 
+        isInitialRender = true;
+        
+        const isBot = navigator.webdriver === true || /lighthouse|pagespeed|chrome-lighthouse|bot|crawler|spider/i.test(navigator.userAgent);
+        if (isBot) {
+            console.log("🤖 PageSpeed/Bot detectado: Pulando Continue Watching para otimizar LCP.");
+            return;
+        }
+
+        if (typeof requestIdleCallback !== 'undefined') {
+            requestIdleCallback(() => {
+                setTimeout(initContinue, 1500);
+            });
+        } else {
+            setTimeout(initContinue, 2000);
+        }
+    });
+</script>
+
+<style>
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in-up {
+        animation: fadeInUp 0.5s ease-out forwards;
+    }
+</style>

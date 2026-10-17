@@ -1,0 +1,298 @@
+---
+// src/pages/components/FutebolHub.astro
+// Hub indexável de futebol ao vivo. Atende a intenção de busca "futebol ao vivo hoje",
+// "brasileirão ao vivo" e "time1 x time2" — as páginas de partida já existiam em
+// /canal/{time-x-time}, mas não havia nenhuma página que as reunisse e as tornasse
+// descobríveis pelo crawler (jogos são omitidos do sitemap por serem efêmeros).
+//
+// Indexable live-soccer hub. Match pages already existed at /canal/{team-x-team}, but no
+// page linked them together for crawlers — live games are left out of the sitemap because
+// they expire after kickoff.
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { fetchAllRelevantGames, isGameLive, getGameTimeStatus } from "../../services/liveGamesService.js";
+import { LIGAS, obterLiga, jogoPertenceALiga } from "../../utils/futebolLigas.js";
+import { slugify } from "../../utils/slugify.js";
+import { getSiteUrl } from "../../services/env-adapter.js";
+import { getLangFromUrl } from "../../i18n/utils";
+
+const { ligaSlug = "futebol-ao-vivo" } = Astro.props;
+
+const lang = getLangFromUrl(Astro.url);
+const isPt = lang === "pt";
+const langPrefix = isPt ? "" : `/${lang}`;
+const siteUrl = getSiteUrl(Astro.url);
+
+const liga = obterLiga(ligaSlug) || obterLiga("futebol-ao-vivo");
+const copy = isPt ? liga.pt : liga.en;
+
+// Regra 2.2: nenhum await de SSR sem rede de proteção. Grade vazia é uma página com empty
+// state; uma exceção aqui seria um 5xx na cara do Googlebot.
+let jogos = [];
+try {
+    const todos = await fetchAllRelevantGames();
+    jogos = (todos || []).filter((jogo) => jogoPertenceALiga(jogo, liga));
+} catch (e) {
+    console.error(`[FutebolHub] Falha ao carregar jogos da liga ${ligaSlug}:`, e?.message || e);
+    jogos = [];
+}
+
+const normalizarTimestamp = (ts) => {
+    if (!ts) return 0;
+    const num = Number(ts);
+    return num > 9999999999 ? Math.floor(num / 1000) : num;
+};
+
+const formatarHorario = (ts) => {
+    const segundos = normalizarTimestamp(ts);
+    if (!segundos) return "";
+    try {
+        return new Date(segundos * 1000).toLocaleTimeString(isPt ? "pt-BR" : "en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: !isPt,
+            timeZone: "America/Sao_Paulo",
+        });
+    } catch (e) {
+        return "";
+    }
+};
+
+const formatarData = (ts) => {
+    const segundos = normalizarTimestamp(ts);
+    if (!segundos) return "";
+    try {
+        return new Date(segundos * 1000).toLocaleDateString(isPt ? "pt-BR" : "en-US", {
+            day: "2-digit",
+            month: "short",
+            timeZone: "America/Sao_Paulo",
+        });
+    } catch (e) {
+        return "";
+    }
+};
+
+const partidas = jogos.slice(0, 60).map((jogo) => ({
+    titulo: jogo?.title || "",
+    href: `${langPrefix}/canal/${slugify(jogo?.title)}`,
+    casa: jogo?.data?.teams?.home || null,
+    fora: jogo?.data?.teams?.away || null,
+    campeonato: jogo?.data?.league || liga[isPt ? "pt" : "en"].nome,
+    aoVivo: isGameLive(jogo),
+    inicio: normalizarTimestamp(jogo?.data?.timer?.start),
+    horario: formatarHorario(jogo?.data?.timer?.start),
+    data: formatarData(jogo?.data?.timer?.start),
+    status: getGameTimeStatus(jogo),
+}));
+
+const totalAoVivo = partidas.filter((p) => p.aoVivo).length;
+
+// SportsEvent por partida + ItemList do conjunto: é o que dá ao Google a leitura de
+// "grade de jogos" em vez de uma página de links solta.
+const eventosSchema = partidas.slice(0, 20).map((partida, indice) => ({
+    "@type": "ListItem",
+    position: indice + 1,
+    item: {
+        "@type": "SportsEvent",
+        name: partida.titulo,
+        url: `${siteUrl}${partida.href}`,
+        startDate: partida.inicio ? new Date(partida.inicio * 1000).toISOString() : undefined,
+        eventStatus: "https://schema.org/EventScheduled",
+        eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode",
+        location: { "@type": "VirtualLocation", url: `${siteUrl}${partida.href}` },
+        competitor: [partida.casa?.name, partida.fora?.name]
+            .filter(Boolean)
+            .map((nome) => ({ "@type": "SportsTeam", name: nome })),
+    },
+}));
+
+const perguntas = isPt
+    ? [
+          [`Onde assistir ${copy.nome.toLowerCase()} hoje?`, `Esta página reúne os jogos do dia com horário e campeonato. Clique na partida para abrir a transmissão ao vivo no MultiCanaisHD.`],
+          ["Os jogos são de graça?", "Sim. A grade de partidas do dia é aberta e não exige cadastro para acompanhar as transmissões disponíveis."],
+          ["Que horas começa o jogo?", "O horário de cada partida aparece no card, já convertido para o fuso de Brasília. Partidas em andamento ficam no topo com o selo AO VIVO."],
+      ]
+    : [
+          [`Where can I watch ${copy.nome.toLowerCase()} today?`, `This page lists the day's fixtures with kickoff time and competition. Click a match to open its live stream on MultiCanaisHD.`],
+          ["Are the matches free?", "Yes. The daily schedule is open and requires no signup to follow the available streams."],
+          ["What time does the match start?", "Each card shows the kickoff time in Brasilia time. Matches already in progress are pinned to the top with a LIVE badge."],
+      ];
+
+const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+        {
+            "@type": "BreadcrumbList",
+            itemListElement: [
+                { "@type": "ListItem", position: 1, name: isPt ? "Início" : "Home", item: `${siteUrl}${langPrefix || "/"}` },
+                { "@type": "ListItem", position: 2, name: copy.nome, item: `${siteUrl}${langPrefix}/${liga.slug}` },
+            ],
+        },
+        { "@type": "ItemList", name: copy.heading, numberOfItems: eventosSchema.length, itemListElement: eventosSchema },
+        {
+            "@type": "FAQPage",
+            mainEntity: perguntas.map(([pergunta, resposta]) => ({
+                "@type": "Question",
+                name: pergunta,
+                acceptedAnswer: { "@type": "Answer", text: resposta },
+            })),
+        },
+    ],
+};
+
+const palavrasChave = isPt
+    ? `${copy.nome.toLowerCase()}, futebol ao vivo, jogos de hoje ao vivo, assistir futebol online gratis, onde assistir jogo hoje, transmissao ao vivo futebol, multicanaishd`
+    : `${copy.nome.toLowerCase()}, live soccer, today matches live, watch soccer online free, where to watch the game, live football stream, multicanaishd`;
+---
+
+<BaseLayout
+    title={copy.titulo}
+    description={copy.descricao}
+    keywords={palavrasChave}
+    jsonLd={jsonLd}
+    type="website"
+>
+    <main class="min-h-screen bg-[#060911] text-white pt-24 pb-20">
+        <div class="px-4 sm:px-6 lg:px-12 max-w-[1600px] mx-auto">
+            <header class="mb-10">
+                <p class="text-[10px] sm:text-xs font-black uppercase tracking-[0.4em] text-[#DF0912] mb-3">
+                    {isPt ? "Transmissões ao vivo" : "Live streams"}
+                </p>
+                <h1 class="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tighter uppercase italic mb-4">
+                    {copy.heading}
+                </h1>
+                <p class="text-sm sm:text-base text-gray-400 max-w-3xl leading-relaxed">{copy.intro}</p>
+
+                {totalAoVivo > 0 && (
+                    <div class="mt-6 inline-flex items-center gap-2 bg-[#DF0912]/10 border border-[#DF0912]/30 px-4 py-2">
+                        <span class="relative flex h-2.5 w-2.5">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#DF0912] opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#DF0912]"></span>
+                        </span>
+                        <span class="text-[11px] font-black uppercase tracking-widest text-[#DF0912]">
+                            {totalAoVivo} {isPt ? (totalAoVivo === 1 ? "jogo ao vivo agora" : "jogos ao vivo agora") : (totalAoVivo === 1 ? "match live now" : "matches live now")}
+                        </span>
+                    </div>
+                )}
+            </header>
+
+            {/* Navegação entre ligas — links internos reais, que é como o crawler chega nas outras */}
+            <nav class="flex flex-wrap gap-2 sm:gap-3 mb-10" aria-label={isPt ? "Campeonatos" : "Competitions"}>
+                {LIGAS.map((item) => (
+                    <a
+                        href={`${langPrefix}/${item.slug}`}
+                        class:list={[
+                            "px-4 py-2 text-[11px] sm:text-xs font-black uppercase tracking-widest border transition-all duration-300 hover:scale-105 active:scale-95",
+                            item.slug === liga.slug
+                                ? "bg-[#DF0912] border-[#DF0912] text-white"
+                                : "bg-white/5 border-white/10 text-gray-300 hover:bg-[#DF0912] hover:border-[#DF0912] hover:text-white",
+                        ]}
+                    >
+                        {(isPt ? item.pt : item.en).nome}
+                    </a>
+                ))}
+            </nav>
+
+            {partidas.length === 0 ? (
+                <div class="border border-white/10 bg-[#0E111A] p-10 sm:p-16 text-center">
+                    <h2 class="text-xl sm:text-2xl font-black uppercase italic tracking-tight mb-3">
+                        {isPt ? "Nenhuma partida na grade agora" : "No matches scheduled right now"}
+                    </h2>
+                    <p class="text-sm text-gray-400 max-w-xl mx-auto mb-8">
+                        {isPt
+                            ? "A grade é atualizada ao longo do dia conforme as transmissões entram no ar. Enquanto isso, os canais esportivos seguem disponíveis."
+                            : "The schedule updates through the day as broadcasts come online. In the meantime, the sports channels stay available."}
+                    </p>
+                    <a
+                        href={`${langPrefix}/canais`}
+                        class="inline-block px-6 py-3 bg-[#DF0912] hover:bg-[#cf0811] text-white text-xs font-black uppercase tracking-widest transition-colors duration-300 hover:scale-105"
+                    >
+                        {isPt ? "Ver canais de TV ao vivo" : "Browse live TV channels"}
+                    </a>
+                </div>
+            ) : (
+                <section aria-label={copy.heading}>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+                        {partidas.map((partida) => (
+                            <a
+                                href={partida.href}
+                                class="group relative block bg-[#0E111A] border border-white/5 hover:border-[#DF0912]/50 transition-all duration-500 hover:-translate-y-1"
+                            >
+                                <div class="flex items-center justify-between px-4 pt-4">
+                                    {partida.aoVivo ? (
+                                        <span class="inline-flex items-center gap-1.5 bg-[#DF0912] px-2.5 py-1">
+                                            <span class="relative flex h-2 w-2">
+                                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                                                <span class="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                                            </span>
+                                            <span class="text-[9px] font-black uppercase tracking-wider italic">{isPt ? "Ao vivo" : "Live"}</span>
+                                        </span>
+                                    ) : (
+                                        <span class="inline-block bg-white/5 border border-white/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-gray-300">
+                                            {partida.data} · {partida.horario}
+                                        </span>
+                                    )}
+                                    <span class="text-[8px] font-black uppercase tracking-wider text-white/50 truncate max-w-[110px]">
+                                        {partida.campeonato}
+                                    </span>
+                                </div>
+
+                                <div class="p-5 flex flex-col items-center justify-center gap-4">
+                                    <div class="flex items-center justify-center gap-5 w-full">
+                                        {[partida.casa, partida.fora].map((time, indice) => (
+                                            <>
+                                                {indice === 1 && <span class="text-xl font-black text-[#DF0912] italic">VS</span>}
+                                                <div class="flex flex-col items-center gap-2 flex-1 min-w-0">
+                                                    {time?.image ? (
+                                                        <img
+                                                            src={time.image}
+                                                            alt={time.name || ""}
+                                                            width="64"
+                                                            height="64"
+                                                            loading="lazy"
+                                                            decoding="async"
+                                                            class="w-14 h-14 sm:w-16 sm:h-16 object-contain bg-white/5 rounded-full p-2.5 border border-white/10 group-hover:border-[#DF0912]/40 transition-colors duration-300"
+                                                        />
+                                                    ) : (
+                                                        <span class="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center bg-white/5 rounded-full border border-white/10 text-sm font-black text-white/50">
+                                                            {time?.name?.charAt(0) || "?"}
+                                                        </span>
+                                                    )}
+                                                    <span class="text-[11px] font-bold uppercase tracking-tight text-center line-clamp-2">
+                                                        {time?.name || (indice === 0 ? (isPt ? "Casa" : "Home") : (isPt ? "Visitante" : "Away"))}
+                                                    </span>
+                                                </div>
+                                            </>
+                                        ))}
+                                    </div>
+
+                                    <span class="w-full text-center py-2 bg-white/5 group-hover:bg-[#DF0912] text-[10px] font-black uppercase tracking-widest transition-colors duration-300">
+                                        {partida.aoVivo
+                                            ? (isPt ? "Assistir agora" : "Watch now")
+                                            : partida.status || (isPt ? "Ver detalhes" : "See details")}
+                                    </span>
+                                </div>
+                            </a>
+                        ))}
+                    </div>
+                </section>
+            )}
+
+            <section class="mt-16 max-w-4xl">
+                <h2 class="text-2xl sm:text-3xl font-black uppercase italic tracking-tighter mb-6">
+                    {isPt ? "Perguntas frequentes" : "Frequently asked questions"}
+                </h2>
+                <div class="space-y-3">
+                    {perguntas.map(([pergunta, resposta]) => (
+                        <details class="group bg-[#0E111A] border border-white/5 hover:border-white/10 transition-colors duration-300">
+                            <summary class="cursor-pointer list-none px-5 py-4 flex items-center justify-between gap-4 text-sm font-bold">
+                                <span>{pergunta}</span>
+                                <span class="text-[#DF0912] text-lg font-black transition-transform duration-300 group-open:rotate-45">+</span>
+                            </summary>
+                            <p class="px-5 pb-5 text-sm text-gray-400 leading-relaxed">{resposta}</p>
+                        </details>
+                    ))}
+                </div>
+            </section>
+        </div>
+    </main>
+</BaseLayout>

@@ -1,0 +1,94 @@
+---
+// src/pages/components/TrailerModal.astro
+import { getLangFromUrl } from "../../i18n/utils";
+const lang = getLangFromUrl(Astro.url);
+const isPt = lang === "pt";
+---
+
+<div id="trailer-modal" class="fixed inset-0 z-[100] flex items-center justify-center opacity-0 pointer-events-none transition-all duration-500 bg-[#060911]/80 backdrop-blur-xl">
+    <!-- Close Layer -->
+    <div id="trailer-close-bg" class="absolute inset-0 cursor-crosshair"></div>
+
+    <!-- Modal Content -->
+    <div class="relative w-full max-w-5xl mx-4 aspect-video bg-black rounded-3xl overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/5 transform scale-90 transition-transform duration-500 ease-out" id="trailer-content">
+        <!-- Close Button -->
+        <button id="trailer-close-btn" aria-label={isPt ? "Fechar" : "Close"} class="absolute top-4 right-4 z-[110] w-10 h-10 bg-black/50 hover:bg-[#DF0912] text-white rounded-full flex items-center justify-center backdrop-blur-md border border-white/10 transition-all hover:scale-110 active:scale-95 group shadow-lg">
+            <svg class="w-5 h-5 transition-transform group-hover:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+
+        <!-- Loader -->
+        <div id="trailer-loader" class="absolute inset-0 flex flex-col items-center justify-center bg-[#060911] z-[-1]">
+            <div class="w-10 h-10 border-2 border-[#DF0912] border-t-transparent rounded-full animate-spin"></div>
+            <p class="text-[10px] font-black uppercase tracking-[0.4em] text-white/30 mt-4 italic animate-pulse">Carregando Trailer...</p>
+        </div>
+
+        <!-- YouTube Iframe  -->
+        <div id="trailer-video-container" class="w-full h-full">
+            <!-- Iframe will be injected here for performance -->
+        </div>
+    </div>
+</div>
+
+<style>
+    #trailer-modal.active {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    #trailer-modal.active #trailer-content {
+        transform: scale(1);
+    }
+</style>
+
+<script>
+    function initTrailerModal() {
+        const modal = document.getElementById('trailer-modal');
+        const content = document.getElementById('trailer-content');
+        const closeBtn = document.getElementById('trailer-close-btn');
+        const closeBg = document.getElementById('trailer-close-bg');
+        const videoContainer = document.getElementById('trailer-video-container');
+
+        if (!modal || !videoContainer) return;
+
+        function closeTrailer() {
+            modal.classList.remove('active');
+            if (videoContainer) videoContainer.innerHTML = '';
+            document.body.style.overflow = '';
+        }
+
+        // --- Event Listeners Globais ---
+        document.addEventListener('multicanaishd:open-trailer', (e: any) => {
+            const { key } = e.detail;
+            if (!key) return;
+
+            console.log(`🎬 [Trailer] Abrindo key: ${key}`);
+            
+            // Injeta o iframe apenas no clique para economizar recursos
+            videoContainer.innerHTML = `
+                <iframe 
+                    src="https://www.youtube.com/embed/${key}?autoplay=1&modestbranding=1&rel=0" 
+                    class="w-full h-full" 
+                    frameborder="0" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                    allowfullscreen
+                ></iframe>
+            `;
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+
+        if (closeBtn) closeBtn.onclick = closeTrailer;
+        if (closeBg) closeBg.onclick = closeTrailer;
+
+        // Fecha no ESC
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeTrailer();
+        });
+    }
+
+    // Inicializa em todas as navegações do Astro
+    document.addEventListener('astro:page-load', initTrailerModal);
+</script>

@@ -1,0 +1,46 @@
+---
+// src/pages/en/serie/[slug].astro
+// Redirects to canonical English-slug URL, then rewrites to the PT route with lang=en.
+export const prerender = false;
+import { slugDeDetalhes } from '../../../utils/canonicalSlug.js';
+import { getTMDBDetails } from '../../../services/tmdb.js';
+import { axiomService } from '../../../services/axiom-service.js';
+
+const { slug } = Astro.params;
+
+// Extrai o ID do slug para buscar o título inglês original no TMDB.
+const idMatch = slug?.match(/^(\d+)/);
+const id = idMatch ? idMatch[1] : null;
+
+if (!id) {
+    Astro.response.status = 404;
+    const p = axiomService.ingest({ _time: new Date().toISOString(), type: "content_not_found", path: Astro.url.pathname, reason: "missing_id", platform: "multicanaishd-web" });
+    if (Astro.locals.runtime?.waitUntil) { Astro.locals.runtime.waitUntil(p); } else { p.catch(() => {}); }
+    return Astro.rewrite('/404');
+}
+
+// Busca os detalhes em inglês para obter o título original e gerar o slug correto.
+// Fetches English details to get original title and build the correct English slug.
+try {
+    const details = await getTMDBDetails(id, 'tv', 'en');
+    if (details?.title || details?.name) {
+        // Fonte única de verdade compartilhada com o sitemap, a rota PT (lang=en) e o redirect
+        // de idioma — se os quatro não calcularem o MESMO slug, cada acesso vira 301 (ou pior,
+        // ping-pong entre as rotas). Ver canonicalSlug.js.
+        const expectedEnSlug = slugDeDetalhes(id, details, 'en');
+        if (slug !== expectedEnSlug) {
+            // Slug está errado (provavelmente PT) — redireciona para o slug inglês canônico.
+            // Slug is wrong (probably PT) — redirect to canonical English slug.
+            const qs = Astro.url.search;
+            return Astro.redirect(`/en/serie/${expectedEnSlug}${qs}`, 301);
+        }
+    }
+} catch (e) {
+    // Em caso de falha no TMDB, faz o rewrite normal sem verificar slug.
+    // On TMDB failure, fall through to normal rewrite without slug check.
+}
+
+const forwardParams = new URLSearchParams(Astro.url.searchParams);
+forwardParams.set('lang', 'en');
+return Astro.rewrite(`/serie/${slug}?${forwardParams.toString()}`);
+---

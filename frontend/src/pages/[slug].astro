@@ -1,0 +1,134 @@
+---
+// src/pages/[slug].astro
+// Router de compatibilidade.
+// Redireciona links antigos como /matrix?id=603&type=movie para /filme/603-matrix
+// e links numericos antigos como /76479-the-boys para /serie/76479-the-boys.
+
+export const prerender = false;
+// contentSlug, não slugify: para título em script não-latino slugify() devolve string vazia e
+// o destino do 301 saía como "/serie/123-" — uma URL quebrada, que a rota de destino tinha
+// que corrigir com um SEGUNDO 301. contentSlug é a mesma função que o sitemap e as rotas de
+// conteúdo usam para decidir o canônico (ver utils/slugify.js).
+import { contentSlug } from "../utils/slugify.js";
+import { getTMDBDetails } from "../services/tmdb.js";
+import { axiomService } from "../services/axiom-service.js";
+import { upstreamUnavailableResponse } from "../utils/upstreamUnavailable.js";
+
+const { slug } = Astro.params;
+
+if (Astro.url.pathname.startsWith('/api/') || Astro.url.pathname.startsWith('/player/')) {
+    return new Response(null, { status: 404 });
+}
+
+// Astro.rewrite("/404") reinicia o pipeline de middleware pro novo path, então o log de
+// requisição no middleware.js só enxerga "/404" genérico — logamos aqui, com a URL original
+// ainda intacta, pra saber de fato qual slug quebrou.
+const logNotFound = (reason) => {
+    const p = axiomService.ingest({
+        _time: new Date().toISOString(),
+        type: "content_not_found",
+        path: Astro.url.pathname,
+        reason,
+        platform: "multicanaishd-web"
+    });
+    if (Astro.locals.runtime?.waitUntil) {
+        Astro.locals.runtime.waitUntil(p);
+    } else {
+        p.catch(() => {});
+    }
+};
+
+const id = Astro.url.searchParams.get("id");
+let type = Astro.url.searchParams.get("type");
+const lang = Astro.url.searchParams.get("lang") === "en" || Astro.url.pathname.startsWith('/en') ? 'en' : 'pt';
+const langPrefix = lang === 'pt' ? '' : '/en';
+
+const buildRedirectParams = () => {
+    const params = new URLSearchParams(Astro.url.searchParams);
+    params.delete("id");
+    params.delete("type");
+    params.delete("lang");
+    const qs = params.toString();
+    return qs ? `?${qs}` : "";
+};
+
+if ((!id || !type) && /^\d+/.test(slug || "")) {
+    const numericId = (slug.match(/^(\d+)/) || [])[1];
+    const slugTail = (slug || "").replace(/^\d+-?/, "");
+
+    const [movieDetails, tvDetails] = await Promise.all([
+        getTMDBDetails(numericId, "movie", lang).catch(() => null),
+        getTMDBDetails(numericId, "tv", lang).catch(() => null),
+    ]);
+
+    // null nas duas = as DUAS chamadas lançaram (timeout/429/5xx do TMDB). Isso não é
+    // "não encontrado": getTMDBDetails devolve `{ notFound: true }` (objeto, não null) quando
+    // o TMDB confirma que o id não existe (tmdb.js:315-324). Tratar falha transitória como
+    // inexistência respondia 404 e desindexava URL válida — o mesmo dano que
+    // upstreamUnavailable.js existe para evitar nas rotas /filme e /serie.
+    if (movieDetails === null && tvDetails === null) {
+        logNotFound("upstream_unavailable");
+        return upstreamUnavailableResponse(lang);
+    }
+
+    const candidates = [
+        { routeType: "filme", details: movieDetails },
+        { routeType: "serie", details: tvDetails },
+    ].filter((candidate) => candidate.details?.id);
+
+    const matched = candidates.find((candidate) => {
+        const name = candidate.details.title || candidate.details.name || "";
+        return slugTail && contentSlug(name) === slugTail;
+    }) || candidates[0];
+
+    if (matched) {
+        const name = matched.details.title || matched.details.name || slugTail || numericId;
+        return Astro.redirect(`${langPrefix}/${matched.routeType}/${numericId}-${contentSlug(name)}${buildRedirectParams()}`, 301);
+    }
+}
+
+if (!id || !type) {
+    Astro.response.status = 404;
+    logNotFound("missing_id_or_type");
+    return Astro.rewrite('/404');
+}
+
+let newType = type;
+if (type === "anime") newType = "serie";
+if (type === "movie") newType = "filme";
+if (type === "tv") newType = "serie";
+if (type === "series") newType = "serie";
+
+const tmdbType = (type === 'movie') ? 'movie' : 'tv';
+let details = null;
+try {
+    details = await getTMDBDetails(id, tmdbType, lang);
+} catch (e) {
+    console.error(`[Router] TMDB fetch error for ${id}:`, e.message);
+    const logPromise = axiomService.logError(e, { rota: `/${slug}`, id, tmdbType });
+    if (Astro.locals.runtime?.waitUntil) {
+        Astro.locals.runtime.waitUntil(logPromise);
+    } else {
+        logPromise.catch(() => {});
+    }
+}
+
+// details === null só acontece quando o fetch acima lançou (falha transitória da origem).
+// 404 aqui desindexava a URL antiga por um incidente de minutos; 200 + noindex mantém a URL
+// viva e ela volta sozinha no próximo rastreamento bem-sucedido.
+if (details === null) {
+    logNotFound("upstream_unavailable");
+    return upstreamUnavailableResponse(lang);
+}
+
+if (details.notFound || (!details.title && !details.name)) {
+    Astro.response.status = 404;
+    logNotFound("tmdb_not_found");
+    return Astro.rewrite('/404');
+}
+
+const name = details.title || details.name || slug;
+const cleanSlug = contentSlug(name);
+
+return Astro.redirect(`${langPrefix}/${newType}/${id}-${cleanSlug}${buildRedirectParams()}`, 301);
+---

@@ -1,0 +1,353 @@
+---
+// src/components/SearchWidget.astro
+import { genres } from "../../utils/genres";
+import { isKidsProfile, ehGeneroInfantil, filtrarItensInfantis } from "../../services/kidsProfile.js";
+import { reforcarComClassificacao } from "../../services/contentRating.js";
+import RandomPicker from "./RandomPicker.astro";
+import { fetchTrending } from "../../services/trendingService";
+
+// i18n
+import { getLangFromUrl, useTranslations } from "../../i18n/utils";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+const langPrefix = isPt ? "" : `/${lang}`;
+
+const currentSearch = Astro.url.searchParams.get("q") || "";
+
+// No perfil infantil a lista de gêneros da busca fica só com os liberados: oferecer
+// "Terror" num botão e depois barrar a página seria pior do que não oferecer.
+const generosVisiveis = isKidsProfile(Astro)
+    ? genres.filter((g) => ehGeneroInfantil(g.id))
+    : genres;
+
+// Busca títulos em alta para sugestões populares (Passando lang)
+let trendingSuggestions = [];
+try {
+    const raw = await fetchTrending("all", "week", lang);
+    const kidsWidget = isKidsProfile(Astro);
+    const base = kidsWidget ? await reforcarComClassificacao(filtrarItensInfantis(raw)) : raw;
+    trendingSuggestions = base.slice(0, 6).map(item => item.title || item.name);
+} catch(e) {}
+---
+
+<div class="relative z-50 search-container flex items-center justify-end" data-lang={lang} data-lang-prefix={langPrefix}>
+    <!-- Search Trigger Button -->
+    <button
+        id="searchTrigger"
+        class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/5 rounded-full transition-all focus:outline-none"
+        title={t('search.title')}
+        aria-label={t('search.title')}
+    >
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+    </button>
+
+    <!-- Search Overlay / Panel -->
+    <div
+        id="searchPanel"
+        class="fixed top-20 sm:top-24 left-1/2 -translate-x-1/2 w-[95%] max-w-2xl bg-[#0f0f0f]/95 backdrop-blur-2xl border border-white/10 rounded-[2rem] shadow-2xl shadow-black/80 overflow-hidden scale-95 opacity-0 pointer-events-none transition-all duration-300 origin-top z-[101]"
+    >
+        <div class="p-4 sm:p-6">
+            <div class="relative flex items-center bg-white/5 rounded-2xl border border-white/5 focus-within:border-[#DF0912]/50 transition-all px-4 py-3 mb-6">
+                 <svg class="w-5 h-5 text-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+                <input
+                    type="search"
+                    id="globalSearchInput"
+                    class="w-full bg-transparent text-white placeholder-gray-500 text-base font-medium focus:outline-none"
+                    placeholder={t('search.placeholder')}
+                    value={currentSearch}
+                    autocomplete="off"
+                />
+                <button 
+                    id="closeSearch" 
+                    class="ml-2 text-gray-500 hover:text-white transition-colors"
+                    aria-label={isPt ? "Fechar painel de busca" : "Close search panel"}
+                >
+                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <div class="max-h-[60vh] overflow-y-auto custom-scrollbar space-y-6">
+                <!-- Random Picker Quick Access -->
+                <button
+                    id="btnRandomPicker"
+                    type="button"
+                    class="w-full group/rand relative overflow-hidden rounded-2xl bg-white/5 border border-white/5 hover:border-[#DF0912]/30 transition-all duration-300 p-4 flex items-center gap-4 text-left"
+                    aria-label={t('search.random_title')}
+                >
+                    <div class="w-12 h-12 flex-shrink-0 flex items-center justify-center rounded-2xl bg-white/10 text-white shadow-lg group-hover/rand:scale-110 group-hover/rand:rotate-12 transition-all">
+                        <svg class="w-6 h-6 animate-[spin_4s_linear_infinite]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                    </div>
+                    <div>
+                        <h4 class="text-white font-bold text-base">{t('search.random_title')}</h4>
+                        <p class="text-xs text-gray-400">{t('search.random_desc')}</p>
+                    </div>
+                </button>
+
+                <!-- Quick Search Results (Phase 11) -->
+                <div id="quickResultsSection" class="hidden">
+                    <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 px-1">{t('search.results_suggested')}</h3>
+                    <div id="quickResultsList" class="grid grid-cols-1 gap-2">
+                        <!-- Itens renderizados via JS -->
+                    </div>
+                </div>
+
+                <!-- Popular Search Suggestions -->
+                {trendingSuggestions.length > 0 && (
+                    <div id="popularSection">
+                        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 px-1">{t('search.trending')}</h3>
+                        <div class="flex flex-wrap gap-2">
+                            {trendingSuggestions.map((term) => (
+                                <button 
+                                    class="suggestion-btn px-4 py-2 bg-[#DF0912]/5 hover:bg-[#DF0912]/20 text-[#DF0912] border border-[#DF0912]/10 rounded-xl text-xs font-black uppercase tracking-tighter transition-all"
+                                    data-term={term}
+                                >
+                                    {term}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                 <!-- Cache/History Section -->
+                <div id="historySection" class="hidden">
+                    <div class="flex items-center justify-between mb-4 px-1">
+                        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest">{t('search.recent')}</h3>
+                        <button 
+                            id="clearAllHistory" 
+                            class="px-2.5 py-1 text-[10px] font-black uppercase tracking-tighter text-gray-500 hover:text-white bg-white/5 hover:bg-red-500/20 border border-white/5 hover:border-red-500/20 rounded-md transition-all duration-300"
+                        >
+                            {t('search.clear')}
+                        </button>
+                    </div>
+                    <div id="historyList" class="flex flex-wrap gap-2"></div>
+                </div>
+
+                <!-- Genre Navigation inside Search -->
+                <div>
+                    <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 px-1">{t('search.genres')}</h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {generosVisiveis.map((genre) => (
+                            <button 
+                                class="genre-btn text-left px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl text-sm text-gray-300 hover:text-white transition-all"
+                                data-slug={genre.slug || genre.id}
+                            >
+                                {t(genre.key)}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // @ts-nocheck
+    // contentSlug em vez de cópia local de slugify: título não-latino virava slug vazio → link quebrado.
+    import { contentSlug } from "../../utils/slugify.js";
+    function initSearchWidget() {
+        const trigger = document.getElementById("searchTrigger");
+        const panel = document.getElementById("searchPanel");
+        const closeBtn = document.getElementById("closeSearch");
+        const input = document.getElementById("globalSearchInput");
+        const historySection = document.getElementById("historySection");
+        const historyList = document.getElementById("historyList");
+        const clearAllBtn = document.getElementById("clearAllHistory");
+        const btnRandom = document.getElementById("btnRandomPicker");
+        const genreBtns = document.querySelectorAll(".genre-btn");
+        const suggestionBtns = document.querySelectorAll(".suggestion-btn");
+        const quickResultsSection = document.getElementById("quickResultsSection");
+        const quickResultsList = document.getElementById("quickResultsList");
+        const popularSection = document.getElementById("popularSection");
+
+        const container = document.querySelector(".search-container");
+        if (!trigger || !panel || !input || !container) return;
+
+        const lang = container.dataset.lang || 'pt';
+        const langPrefix = container.dataset.langPrefix || '';
+
+        const MAX_HISTORY = 6;
+        let searchTimeout = null;
+
+        function toggleSearch(show) {
+            if (show) {
+                panel.classList.remove("opacity-0", "scale-95", "pointer-events-none");
+                panel.classList.add("opacity-100", "scale-100", "pointer-events-auto");
+                setTimeout(() => input.focus(), 100);
+                renderHistory();
+            } else {
+                panel.classList.add("opacity-0", "scale-95", "pointer-events-none");
+                panel.classList.remove("opacity-100", "scale-100", "pointer-events-auto");
+                // Reset quick results on close
+                if (quickResultsSection) quickResultsSection.classList.add("hidden");
+                if (popularSection) popularSection.classList.remove("hidden");
+                if (historySection) historySection.classList.remove("hidden");
+            }
+        }
+
+        trigger.onclick = (e) => { e.stopPropagation(); toggleSearch(true); };
+        closeBtn.onclick = () => toggleSearch(false);
+
+        // AbortController: garante que listeners de documento são removidos na re-inicialização
+        // Necessário porque o Header usa transition:persist e o DOM é o mesmo entre navegações
+        if (window._searchAbortController) window._searchAbortController.abort();
+        const _searchAbort = new AbortController();
+        window._searchAbortController = _searchAbort;
+        const { signal } = _searchAbort;
+
+        document.addEventListener("click", (e) => {
+            if (!panel.contains(e.target) && !trigger.contains(e.target)) toggleSearch(false);
+        }, { signal });
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") toggleSearch(false);
+            if (e.key === "/" && document.activeElement?.tagName !== "INPUT") {
+                e.preventDefault();
+                toggleSearch(true);
+            }
+        }, { signal });
+
+        function getHistory() {
+            try {
+                const stored = localStorage.getItem("bf_search_history");
+                return stored ? JSON.parse(stored) : [];
+            } catch (e) { return []; }
+        }
+
+        function saveToHistory(term) {
+            if (!term) return;
+            let history = getHistory();
+            history = history.filter(item => item.toLowerCase() !== term.toLowerCase());
+            history.unshift(term);
+            if (history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
+            localStorage.setItem("bf_search_history", JSON.stringify(history));
+        }
+
+        function renderHistory() {
+            if (!historyList) return;
+            const history = getHistory();
+            if (history.length === 0) {
+                historySection.classList.add("hidden");
+                return;
+            }
+            historySection.classList.remove("hidden");
+            historyList.innerHTML = "";
+            history.forEach(term => {
+                const btn = document.createElement("button");
+                btn.className = "px-5 py-2.5 bg-white/5 hover:bg-[#DF0912]/20 hover:text-white border border-white/10 rounded-xl text-sm font-medium transition-all";
+                btn.textContent = term;
+                btn.onclick = () => { input.value = term; doSearch(); };
+                historyList.appendChild(btn);
+            });
+        }
+
+        function doSearch() {
+            const term = input.value.trim();
+            if (term) {
+                saveToHistory(term);
+                window.location.href = `${langPrefix}/results?q=${encodeURIComponent(term)}`;
+            }
+        }
+
+        async function fetchQuickResults(query) {
+            if (!query || query.length < 2) {
+                quickResultsSection.classList.add("hidden");
+                popularSection.classList.remove("hidden");
+                renderHistory();
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/quick-search?q=${encodeURIComponent(query)}&lang=${lang}`);
+                const results = await response.json();
+                renderQuickResults(results);
+            } catch (error) {
+                console.error("Erro na busca rápida:", error);
+            }
+        }
+
+        function renderQuickResults(results) {
+            if (!results || results.length === 0) {
+                quickResultsSection.classList.add("hidden");
+                popularSection.classList.remove("hidden");
+                renderHistory();
+                return;
+            }
+
+            quickResultsSection.classList.remove("hidden");
+            popularSection.classList.add("hidden");
+            historySection.classList.add("hidden");
+            quickResultsList.innerHTML = "";
+
+            results.forEach(item => {
+                const row = document.createElement("a");
+                row.href = item.href || `${langPrefix}/${item.linkType === 'movie' ? 'filme' : 'serie'}/${item.id}-${contentSlug(item.title)}`;
+                row.className = "flex items-center gap-4 p-2.5 rounded-2xl bg-white/5 hover:bg-[#DF0912]/10 border border-white/5 transition-all group/res";
+                
+                row.innerHTML = `
+                    <div class="w-12 h-16 rounded-lg overflow-hidden bg-white/10 flex-shrink-0">
+                        ${item.poster ? `<img src="${item.poster}" alt="${item.title}" class="w-full h-full object-cover" />` : '<div class="w-full h-full flex items-center justify-center text-[10px] text-gray-500 uppercase">Logo</div>'}
+                    </div>
+                    <div class="flex-grow min-w-0">
+                        <h4 class="text-white text-sm font-bold truncate group-hover/res:text-[#DF0912] transition-colors">${item.title}</h4>
+                        <div class="flex items-center gap-2 mt-0.5">
+                            <span class="text-[10px] text-gray-500 font-bold uppercase tracking-tight">${item.year || "N/A"}</span>
+                            <span class="w-1 h-1 bg-white/10 rounded-full"></span>
+                            <span class="text-[10px] text-[#DF0912] font-black uppercase tracking-tighter italic">${item.type}</span>
+                        </div>
+                    </div>
+                    <div class="pr-2 opacity-0 -translate-x-2 group-hover/res:opacity-100 group-hover/res:translate-x-0 transition-all text-[#DF0912]">
+                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M13 5l7 7-7 7"/></svg>
+                    </div>
+                `;
+                quickResultsList.appendChild(row);
+            });
+        }
+
+        input.oninput = (e) => {
+            if (searchTimeout) clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                fetchQuickResults(e.target.value.trim());
+            }, 300);
+        };
+
+        input.onkeypress = (e) => { if (e.key === "Enter") doSearch(); };
+
+        if (clearAllBtn) clearAllBtn.onclick = () => {
+            localStorage.removeItem("bf_search_history");
+            renderHistory();
+        };
+
+        if (btnRandom) btnRandom.onclick = () => {
+            if (typeof window.openRandomPicker === "function") {
+                window.openRandomPicker();
+                toggleSearch(false);
+            }
+        };
+
+        genreBtns.forEach(btn => {
+            btn.onclick = () => {
+                window.location.href = `${langPrefix}/genero/${btn.dataset.slug}`;
+            };
+        });
+
+        suggestionBtns.forEach(btn => {
+            btn.onclick = () => {
+                input.value = btn.dataset.term;
+                doSearch();
+            };
+        });
+    }
+
+    document.addEventListener("astro:page-load", initSearchWidget);
+</script>
+
+<style>
+    /* Scrollbar invisível mas funcional */
+    .custom-scrollbar::-webkit-scrollbar { width: 0px; height: 0px; }
+    .custom-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+</style>

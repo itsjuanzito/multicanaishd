@@ -1,0 +1,124 @@
+---
+// src/components/InstallApp.astro
+---
+
+<button 
+    id="pwa-install-btn"
+    class="hidden items-center gap-1.5 text-gray-300 hover:text-[#DF0912] transition-colors duration-300 font-medium text-sm sm:text-base px-3 py-2 rounded-lg hover:bg-[#DF0912]/10 cursor-pointer"
+    title="Instalar Aplicativo"
+>
+    <span>App</span>
+    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+    </svg>
+</button>
+
+<div id="install-modal" class="hidden fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-in fade-in duration-200">
+    <div class="bg-[#161B28] border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 mb-4 sm:mb-0 relative">
+        
+        <button id="close-modal" class="absolute top-3 right-3 text-gray-400 hover:text-white">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+
+        <div class="flex items-center gap-3">
+            <span class="p-2 bg-[#DF0912]/20 rounded-lg text-[#DF0912]">
+                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+            </span>
+            <h3 class="font-bold text-white text-lg">Instalar App</h3>
+        </div>
+        
+        <p id="modal-text" class="text-gray-300 text-sm leading-relaxed">
+            Instale para ter a melhor experiência em tela cheia.
+        </p>
+
+        <div class="space-y-3 pt-2 bg-white/5 p-3 rounded-lg">
+            <div class="flex items-center gap-3 text-sm text-gray-300">
+                <span class="flex items-center justify-center w-6 h-6 rounded-full bg-white/10 font-bold text-xs">1</span>
+                <span id="step-1">Toque no botão de opções</span>
+            </div>
+            <div class="flex items-center gap-3 text-sm text-gray-300">
+                <span class="flex items-center justify-center w-6 h-6 rounded-full bg-white/10 font-bold text-xs">2</span>
+                <span id="step-2">Selecione <span class="text-white font-bold">Instalar Aplicativo</span></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script lang="ts">
+    let deferredPrompt; // Guarda o evento nativo do Android/Chrome
+    const btn = document.getElementById('pwa-install-btn');
+    const modal = document.getElementById('install-modal');
+    const closeModal = document.getElementById('close-modal');
+    
+    // Elementos de texto do modal
+    const step1 = document.getElementById('step-1');
+    const step2 = document.getElementById('step-2');
+
+    // Detectores de Ambiente
+    const isIos = () => /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+    const isMobile = () => /android|iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+    const isInStandaloneMode = () => ('standalone' in window.navigator) && (window.navigator.standalone);
+
+    // Função para mostrar o botão
+    const showButton = () => {
+        if(btn && !isInStandaloneMode()) {
+            btn.classList.remove('hidden');
+            btn.classList.add('flex');
+        }
+    };
+
+    // 1. OUVINTE DE EVENTO NATIVO (Android/Chrome PC)
+    // Se o navegador disparar isso, é o melhor cenário. Guardamos para usar no clique.
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        showButton(); // Garante que o botão apareça
+        console.log("✅ PWA: Evento nativo capturado!");
+    });
+
+    // 2. FORÇAR APARECER NO MOBILE (Fallback)
+    // Se o evento acima não disparar (Android chato ou iOS), mostramos o botão mesmo assim
+    // desde que seja mobile e não esteja instalado.
+    if (isMobile() && !isInStandaloneMode()) {
+        showButton();
+    }
+
+    // AÇÃO DO CLIQUE
+    if(btn) {
+        btn.addEventListener('click', async () => {
+            
+            // CENÁRIO A: Temos o evento nativo (Android Chrome ideal ou PC)
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    btn.classList.add('hidden'); // Esconde se aceitou
+                }
+                deferredPrompt = null;
+                return;
+            }
+
+            // CENÁRIO B: Não temos evento, precisamos ensinar manual (iOS ou Android Fallback)
+            
+            // Configura o texto do modal dependendo do sistema
+            if (isIos()) {
+                // Tutorial iOS (Safari)
+                step1.innerHTML = `Toque no botão <span class="text-blue-400 font-bold">Compartilhar</span> <svg class="w-4 h-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>`;
+                step2.innerHTML = `Selecione <span class="text-white font-bold">Adicionar à Tela de Início</span>`;
+            } else {
+                // Tutorial Android Manual (3 pontinhos)
+                step1.innerHTML = `Toque nos <span class="text-white font-bold">3 pontinhos</span> do navegador`;
+                step2.innerHTML = `Selecione <span class="text-white font-bold">Instalar aplicativo</span> ou <span class="text-white font-bold">Adicionar à tela inicial</span>`;
+            }
+
+            // Abre o modal
+            modal.classList.remove('hidden');
+        });
+    }
+
+    // Fechar modal
+    if(closeModal) closeModal.addEventListener('click', () => modal.classList.add('hidden'));
+    window.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.add('hidden');
+    });
+</script>

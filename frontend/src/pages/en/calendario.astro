@@ -1,0 +1,5 @@
+---
+// src/pages/en/calendario.astro
+export const prerender = false;
+return Astro.rewrite(`/calendario?lang=en&${Astro.url.searchParams.toString()}`);
+---

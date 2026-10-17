@@ -1,0 +1,18 @@
+name: Monitoramento de Status MultiCanaisHD
+
+on:
+  # Agendamento migrado para o Worker `cron-worker` (Cloudflare Cron Triggers) — a cota de
+  # Actions da conta estourava. Ver README de cron-worker/. Mantido via workflow_dispatch.
+  workflow_dispatch:
+
+concurrency:
+  group: check-status
+  cancel-in-progress: true
+
+jobs:
+  check_status:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar endpoint interno de checagem de status
+        run: |
+          curl -f "https://multicanaishd.lol/api/internal/check-status?secret=${{ secrets.CRON_SECRET }}"

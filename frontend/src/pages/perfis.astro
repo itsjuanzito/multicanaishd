@@ -1,0 +1,450 @@
+---
+// src/pages/perfis.astro — seleção e gerenciamento de perfis (MultiCanaisHD VIP Black)
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { getLangFromUrl, useTranslations } from "../i18n/utils";
+import { MAX_PERFIS_POR_CONTA } from "../services/vipPlans.js";
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+
+export const prerender = false;
+
+// Avatares 6-10 são PNG; 1-5 são SVG. Mesma convenção do seletor de avatar em /perfil.
+const avatarOptions = Array.from({ length: 10 }, (_, i) => {
+    const id = String(i + 1);
+    return { id, src: `/avatars/avatar_${id}.${i + 1 <= 5 ? "svg" : "png"}` };
+});
+---
+
+<BaseLayout
+    title={isPt ? "Quem está assistindo? | MultiCanaisHD" : "Who's watching? | MultiCanaisHD"}
+    description={isPt ? "Escolha ou gerencie os perfis da sua conta MultiCanaisHD." : "Choose or manage your MultiCanaisHD account profiles."}
+    robots="noindex, nofollow"
+>
+    <main class="flex-grow container mx-auto px-4 py-24 min-h-screen flex flex-col items-center justify-center">
+        <div id="profiles-loading" class="flex flex-col items-center gap-4 py-20">
+            <div class="animate-spin h-8 w-8 border-2 border-[#DF0912] border-t-transparent rounded-full"></div>
+        </div>
+
+        <!-- Bloqueio para quem não tem Black -->
+        <div id="profiles-locked" class="hidden w-full max-w-lg text-center">
+            <div class="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-6 text-3xl">⚫</div>
+            <h1 class="text-2xl sm:text-3xl font-black text-white uppercase italic tracking-tighter leading-none mb-3">
+                {isPt ? "Perfis são do plano Black" : "Profiles are a Black plan feature"}
+            </h1>
+            <p class="text-gray-400 text-sm leading-relaxed mb-8">
+                {isPt
+                    ? `Crie até ${MAX_PERFIS_POR_CONTA} perfis na mesma conta, cada um com sua própria lista e histórico — e um perfil só para as crianças.`
+                    : `Create up to ${MAX_PERFIS_POR_CONTA} profiles on the same account, each with its own list and history — plus a kids-only profile.`}
+            </p>
+            <a href={isPt ? "/vip" : "/en/vip"} class="inline-block px-8 py-4 bg-gradient-to-r from-neutral-200 to-neutral-400 text-black font-black uppercase text-xs tracking-widest rounded-2xl transition-all hover:brightness-110 active:scale-95">
+                {isPt ? "Conhecer o Plano Black" : "See the Black Plan"}
+            </a>
+        </div>
+
+        <!-- Grade de perfis -->
+        <div id="profiles-view" class="hidden w-full max-w-4xl">
+            <h1 class="text-3xl sm:text-5xl font-black text-white uppercase italic tracking-tighter leading-none text-center mb-3">
+                {isPt ? "Quem está assistindo?" : "Who's watching?"}
+            </h1>
+            <p id="profiles-subtitle" class="text-gray-500 text-xs font-bold uppercase tracking-widest text-center mb-12"></p>
+
+            <div id="profiles-grid" class="flex flex-wrap items-start justify-center gap-6 sm:gap-10"></div>
+
+            <div class="flex justify-center mt-14">
+                <button id="toggle-manage-btn" class="px-8 py-3 border border-white/20 text-gray-400 hover:text-white hover:border-white/40 font-black uppercase text-[10px] tracking-widest rounded-xl transition-all cursor-pointer">
+                    {isPt ? "Gerenciar perfis" : "Manage profiles"}
+                </button>
+            </div>
+        </div>
+
+        <!-- Modal de criar/editar -->
+        <div id="profile-modal" class="hidden fixed inset-0 z-[100] items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+            <div class="bg-[#141414] border border-white/10 rounded-3xl w-full max-w-lg p-8 shadow-2xl">
+                <h2 id="profile-modal-title" class="text-xl font-black text-white uppercase italic tracking-tight mb-6"></h2>
+
+                <label class="block text-gray-400 text-[10px] font-black uppercase tracking-widest mb-2">
+                    {isPt ? "Nome do perfil" : "Profile name"}
+                </label>
+                <input
+                    type="text"
+                    id="profile-name-input"
+                    maxlength="20"
+                    placeholder={isPt ? "Ex: Maria" : "Ex: Mary"}
+                    class="w-full bg-[#060911] border border-white/10 rounded-2xl px-5 py-4 text-white text-sm focus:outline-none focus:border-[#DF0912]/60 transition-colors placeholder:text-gray-600 mb-6"
+                />
+
+                <p class="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-3">Avatar</p>
+
+                <!-- Cartão de upload — mesmo tratamento visual do upload de avatar
+                     Diamond em /perfil, só que sem estado "bloqueado": quem chega aqui
+                     já é Black. Fica em cima da grade porque é a opção mais provável de
+                     ser usada por quem clicou em "Usar minha foto" antes. -->
+                <div id="profile-upload-container" class="relative mb-4">
+                    <!-- Estado sem foto customizada -->
+                    <button
+                        type="button"
+                        id="profile-upload-empty"
+                        class="w-full flex flex-col items-center justify-center p-5 bg-white/[0.01] border-2 border-dashed border-white/10 hover:border-[#DF0912]/60 hover:bg-[#DF0912]/[0.03] rounded-2xl text-center cursor-pointer transition-all duration-300 gap-2 group select-none"
+                    >
+                        <svg class="w-6 h-6 text-gray-400 group-hover:text-[#DF0912] group-hover:scale-110 transition-all duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                        <div>
+                            <p class="text-white text-[10px] font-black uppercase tracking-wider">{isPt ? "Arraste ou clique para enviar" : "Drag or click to upload"}</p>
+                            <p class="text-gray-500 text-[8px] font-bold uppercase tracking-widest mt-0.5">{isPt ? "Suporta PNG, JPG, GIF (Máx 10MB)" : "Supports PNG, JPG, GIF (Max 10MB)"}</p>
+                        </div>
+                    </button>
+
+                    <!-- Estado com foto já enviada -->
+                    <button
+                        type="button"
+                        id="profile-upload-filled"
+                        class="hidden w-full items-center gap-4 p-4 bg-white/[0.02] border-2 border-dashed border-white/10 hover:border-[#DF0912]/60 rounded-2xl text-left cursor-pointer transition-all duration-300 group select-none"
+                    >
+                        <img id="profile-custom-avatar-img" src="" alt="" class="w-14 h-14 rounded-full object-cover border-2 border-[#DF0912] shrink-0" />
+                        <div class="min-w-0">
+                            <p class="text-white text-[10px] font-black uppercase tracking-wider">{isPt ? "Foto enviada" : "Photo uploaded"}</p>
+                            <p class="text-gray-500 text-[8px] font-bold uppercase tracking-widest mt-0.5 group-hover:text-[#DF0912] transition-colors">{isPt ? "Clique para trocar" : "Click to change"}</p>
+                        </div>
+                    </button>
+
+                    <!-- Estado de envio -->
+                    <div id="profile-upload-loading" class="hidden absolute inset-0 bg-[#0E111A]/95 rounded-2xl flex flex-col items-center justify-center text-center gap-2 select-none">
+                        <div class="w-6 h-6 border-2 border-[#DF0912]/20 border-t-[#DF0912] rounded-full animate-spin"></div>
+                        <p class="text-[#DF0912] text-[9px] font-black uppercase tracking-widest">{isPt ? "Enviando arquivo..." : "Uploading file..."}</p>
+                    </div>
+                </div>
+                <input type="file" id="profile-avatar-file" accept="image/png, image/jpeg, image/gif, image/webp" class="hidden" />
+
+                <p class="text-gray-600 text-[9px] font-bold uppercase tracking-widest mb-3">{isPt ? "ou escolha um avatar predefinido" : "or pick a preset avatar"}</p>
+                <div class="grid grid-cols-5 gap-3 mb-6">
+                    {avatarOptions.map((a) => (
+                        <button
+                            type="button"
+                            data-profile-avatar={a.id}
+                            class="profile-avatar-option relative rounded-full border-4 border-transparent transition-all hover:border-white/30 active:scale-95 cursor-pointer"
+                        >
+                            <img src={a.src} alt={`Avatar ${a.id}`} class="w-full aspect-square rounded-full object-cover" loading="lazy" />
+                        </button>
+                    ))}
+                </div>
+
+                <label id="kids-toggle-row" class="flex items-start gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/10 cursor-pointer mb-6">
+                    <input type="checkbox" id="profile-kids-input" class="mt-0.5 w-4 h-4 accent-[#DF0912] cursor-pointer" />
+                    <span>
+                        <span class="block text-white text-xs font-black uppercase tracking-wide">
+                            {isPt ? "Perfil infantil" : "Kids profile"}
+                        </span>
+                        <span class="block text-gray-400 text-[11px] leading-relaxed mt-1">
+                            {isPt
+                                ? "Mostra só filmes e séries de família e animação, e esconde os canais e jogos ao vivo."
+                                : "Shows only family and animation titles, and hides live channels and games."}
+                        </span>
+                    </span>
+                </label>
+
+                <p id="profile-modal-error" class="hidden text-[#DF0912] text-xs font-bold mb-4"></p>
+
+                <div class="flex flex-col-reverse sm:flex-row gap-3">
+                    <button id="profile-modal-cancel" class="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-[10px] tracking-widest rounded-2xl border border-white/10 transition-all cursor-pointer">
+                        {isPt ? "Cancelar" : "Cancel"}
+                    </button>
+                    <button id="profile-modal-save" class="flex-1 py-4 bg-[#DF0912] hover:bg-[#be080f] text-white font-black uppercase text-[10px] tracking-widest rounded-2xl transition-all cursor-pointer">
+                        {isPt ? "Salvar" : "Save"}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="perfis-data-layer" hidden
+            data-lang={lang}
+            data-max={MAX_PERFIS_POR_CONTA}
+            data-t-new={isPt ? "Novo perfil" : "New profile"}
+            data-t-edit={isPt ? "Editar perfil" : "Edit profile"}
+            data-t-add={isPt ? "Adicionar perfil" : "Add profile"}
+            data-t-kids={isPt ? "Infantil" : "Kids"}
+            data-t-main={isPt ? "Principal" : "Main"}
+            data-t-delete-confirm={isPt ? "Excluir este perfil? A lista e o histórico dele serão perdidos." : "Delete this profile? Its list and history will be lost."}
+            data-t-subtitle-manage={isPt ? "Toque em um perfil para editar" : "Tap a profile to edit"}
+            data-t-subtitle-pick={isPt ? "Escolha um perfil para continuar" : "Pick a profile to continue"}
+            data-t-done={isPt ? "Concluído" : "Done"}
+            data-t-manage={isPt ? "Gerenciar perfis" : "Manage profiles"}
+        ></div>
+    </main>
+</BaseLayout>
+
+<script>
+    import { authStore, initAuth, switchProfile } from "../store/authStore";
+    import { profilesStore, createProfile, updateProfile, deleteProfile } from "../store/profilesStore";
+    import { podeCriarPerfis, MAX_PERFIS_POR_CONTA } from "../services/vipPlans.js";
+    import { showToast } from "../store/toastStore";
+    import { getAvatarPath } from "../utils/avatarPath.js";
+
+    document.addEventListener("astro:page-load", () => {
+        const grid = document.getElementById("profiles-grid");
+        if (!grid) return;
+
+        const dl = document.getElementById("perfis-data-layer");
+        const txt = (key) => dl?.dataset?.[key] || "";
+        const loadingEl = document.getElementById("profiles-loading");
+        const lockedEl = document.getElementById("profiles-locked");
+        const viewEl = document.getElementById("profiles-view");
+        const subtitleEl = document.getElementById("profiles-subtitle");
+        const manageBtn = document.getElementById("toggle-manage-btn");
+
+        const modal = document.getElementById("profile-modal");
+        const modalTitle = document.getElementById("profile-modal-title");
+        const nameInput = document.getElementById("profile-name-input") as HTMLInputElement;
+        const kidsInput = document.getElementById("profile-kids-input") as HTMLInputElement;
+        const kidsRow = document.getElementById("kids-toggle-row");
+        const errorEl = document.getElementById("profile-modal-error");
+
+        let manageMode = false;
+        let editingId = null;
+        let selectedAvatar = "1";
+
+        // `selectedAvatar` guarda ou o índice de um avatar da grade ou a URL de uma foto
+        // enviada pelo usuário — getAvatarPath distingue os dois casos.
+        const avatarSrc = (id) => getAvatarPath(id);
+        const ehFotoCustomizada = (v) => String(v || "").startsWith("http");
+
+        const uploadEmpty = document.getElementById("profile-upload-empty") as HTMLButtonElement;
+        const uploadFilled = document.getElementById("profile-upload-filled") as HTMLButtonElement;
+        const uploadLoading = document.getElementById("profile-upload-loading");
+        const customImg = document.getElementById("profile-custom-avatar-img") as HTMLImageElement;
+
+        function renderAvatarSelection() {
+            const custom = ehFotoCustomizada(selectedAvatar);
+            document.querySelectorAll(".profile-avatar-option").forEach((btn) => {
+                const isSel = !custom && btn.getAttribute("data-profile-avatar") === selectedAvatar;
+                btn.classList.toggle("border-[#DF0912]", isSel);
+                btn.classList.toggle("border-transparent", !isSel);
+            });
+            uploadEmpty.classList.toggle("hidden", custom);
+            uploadFilled.classList.toggle("hidden", !custom);
+            uploadFilled.classList.toggle("flex", custom);
+            if (custom) customImg.src = selectedAvatar;
+        }
+
+        document.querySelectorAll(".profile-avatar-option").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                selectedAvatar = btn.getAttribute("data-profile-avatar");
+                renderAvatarSelection();
+            });
+        });
+
+        function openModal(profile) {
+            editingId = profile?.id || null;
+            selectedAvatar = profile?.avatar || "1";
+            nameInput.value = profile?.name || "";
+            kidsInput.checked = profile?.is_kids === true;
+            // O perfil principal é o fallback de quem perde o Black — se virasse infantil,
+            // a conta inteira ficaria restrita ao catálogo de crianças ao expirar.
+            kidsRow.classList.toggle("hidden", profile?.is_main === true);
+            modalTitle.textContent = editingId ? txt("tEdit") : txt("tNew");
+            errorEl.classList.add("hidden");
+            renderAvatarSelection();
+            modal.classList.remove("hidden");
+            modal.classList.add("flex");
+            setTimeout(() => nameInput.focus(), 50);
+        }
+
+        function closeModal() {
+            modal.classList.add("hidden");
+            modal.classList.remove("flex");
+            editingId = null;
+        }
+
+        document.getElementById("profile-modal-cancel").onclick = closeModal;
+        modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+
+        async function salvarPerfil() {
+            const state = authStore.get();
+            const payload = { name: nameInput.value, avatar: selectedAvatar, isKids: kidsInput.checked };
+            const res = editingId
+                ? await updateProfile(editingId, payload)
+                : await createProfile(state.user.id, payload);
+
+            if (!res.success) {
+                errorEl.textContent = res.error;
+                errorEl.classList.remove("hidden");
+            }
+            return res;
+        }
+
+        document.getElementById("profile-modal-save").onclick = async () => {
+            const res = await salvarPerfil();
+            if (!res.success) return;
+            closeModal();
+            render();
+        };
+
+        // A foto é gravada numa linha de account_profiles, então um perfil novo precisa
+        // existir antes do upload. O modal segue aberto, agora em modo de edição, pra
+        // que o usuário veja a prévia da foto que acabou de enviar.
+        async function garantirPerfilSalvo() {
+            if (editingId) return editingId;
+            const res = await salvarPerfil();
+            if (!res.success) return null;
+            editingId = res.profile?.id || null;
+            modalTitle.textContent = txt("tEdit");
+            return editingId;
+        }
+
+        const fileInput = document.getElementById("profile-avatar-file") as HTMLInputElement;
+
+        const abrirSeletorDeArquivo = async () => {
+            if (!(await garantirPerfilSalvo())) return;
+            fileInput.click();
+        };
+        uploadEmpty.onclick = abrirSeletorDeArquivo;
+        uploadFilled.onclick = abrirSeletorDeArquivo;
+
+        fileInput.onchange = async () => {
+            const file = fileInput.files?.[0];
+            fileInput.value = "";
+            if (!file || !editingId) return;
+
+            uploadLoading.classList.remove("hidden");
+            uploadLoading.classList.add("flex");
+            const res = await enviarFoto(file, editingId);
+            uploadLoading.classList.add("hidden");
+            uploadLoading.classList.remove("flex");
+
+            if (!res.success) {
+                errorEl.textContent = res.error;
+                errorEl.classList.remove("hidden");
+                return;
+            }
+            errorEl.classList.add("hidden");
+            selectedAvatar = res.url;
+            renderAvatarSelection();
+            await updateProfile(editingId, { avatar: res.url });
+            render();
+        };
+
+        async function enviarFoto(file, profileId) {
+            try {
+                const body = new FormData();
+                body.append("file", file);
+                body.append("token", authStore.get().token);
+                body.append("profileId", profileId);
+                const resp = await fetch("/api/user/upload-avatar", { method: "POST", body });
+                const data = await resp.json();
+                if (!resp.ok) return { success: false, error: data.error || "Falha no envio." };
+                return { success: true, url: data.publicUrl };
+            } catch (e) {
+                return { success: false, error: e?.message || "Falha no envio." };
+            }
+        }
+
+        manageBtn.onclick = () => {
+            manageMode = !manageMode;
+            manageBtn.textContent = manageMode ? txt("tDone") : txt("tManage");
+            render();
+        };
+
+        function buildProfileCard(profile, canManage) {
+            const wrapper = document.createElement("div");
+            wrapper.className = "flex flex-col items-center gap-3 w-28 sm:w-32";
+
+            const btn = document.createElement("button");
+            btn.className = "group relative w-24 h-24 sm:w-32 sm:h-32 rounded-2xl overflow-hidden border-4 border-transparent hover:border-white transition-all active:scale-95 cursor-pointer";
+            btn.innerHTML = `
+                <img src="${avatarSrc(profile.avatar)}" alt="${profile.name}" class="w-full h-full object-cover" />
+                ${manageMode ? '<div class="absolute inset-0 bg-black/60 flex items-center justify-center"><svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></div>' : ""}
+            `;
+            btn.onclick = () => (manageMode ? openModal(profile) : selectProfile(profile.id));
+
+            const label = document.createElement("p");
+            label.className = "text-gray-300 text-xs font-black uppercase tracking-wide text-center truncate w-full";
+            label.textContent = profile.name;
+
+            wrapper.appendChild(btn);
+            wrapper.appendChild(label);
+
+            const badge = profile.is_kids ? txt("tKids") : (profile.is_main ? txt("tMain") : "");
+            if (badge) {
+                const badgeEl = document.createElement("span");
+                badgeEl.className = `text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${profile.is_kids ? "text-emerald-400 bg-emerald-500/10" : "text-gray-500 bg-white/5"}`;
+                badgeEl.textContent = badge;
+                wrapper.appendChild(badgeEl);
+            }
+
+            if (manageMode && canManage && !profile.is_main) {
+                const del = document.createElement("button");
+                del.className = "text-[9px] font-black uppercase tracking-widest text-[#DF0912] hover:text-white transition-colors cursor-pointer";
+                del.textContent = dl?.dataset?.lang === "en" ? "Delete" : "Excluir";
+                del.onclick = async () => {
+                    if (!confirm(txt("tDeleteConfirm"))) return;
+                    const res = await deleteProfile(profile.id);
+                    if (!res.success) return showToast(res.error, "error");
+                    render();
+                };
+                wrapper.appendChild(del);
+            }
+            return wrapper;
+        }
+
+        async function selectProfile(id) {
+            const res = await switchProfile(id);
+            if (!res.success) return showToast(res.error, "error");
+            const isEn = dl?.dataset?.lang === "en";
+            window.location.href = isEn ? "/en" : "/";
+        }
+
+        function buildAddCard() {
+            const wrapper = document.createElement("div");
+            wrapper.className = "flex flex-col items-center gap-3 w-28 sm:w-32";
+            const btn = document.createElement("button");
+            btn.className = "w-24 h-24 sm:w-32 sm:h-32 rounded-2xl border-2 border-dashed border-white/20 hover:border-white/50 text-gray-500 hover:text-white flex items-center justify-center transition-all active:scale-95 cursor-pointer";
+            btn.innerHTML = '<svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>';
+            btn.onclick = () => openModal(null);
+            const label = document.createElement("p");
+            label.className = "text-gray-500 text-xs font-black uppercase tracking-wide text-center";
+            label.textContent = txt("tAdd");
+            wrapper.appendChild(btn);
+            wrapper.appendChild(label);
+            return wrapper;
+        }
+
+        function render() {
+            const auth = authStore.get();
+            const { profiles, initialized } = profilesStore.get();
+
+            if (auth.loading || !auth.initialized) return;
+
+            if (!auth.user) {
+                window.location.href = dl?.dataset?.lang === "en" ? "/en/login" : "/login";
+                return;
+            }
+
+            const canManage = podeCriarPerfis(auth.vipPlan);
+            loadingEl.classList.add("hidden");
+
+            // Sem Black a conta usa só o perfil principal — não faz sentido nem mostrar a grade.
+            if (!canManage) {
+                lockedEl.classList.remove("hidden");
+                viewEl.classList.add("hidden");
+                return;
+            }
+
+            lockedEl.classList.add("hidden");
+            viewEl.classList.remove("hidden");
+            if (!initialized) return;
+
+            subtitleEl.textContent = manageMode ? txt("tSubtitleManage") : txt("tSubtitlePick");
+            grid.innerHTML = "";
+            profiles.forEach((p) => grid.appendChild(buildProfileCard(p, canManage)));
+            if (profiles.length < MAX_PERFIS_POR_CONTA) grid.appendChild(buildAddCard());
+        }
+
+        authStore.subscribe(render);
+        profilesStore.subscribe(render);
+        // O BaseLayout só dispara o initAuth em parte dos fluxos; sem esta chamada a página
+        // fica presa no spinner quando se entra direto por /perfis.
+        initAuth(true).finally(render);
+    });
+</script>

@@ -1,0 +1,364 @@
+---
+// src/pages/components/SeoLandingPage.astro
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { GET as exploreAPI } from "../api/explore.js";
+import { getContentList } from "../../services/content-lists.js";
+import { contentSlug } from "../../utils/slugify.js";
+import { getSiteUrl } from "../../services/env-adapter.js";
+
+const { kind = "movies" } = Astro.props;
+const lang = Astro.url.pathname.startsWith("/en") || Astro.url.searchParams.get("lang") === "en" ? "en" : "pt";
+const isPt = lang === "pt";
+const langPrefix = isPt ? "" : "/en";
+
+const copy = {
+    movies: {
+        pt: {
+            title: "Assistir Filmes Online Gratis em HD",
+            heading: "Assistir filmes online gratis",
+            eyebrow: "Catalogo de filmes",
+            description: "Encontre filmes online para assistir gratis em HD no MultiCanaisHD. Veja lancamentos, sucessos populares e titulos atualizados com carregamento rapido.",
+            intro: "Uma pagina direta para quem quer escolher um filme sem ficar preso em filtros. Reunimos titulos populares, novidades e opcoes em HD para voce abrir e assistir com poucos cliques.",
+            cta: "Explorar todos os filmes",
+            exploreHref: "/explorar?type=movie",
+            sectionTitle: "Filmes em destaque",
+            keywords: "assistir filmes online, filmes online gratis, filmes hd, filmes dublados, filmes legendados, lancamentos de filmes, melhor site de filmes",
+            faq: [
+                ["Onde assistir filmes online gratis?", "No MultiCanaisHD voce encontra uma lista atualizada de filmes online, com paginas de cada titulo e acesso rapido ao player quando disponivel."],
+                ["Tem filmes dublados e legendados?", "O catalogo mistura titulos dublados e legendados, dependendo da disponibilidade de cada filme."],
+                ["Como encontrar lancamentos?", "Use a pagina de filmes online, a area de explorar e os filtros por genero, ano e nota para encontrar novidades mais rapido."]
+            ]
+        },
+        en: {
+            title: "Watch Movies Online Free in HD",
+            heading: "Watch movies online free",
+            eyebrow: "Movie catalog",
+            description: "Find movies to watch online free in HD on MultiCanaisHD. Browse popular titles, recent releases and updated movie pages with fast loading.",
+            intro: "A direct entry point for people who want to pick a movie quickly. Browse popular titles, new releases and HD options without digging through noisy filters first.",
+            cta: "Explore all movies",
+            exploreHref: "/en/explorar?type=movie",
+            sectionTitle: "Featured movies",
+            keywords: "watch movies online, free movies online, hd movies, dubbed movies, subtitled movies, movie releases, best movie site",
+            faq: [
+                ["Where can I watch movies online free?", "MultiCanaisHD keeps an updated movie catalog with dedicated title pages and quick access to the player when available."],
+                ["Are movies dubbed or subtitled?", "The catalog includes dubbed and subtitled titles depending on the availability of each movie."],
+                ["How do I find new releases?", "Use this movies page, the explore area and filters by genre, year and rating to find newer titles faster."]
+            ]
+        },
+        apiType: "movie",
+        mediaType: "movie"
+    },
+    series: {
+        pt: {
+            title: "Assistir Series Online Gratis em HD",
+            heading: "Assistir series online gratis",
+            eyebrow: "Catalogo de series",
+            description: "Veja series online gratis no MultiCanaisHD. Encontre temporadas, episodios completos, series populares, dubladas e legendadas em HD.",
+            intro: "Para quem pesquisa uma serie no navegador e quer chegar em uma pagina clara: aqui ficam series populares, opcoes para maratonar e links diretos para cada titulo.",
+            cta: "Explorar todas as series",
+            exploreHref: "/explorar?type=tv",
+            sectionTitle: "Series em destaque",
+            keywords: "assistir series online, series online gratis, series completas, episodios online, series dubladas, series legendadas, maratonar series",
+            faq: [
+                ["Onde assistir series online?", "O MultiCanaisHD organiza series por paginas de titulo, temporadas e episodios para facilitar a escolha."],
+                ["O catalogo tem temporadas completas?", "Muitas series possuem temporadas e episodios listados, variando conforme a disponibilidade do player."],
+                ["Como achar series parecidas?", "Abra uma serie ou use a area de explorar para filtrar por genero, ano e popularidade."]
+            ]
+        },
+        en: {
+            title: "Watch Series Online Free in HD",
+            heading: "Watch series online free",
+            eyebrow: "Series catalog",
+            description: "Watch series online free on MultiCanaisHD. Find complete episodes, popular TV shows, dubbed and subtitled series in HD.",
+            intro: "For visitors searching from a browser, this page gives a clean path into the series catalog with popular shows and direct title links.",
+            cta: "Explore all series",
+            exploreHref: "/en/explorar?type=tv",
+            sectionTitle: "Featured series",
+            keywords: "watch series online, free series online, complete episodes, tv shows online, dubbed series, subtitled series, binge series",
+            faq: [
+                ["Where can I watch series online?", "MultiCanaisHD organizes series through title, season and episode pages so visitors can find a show quickly."],
+                ["Are full seasons available?", "Many shows include seasons and episodes, depending on player availability for each title."],
+                ["How can I find similar series?", "Open a series page or use the explore area to filter by genre, year and popularity."]
+            ]
+        },
+        apiType: "tv",
+        mediaType: "tv"
+    },
+    anime: {
+        pt: {
+            title: "Assistir Animes Online Gratis Dublado e Legendado",
+            heading: "Assistir animes online gratis",
+            eyebrow: "Animes online",
+            description: "Assista animes online gratis no MultiCanaisHD. Encontre episodios, animes populares, dublados e legendados em HD.",
+            intro: "Uma porta de entrada para quem procura anime no Google: titulos populares, episodios e opcoes recentes em uma pagina que o buscador consegue entender.",
+            cta: "Explorar animes",
+            exploreHref: "/explorar?type=anime",
+            sectionTitle: "Animes em destaque",
+            keywords: "assistir animes online, animes online gratis, animes dublados, animes legendados, episodios de anime, melhores animes",
+            faq: [
+                ["Tem animes dublados e legendados?", "Sim, o catalogo pode reunir opcoes dubladas e legendadas conforme a disponibilidade de cada titulo."],
+                ["Como assistir episodios de anime?", "Abra o anime desejado e navegue pelas temporadas e episodios disponiveis."]
+            ]
+        },
+        en: {
+            title: "Watch Anime Online Free Dubbed and Subtitled",
+            heading: "Watch anime online free",
+            eyebrow: "Anime online",
+            description: "Watch anime online free on MultiCanaisHD. Find popular anime episodes, dubbed and subtitled titles in HD.",
+            intro: "A search-friendly entry point for anime fans: popular titles, episodes and recent options in one page that is easy to crawl and easy to use.",
+            cta: "Explore anime",
+            exploreHref: "/en/explorar?type=anime",
+            sectionTitle: "Featured anime",
+            keywords: "watch anime online, free anime online, dubbed anime, subtitled anime, anime episodes, best anime",
+            faq: [
+                ["Can I watch dubbed and subtitled anime?", "Yes, the catalog can include dubbed and subtitled options depending on each title."],
+                ["How do I watch anime episodes?", "Open an anime title and browse the available seasons and episodes."]
+            ]
+        },
+        apiType: "anime",
+        mediaType: "tv"
+    },
+    doramas: {
+        pt: {
+            title: "Assistir Doramas Online Gratis em HD",
+            heading: "Assistir doramas online gratis",
+            eyebrow: "Doramas e K-dramas",
+            description: "Veja doramas online gratis no MultiCanaisHD. Encontre K-dramas populares, series coreanas, episodios e temporadas em HD.",
+            intro: "Doramas merecem uma pagina propria: quem pesquisa K-drama, dorama coreano ou serie coreana encontra aqui uma entrada direta para titulos populares.",
+            cta: "Explorar doramas",
+            exploreHref: "/explorar?type=tv",
+            sectionTitle: "Doramas em destaque",
+            keywords: "assistir doramas online, doramas online gratis, kdrama online, k-dramas, series coreanas, doramas legendados, doramas dublados",
+            faq: [
+                ["Onde assistir doramas online?", "No MultiCanaisHD voce encontra uma selecao de doramas e series coreanas com paginas dedicadas por titulo."],
+                ["Tem K-dramas legendados?", "A disponibilidade de audio e legenda varia por titulo, mas a pagina organiza os doramas para facilitar a busca."],
+                ["Doramas entram em series?", "Tecnicamente muitos doramas sao series, mas esta pagina separa esse interesse para ajudar usuarios e buscadores."]
+            ]
+        },
+        en: {
+            title: "Watch K-Dramas Online Free in HD",
+            heading: "Watch K-dramas online free",
+            eyebrow: "K-dramas and Korean series",
+            description: "Watch K-dramas online free on MultiCanaisHD. Find popular Korean dramas, episodes and seasons in HD.",
+            intro: "K-dramas deserve a dedicated entry point: visitors searching for Korean dramas can land on a focused page with popular titles.",
+            cta: "Explore K-dramas",
+            exploreHref: "/en/explorar?type=tv",
+            sectionTitle: "Featured K-dramas",
+            keywords: "watch kdrama online, free kdrama online, korean dramas, korean series, k-dramas subtitled, k-dramas dubbed",
+            faq: [
+                ["Where can I watch K-dramas online?", "MultiCanaisHD has a focused selection of K-dramas and Korean series with dedicated title pages."],
+                ["Are K-dramas subtitled?", "Audio and subtitle availability varies by title, but this page groups K-dramas to make discovery easier."],
+                ["Are K-dramas listed as series?", "Many K-dramas are technically series, but this page separates that search intent for users and search engines."]
+            ]
+        },
+        apiType: null,
+        mediaType: "tv"
+    }
+};
+
+const config = copy[kind] || copy.movies;
+const text = config[lang];
+
+Astro.response.headers.set("Cache-Control", "public, s-maxage=3600, stale-while-revalidate=86400");
+
+let items = [];
+try {
+    if (kind === "doramas") {
+        const data = await getContentList("doramas", lang);
+        items = data?.results || [];
+    } else {
+        const apiUrl = new URL("/api/explore", Astro.url.origin);
+        apiUrl.searchParams.set("type", config.apiType);
+        apiUrl.searchParams.set("lang", lang);
+        const res = await exploreAPI({ request: new Request(apiUrl) });
+        if (res.ok) items = await res.json();
+    }
+} catch (error) {
+    console.error("SEO landing SSR error:", error);
+}
+
+items = items.slice(0, 18).map((item) => {
+    const title = item.title || item.name || "MultiCanaisHD";
+    const mediaType = item.type === "movie" || item.media_type === "movie" ? "movie" : "tv";
+    const poster = item.poster || (item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null);
+    const year = (item.release_date || item.first_air_date || "").split("-")[0];
+    const pathType = mediaType === "movie" ? "filme" : "serie";
+
+    return {
+        id: item.id,
+        title,
+        mediaType,
+        poster,
+        year,
+        vote: item.vote || (item.vote_average ? Number(item.vote_average).toFixed(1) : null),
+        // contentSlug, não slugify: o href do card e o JSON-LD precisam bater com a rota canônica.
+        href: `${langPrefix}/${pathType}/${item.id}-${contentSlug(title)}`
+    };
+});
+
+const siteUrl = getSiteUrl(Astro.url);
+const canonicalUrl = `${siteUrl}${Astro.url.pathname}`;
+const itemList = items.map((item, index) => ({
+    "@type": "ListItem",
+    position: index + 1,
+    url: `${siteUrl}${item.href}`,
+    name: item.title
+}));
+
+const breadcrumbSchema = {
+    "@type": "BreadcrumbList",
+    itemListElement: [
+        { "@type": "ListItem", position: 1, name: isPt ? "Início" : "Home", item: `${siteUrl}${langPrefix || "/"}` },
+        { "@type": "ListItem", position: 2, name: text.heading, item: canonicalUrl }
+    ]
+};
+
+const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+        {
+            "@type": "CollectionPage",
+            name: `${text.title} | MultiCanaisHD`,
+            description: text.description,
+            url: canonicalUrl,
+            inLanguage: isPt ? "pt-BR" : "en-US",
+            mainEntity: {
+                "@type": "ItemList",
+                itemListElement: itemList
+            }
+        },
+        breadcrumbSchema,
+        {
+            "@type": "FAQPage",
+            mainEntity: text.faq.map(([question, answer]) => ({
+                "@type": "Question",
+                name: question,
+                acceptedAnswer: {
+                    "@type": "Answer",
+                    text: answer
+                }
+            }))
+        }
+    ]
+};
+
+// Primeiro pôster com imagem real vira o OG image da página — mais relevante pro
+// compartilhamento social do que o /og-image.jpg genérico, e já temos os dados aqui.
+const ogImage = items.find((item) => item.poster)?.poster || "/og-image.jpg";
+---
+
+<BaseLayout
+    title={`${text.title} | MultiCanaisHD`}
+    description={text.description}
+    keywords={text.keywords}
+    image={ogImage}
+    type="website"
+    jsonLd={jsonLd}
+>
+    <main class="relative flex-grow overflow-hidden pt-24 sm:pt-28">
+        <div class="pointer-events-none absolute left-1/2 top-0 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-[#DF0912]/10 blur-[120px]"></div>
+        <div class="pointer-events-none absolute right-[-120px] top-56 h-72 w-72 rounded-full bg-orange-500/10 blur-[100px]"></div>
+
+        <section class="container relative mx-auto px-4 pb-10 pt-8 sm:px-6 lg:px-8">
+            <div class="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-end">
+                <div class="max-w-3xl">
+                    <p class="mb-4 inline-flex rounded-full border border-[#DF0912]/30 bg-[#DF0912]/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.22em] text-[#F6272F]">
+                        {text.eyebrow}
+                    </p>
+                    <h1 class="text-4xl font-black leading-[0.95] tracking-tighter text-white sm:text-6xl lg:text-7xl">
+                        {text.heading}
+                    </h1>
+                    <p class="mt-6 max-w-2xl text-base font-medium leading-8 text-gray-300 sm:text-lg">
+                        {text.intro}
+                    </p>
+                    <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+                        <a href={text.exploreHref} class="inline-flex items-center justify-center rounded-2xl bg-[#DF0912] px-6 py-4 text-sm font-black uppercase tracking-wider text-white shadow-2xl shadow-red-950/40 transition hover:bg-[#be080f]">
+                            {text.cta}
+                        </a>
+                        <a href={`${langPrefix || "/"}`} class="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-6 py-4 text-sm font-black uppercase tracking-wider text-white transition hover:bg-white/10">
+                            {isPt ? "Voltar ao inicio" : "Back to home"}
+                        </a>
+                    </div>
+                </div>
+
+                <div class="rounded-[2rem] border border-white/10 bg-white/[0.03] p-5 shadow-2xl backdrop-blur-xl">
+                    <p class="mb-4 text-xs font-black uppercase tracking-[0.22em] text-gray-400">
+                        {isPt ? "O que voce encontra aqui" : "What you can find here"}
+                    </p>
+                    <div class="grid grid-cols-3 gap-3 text-center">
+                        <div class="rounded-2xl bg-black/30 p-4">
+                            <strong class="block text-2xl font-black text-white">{items.length || "18"}</strong>
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500">{isPt ? "titulos" : "titles"}</span>
+                        </div>
+                        <div class="rounded-2xl bg-black/30 p-4">
+                            <strong class="block text-2xl font-black text-white">HD</strong>
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500">{isPt ? "qualidade" : "quality"}</span>
+                        </div>
+                        <div class="rounded-2xl bg-black/30 p-4">
+                            <strong class="block text-2xl font-black text-white">24h</strong>
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500">{isPt ? "online" : "online"}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="container relative mx-auto px-4 py-8 sm:px-6 lg:px-8">
+            <div class="mb-7 flex items-end justify-between gap-4">
+                <div>
+                    <h2 class="text-2xl font-black uppercase tracking-tight text-white sm:text-3xl">{text.sectionTitle}</h2>
+                    <p class="mt-2 text-sm font-medium text-gray-400">{text.description}</p>
+                </div>
+                <a href={text.exploreHref} class="hidden text-xs font-black uppercase tracking-wider text-[#F6272F] hover:text-white sm:inline-flex">
+                    {isPt ? "Ver mais" : "See more"}
+                </a>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                {items.length > 0 ? items.map((item, index) => (
+                    <a
+                        href={item.href}
+                        class="group relative aspect-[2/3] overflow-hidden rounded-2xl border border-white/5 bg-[#0a0a0a] shadow-xl transition duration-300 hover:-translate-y-1 hover:border-[#DF0912]/50 hover:shadow-red-950/30"
+                        aria-label={`${isPt ? "Assistir" : "Watch"} ${item.title}`}
+                    >
+                        <img
+                            src={item.poster || `https://placehold.co/342x513/141414/FF5555?text=${encodeURIComponent(item.title)}`}
+                            alt={`${isPt ? "Poster de" : "Poster for"} ${item.title}`}
+                            width="342"
+                            height="513"
+                            loading={index < 6 ? "eager" : "lazy"}
+                            decoding="async"
+                            class="h-full w-full object-cover transition duration-500 group-hover:scale-110"
+                        />
+                        <div class="absolute inset-0 bg-gradient-to-t from-black via-black/25 to-transparent opacity-90"></div>
+                        <div class="absolute inset-x-0 bottom-0 p-3">
+                            <h3 class="line-clamp-2 text-sm font-black leading-tight text-white">{item.title}</h3>
+                            <div class="mt-2 flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-gray-400">
+                                <span>{item.mediaType === "movie" ? (isPt ? "Filme" : "Movie") : (kind === "doramas" ? (isPt ? "Dorama" : "K-drama") : (kind === "anime" ? "Anime" : (isPt ? "Serie" : "Series")))}</span>
+                                <span>{item.vote || item.year || "HD"}</span>
+                            </div>
+                        </div>
+                    </a>
+                )) : (
+                    <div class="col-span-full rounded-3xl border border-white/10 bg-white/[0.03] p-10 text-center text-sm font-bold text-gray-400">
+                        {isPt ? "Nao conseguimos carregar os destaques agora, mas a pagina continua disponivel para exploracao." : "We could not load featured titles right now, but the page remains available for browsing."}
+                    </div>
+                )}
+            </div>
+        </section>
+
+        <section class="container relative mx-auto px-4 py-12 sm:px-6 lg:px-8">
+            <div class="rounded-[2rem] border border-white/10 bg-[#101010] p-6 sm:p-8">
+                <h2 class="text-2xl font-black text-white">{isPt ? "Perguntas frequentes" : "Frequently asked questions"}</h2>
+                <div class="mt-6 grid gap-4 md:grid-cols-3">
+                    {text.faq.map(([question, answer]) => (
+                        <article class="rounded-2xl border border-white/5 bg-black/25 p-5">
+                            <h3 class="text-sm font-black text-white">{question}</h3>
+                            <p class="mt-3 text-sm leading-6 text-gray-400">{answer}</p>
+                        </article>
+                    ))}
+                </div>
+            </div>
+        </section>
+    </main>
+</BaseLayout>

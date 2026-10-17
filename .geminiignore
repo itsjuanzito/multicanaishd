@@ -1,0 +1,73 @@
+﻿# ============================================================
+# .geminiignore — BetterFlix
+# Arquivos que o agente de IA não precisa ler.
+# Ignora binários, gerados automaticamente, dados brutos e
+# dependências externas que só aumentam o contexto sem valor.
+# ============================================================
+
+# ─── Dependências (nunca lidas, apenas instaladas) ─────────
+**/node_modules/
+frontend/dist/
+mobile/.expo/
+
+# ─── Build e cache do Astro/Vite ───────────────────────────
+frontend/.astro/
+frontend/.cache/
+frontend/.wrangler/
+frontend/.vercel/
+.vercel/
+
+# ─── Logs e saídas de debug ────────────────────────────────
+frontend/debug_output.log
+frontend/*.log
+**/*.log
+
+# ─── Arquivos de lock (só npm resolve, não o agente) ───────
+**/package-lock.json
+**/yarn.lock
+**/pnpm-lock.yaml
+
+# ─── Binários e assets estáticos (sem valor de código) ─────
+frontend/public/placeholder.jpg
+frontend/public/og-image.png
+frontend/public/pwa-*.png
+frontend/public/apple-touch-icon.png
+frontend/public/favicon.ico
+frontend/public/avatars/
+mobile/assets/
+
+# ─── Arquivos M3U e JSON brutos de canais ──────────────────
+frontend/br_channels.m3u
+frontend/all_channels.json
+frontend/nav.home
+
+# ─── Scripts de debug pontuais (não são código de produção) ─
+frontend/debug_navigation.py
+frontend/recovery_fix.py
+frontend/test-api.cjs
+frontend/test-api.mjs
+frontend/test-content-lists.js
+frontend/test-genres.js
+frontend/{console.error(e)
+
+# ─── Resultados de testes (outputs, não código) ────────────
+frontend/playwright-report/
+frontend/test-results/
+
+# ─── Git internals ─────────────────────────────────────────
+.git/
+.github/
+
+# ─── Arquivos de ambiente (contêm segredos) ────────────────
+**/.env
+**/.env.local
+**/.env.production
+
+# ─── Migrations SQL (leia só se a tarefa for de banco) ─────
+# frontend/migrations/
+# (descomente a linha acima se quiser ignorar migrações)
+
+# ─── Scratch e rascunhos ───────────────────────────────────
+scratch/
+frontend/scratch/
+frontend/scratch_*.png

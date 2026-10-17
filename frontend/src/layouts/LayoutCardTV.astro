@@ -1,0 +1,996 @@
+---
+// src/layouts/LayoutCardTV.astro
+// @ts-nocheck
+import "../styles/global.css";
+import { fetchCanais, getCategoriasUnicas, fetchVipChannels, getNowPlayingBulk, withCeiling } from "../services/channelsService.js";
+import { getGameTimeStatus } from "../services/liveGamesService.js";
+import { slugify } from "../utils/slugify.js";
+
+import { getLangFromUrl, useTranslations } from "../i18n/utils";
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+
+const langPrefix = isPt ? "" : `/${lang}`;
+
+const normalizeVipKey = (value) => {
+    if (value === null || value === undefined) return '';
+    return String(value)
+        .toLowerCase()
+        .trim()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+};
+
+const buildVipLookupSet = (ids = []) =>
+    new Set((ids || []).flatMap((id) => {
+        const raw = String(id);
+        const normalized = normalizeVipKey(id);
+        return normalized ? [raw, normalized] : [raw];
+    }));
+
+const buildVipCandidates = (canal) => {
+    const candidates = new Set();
+    const push = (v) => {
+        if (!v) return;
+        const raw = String(v).trim();
+        if (!raw) return;
+        candidates.add(raw);
+        const normalized = normalizeVipKey(raw);
+        if (normalized) candidates.add(normalized);
+    };
+
+    push(canal?.id);
+    const title = canal?.nome || canal?.name || '';
+    if (title) {
+        const titleSlug = slugify(title);
+        push(titleSlug);
+        push(`jogo_${titleSlug}`);
+    }
+    return candidates;
+};
+
+const isVipChannel = (canal, vipSet) => Array.from(buildVipCandidates(canal)).some((k) => vipSet.has(k));
+
+// Detecta crawlers para não serializar dados pesados no HTML (SEO/Performance)
+const userAgent = Astro.request.headers.get('user-agent') || '';
+const isCrawler = /bot|googlebot|google-inspectiontool|googleother|crawler|spider|robot|crawling|facebookexternalhit|discordbot|twitterbot|whatsapp|telegrambot|lighthouse|pagespeed|chrome-lighthouse|pingdom|gtmetrix/i.test(userAgent);
+
+const { titleHead = t('home.live_tv_title'), todosCanaisProp = null } = Astro.props;
+
+// --- BUSCA PARALELA (MAIS RÁPIDA) ---
+let todosCanais = [];
+let categorias = [];
+let vipIds = new Set();
+let vipIdsArray = [];
+
+// Tetos rígidos: este componente é renderizado em STREAMING, já fora do Promise.race da
+// home. Um await sem teto aqui não atrasa a página, ele deixa a resposta HTTP aberta pra
+// sempre — o HTML sai truncado, sem </html>, e o Googlebot recebe uma página quebrada.
+// Se estourar, cai pra vazio e o cliente hidrata via /api/canais.json e /api/epg.json.
+const SSR_DATA_CEILING_MS = 2500;
+const SSR_EPG_CEILING_MS = 2000;
+
+// `?.length`, não só a existência do prop: a home passa `canaisTVData`, que é `[]` quando o
+// teto de 7s por fonte dela derruba o fetch de canais. Um array vazio é truthy — o componente
+// aceitava esse [] como "dados prontos", pulava o fetchCanais() daqui e renderizava a seção
+// inteira zerada ("0 de 0 canais", sem botões de categoria), que era o bug em produção.
+// An empty array prop is truthy; treat it as absent so we still fetch here.
+const temCanaisProp = Array.isArray(todosCanaisProp) && todosCanaisProp.length > 0;
+
+let [vipChannels, resCanais, resCats] = await withCeiling(
+    Promise.all([
+        fetchVipChannels(),
+        temCanaisProp ? null : fetchCanais(),
+        temCanaisProp ? null : getCategoriasUnicas()
+    ]),
+    SSR_DATA_CEILING_MS,
+    [[], [], []]
+);
+
+if (temCanaisProp) {
+    todosCanais = todosCanaisProp;
+    // Extraímos categorias de canais passados por prop também
+    resCats = [...new Set(todosCanais.map(c => c.categoria))].filter(Boolean).sort();
+} else {
+    todosCanais = resCanais || [];
+}
+
+// Filtra os jogos encerrados no SSR (Pilar 5: Inteligência de Negócio)
+// Removidos assim que o horário de término é atingido — sem tolerância — para não
+// poluir a lista com partidas já finalizadas nem deslocar jogos ao vivo de verdade.
+const now = Math.floor(Date.now() / 1000);
+todosCanais = todosCanais.filter(c => {
+    if (!c.hora_inicio) return true; // Mantém canais normais
+    const end = c.hora_fim || (Number(c.hora_inicio) + 9000);
+    return now <= end;
+});
+
+// Filtramos para não ter duplicata do botão especial
+// Normalização Master: trim e case-insensitive para evitar duplicatas (Fase 15)
+categorias = resCats.filter(cat => {
+    const normalized = cat.trim().toLowerCase();
+    return normalized !== "⚽ jogos ao vivo" && normalized !== "jogos ao vivo";
+});
+
+vipIdsArray = (vipChannels || []).map((id) => String(id));
+vipIds = buildVipLookupSet(vipIdsArray);
+// ----------------------------
+const uniqueId = `tv-carousel-${Math.random().toString(36).substring(7)}`;
+const ITEMS_PER_PAGE = 12; // Reduzido para cortar Style & Layout time em ~50% no mobile
+const canaisIniciais = todosCanais.slice(0, ITEMS_PER_PAGE);
+
+// Guia de programação (Agora passando) — só para os canais já visíveis no primeiro paint,
+// os demais (load more / filtro / fallback client) pegam via /api/epg.json no cliente.
+// O .catch() sozinho não bastava: ele pega rejeição, mas não pega travamento.
+const nowPlayingMap = await withCeiling(
+    getNowPlayingBulk(canaisIniciais.map((c) => c.id)),
+    SSR_EPG_CEILING_MS,
+    {}
+);
+
+// Blobs pesados vão em <script type="application/json">, não em atributo data-*.
+// Dentro de um atributo, todo `"` do JSON vira `&#34;` — a lista de canais sozinha gastava
+// 11 KB só em escape, e a de VIP ids ainda saía DUPLICADA porque LiveGamesSection serializava
+// a mesma coisa. Num script tag o JSON vai cru; só `<` precisa de cuidado, pra que um nome de
+// canal não consiga fechar a tag e virar injeção de HTML.
+const paraBlob = (valor) => JSON.stringify(valor).replace(/</g, '\u003c');
+const { sharedVipBlob = false } = Astro.props;
+---
+
+<div 
+    class="py-8 w-full mx-auto tv-card-container" 
+    id={`tv-section-${uniqueId}`}
+    data-unique-id={uniqueId}
+    data-items-per-page={ITEMS_PER_PAGE}
+    data-t-load-more={t('tv.load_more')}
+    data-t-searching={t('tv.searching')}
+    data-t-all={t('tv.all_categories')}
+    data-t-channels-label={t('tv.channels_label')}
+    data-t-of-label={t('tv.of_label')}
+    data-lang={lang}
+>
+    <div class="px-4 sm:px-6 lg:px-8 mb-8" id={`header-${uniqueId}`}>
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            
+            <div>
+                <h2 class="flex items-center gap-3 text-xl sm:text-2xl font-bold text-white tracking-tight mb-2">
+                    <span class="w-1.5 h-6 bg-[#DF0912] rounded-full block"></span>
+                    {titleHead}
+                </h2>
+                <div class="text-sm text-gray-400 font-medium ml-4">
+                    <span id={`counter-${uniqueId}`} class="text-white">{canaisIniciais.length}</span> {t('tv.of_label')} <span id={`total-${uniqueId}`}>{todosCanais.length}</span> {t('tv.channels_label')}
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+                <label for={`category-select-${uniqueId}`} class="text-[11px] font-bold uppercase tracking-wider text-gray-500 ml-0.5">
+                    {t('tv.category_label')}
+                </label>
+                <div class="relative">
+                    <select
+                        id={`category-select-${uniqueId}`}
+                        class="category-select w-full sm:w-64 appearance-none bg-white/5 border border-white/10 rounded-xl pl-4 pr-10 py-2.5 text-sm font-bold text-white hover:border-white/20 focus:outline-none focus:border-[#DF0912]/60 transition-all duration-300 cursor-pointer"
+                    >
+                        <option value="all" class="bg-[#0E111A] text-white">{t('tv.all_categories')}</option>
+
+                        {categorias.map((categoria) => {
+                            // Tradução simples de categorias comuns
+                            const catLower = categoria.toLowerCase();
+                            let displayCat = categoria;
+                            if (!isPt) {
+                                if (catLower.includes('esportes')) displayCat = 'Sports';
+                                else if (catLower.includes('noticias')) displayCat = 'News';
+                                else if (catLower.includes('infantil')) displayCat = 'Kids';
+                                else if (catLower.includes('entretenimento')) displayCat = 'Entertainment';
+                                else if (catLower.includes('abertos')) displayCat = 'Local';
+                                else if (catLower.includes('filmes')) displayCat = 'Movies';
+                                else if (catLower.includes('series')) displayCat = 'Series';
+                                else if (catLower.includes('documentarios')) displayCat = 'Documentaries';
+                                else if (catLower.includes('variedades')) displayCat = 'Variety';
+                                else if (catLower.includes('religiosos')) displayCat = 'Religious';
+                            }
+
+                            return (
+                                <option value={categoria} class="bg-[#0E111A] text-white">
+                                    {displayCat}
+                                </option>
+                            );
+                        })}
+                    </select>
+                    <svg class="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="w-full px-4 sm:px-6 lg:px-8">
+        <div 
+            id={`grid-${uniqueId}`}
+            class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4"
+        >
+            {canaisIniciais.map((canal) => {
+                const isVip = isVipChannel(canal, vipIds);
+                return (
+                    <a
+                        href={`${langPrefix}/canal/${slugify(canal.nome)}`}
+                        data-is-vip={isVip}
+                        data-canal-nome={canal.nome}
+                        data-canal-id={canal.id}
+                        data-astro-prefetch
+                        class="bf-tv-card group relative flex flex-col items-center p-4 bg-[#161B28] border border-white/5 rounded-xl transition-all duration-300 hover:-translate-y-1 hover:border-[#DF0912]/50 overflow-hidden tv-card"
+                    >
+                        {isVip && (
+                            <div class="absolute top-1.5 right-1.5 z-20 group-hover:scale-110 transition-transform duration-300">
+                                <svg class="w-5 h-5 text-[#DF0912] drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                            </div>
+                        )}
+
+                        <div class="relative w-full aspect-square mb-3 flex items-center justify-center p-2 group-hover:scale-105 transition-transform duration-300 ease-out">
+                            <img
+                                src={canal.imagem}
+                                alt={canal.nome}
+                                loading="lazy"
+                                decoding="async"
+                                width="200"
+                                height="200"
+                                class="w-full h-full object-contain drop-shadow-md"
+                                onerror="this.style.display='none'; this.parentElement.innerHTML='<span class=\'text-2xl\'>📺</span>';"
+                            />
+                            
+                            {canal.hora_inicio && (() => {
+                                const status = getGameTimeStatus(canal);
+                                const isLive = !status.includes(':') && !status.includes('EM') && !status.includes('IN') && !status.includes('WAIT') && !status.includes('FINAL') && !status.includes('ENDED');
+                                return (
+                                    <div class={`absolute top-2 left-2 z-20 backdrop-blur-sm px-2 py-0.5 border rounded flex items-center gap-1.5 shadow-xl ${isLive ? 'bg-red-600/80 border-red-500/50' : 'bg-black/80 border-white/10'}`}>
+                                        {isLive && <span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>}
+                                        {!isLive && <span class="w-1.5 h-1.5 bg-gray-500 rounded-full"></span>}
+                                        <span class="text-[8px] font-black text-white uppercase tracking-widest">
+                                            {status}
+                                        </span>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                        
+                        <div class="relative z-10 w-full text-center">
+                            <h3 class="text-xs sm:text-sm font-bold text-white leading-tight line-clamp-1 group-hover:text-[#DF0912] transition-colors">
+                                {canal.nome}
+                            </h3>
+
+                            <span class="text-[10px] uppercase tracking-wide text-gray-500 mt-1 block group-hover:text-gray-400 category-label">
+                                {canal.categoria || 'TV'} {isVip && <span class="text-[#DF0912] font-black ml-1">VIP</span>}
+                            </span>
+
+                            {nowPlayingMap[canal.id] && (
+                                <div class="mt-1.5 w-full epg-now">
+                                    <span class="text-[10px] text-[#DF0912] font-bold truncate block" title={nowPlayingMap[canal.id].title}>
+                                        {nowPlayingMap[canal.id].title}
+                                    </span>
+                                    <div class="w-full h-[3px] bg-black/30 rounded-full overflow-hidden mt-1">
+                                        <div class="h-full bg-[#DF0912] rounded-full" style={`width: ${nowPlayingMap[canal.id].progress}%`}></div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </a>
+                );
+            })}
+        </div>
+
+        <div id={`no-results-${uniqueId}`} class="hidden flex-col justify-center items-center py-16 text-center">
+            <div class="w-16 h-16 rounded-full bg-[#161B28] flex items-center justify-center mb-4">
+                <svg class="w-8 h-8 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            </div>
+            <p class="text-white font-medium mb-1">{t('tv.no_channels_found')}</p>
+            <p class="text-gray-500 text-sm">{t('tv.try_another_category')}</p>
+        </div>
+
+        {todosCanais.length > ITEMS_PER_PAGE && (
+            <div class="flex justify-center mt-10">
+                <button
+                    id={`loadMore-${uniqueId}`}
+                    class="group px-8 py-3 bg-[#161B28] hover:bg-[#DF0912] text-white font-bold rounded-lg border border-white/10 hover:border-[#DF0912] transition-all duration-300 hover:shadow-lg hover:shadow-red-500/20 flex items-center gap-2 text-sm uppercase tracking-wider"
+                >
+                    <span>{t('tv.load_more')}</span>
+                    <svg class="w-4 h-4 transition-transform group-hover:translate-y-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <polyline points="6 9 12 15 18 9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            </div>
+        )}
+    </div>
+</div>
+
+<script type="application/json" id={`bf-tv-data-${uniqueId}`} set:html={paraBlob({
+    canais: isCrawler ? [] : todosCanais,
+    nowPlaying: nowPlayingMap
+})} />
+
+{/* Blob de VIP ids compartilhado da página: LiveGamesSection lê deste mesmo elemento em vez
+    de serializar a lista inteira uma segunda vez. Na home quem emite é este componente; se
+    algum dia outro emitir primeiro, a home passa `sharedVipBlob` e aqui só lemos. */}
+{!sharedVipBlob && <script type="application/json" id="bf-vip-ids" set:html={paraBlob(vipIdsArray)} />}
+
+<script>
+(function() {
+    const slugify = (text) => {
+        if (!text) return "";
+        return text
+            .toString()
+            .toLowerCase()
+            .trim()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/\s+/g, "-")
+            .replace(/[^\w\-]+/g, "")
+            .replace(/-+/g, "-")
+            .replace(/^-+|-+$/g, "");
+    };
+
+    const normalizeVipKey = (value) => {
+        if (value === null || value === undefined) return '';
+        return String(value)
+            .toLowerCase()
+            .trim()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+    };
+
+    const buildVipLookupSet = (ids = []) =>
+        new Set((ids || []).flatMap((id) => {
+            const raw = String(id);
+            const normalized = normalizeVipKey(id);
+            return normalized ? [raw, normalized] : [raw];
+        }));
+
+    const buildVipCandidates = (canal) => {
+        const candidates = new Set();
+        const push = (v) => {
+            if (!v) return;
+            const raw = String(v).trim();
+            if (!raw) return;
+            candidates.add(raw);
+            const normalized = normalizeVipKey(raw);
+            if (normalized) candidates.add(normalized);
+        };
+
+        push(canal?.id);
+        const title = canal?.nome || canal?.name || '';
+        if (title) {
+            const titleSlug = slugify(title);
+            push(titleSlug);
+            push(`jogo_${titleSlug}`);
+        }
+        return candidates;
+    };
+
+    const isVipChannel = (canal, vipSet) => Array.from(buildVipCandidates(canal)).some((k) => vipSet.has(k));
+
+    function initTVGrid() {
+        const containers = document.querySelectorAll('.tv-card-container');
+        
+        containers.forEach(container => {
+            setupTVGrid(container);
+        });
+    }
+
+    async function setupTVGrid(container) {
+        // Guard: evita inicializar o mesmo container duas vezes (SPA navigation)
+        if (container.dataset.init === 'true') return;
+        container.dataset.init = 'true';
+
+        const isBot = navigator.webdriver === true || /lighthouse|pagespeed|bot|crawler|spider/i.test(navigator.userAgent);
+
+        const uniqueId = container.getAttribute('data-unique-id');
+        const itemsPerPage = parseInt(container.getAttribute('data-items-per-page') || '24');
+        const lerBlob = (id, vazio) => {
+            try {
+                const el = document.getElementById(id);
+                return el ? JSON.parse(el.textContent || '') : vazio;
+            } catch (e) {
+                return vazio;
+            }
+        };
+
+        const vipIdsArray = lerBlob('bf-vip-ids', []);
+        const tvData = lerBlob(`bf-tv-data-${uniqueId}`, { canais: [], nowPlaying: {} });
+
+        const isMobile = window.matchMedia("(max-width: 768px)").matches;
+        const urlCategoryParam = new URLSearchParams(window.location.search).get('category');
+        const isLiveCategory = urlCategoryParam && (urlCategoryParam.trim().toLowerCase().includes('jogos ao vivo') || urlCategoryParam.includes('⚽'));
+        const recoveryDelay = isLiveCategory ? 0 : (isMobile ? 3000 : 1500); // Instantâneo se estiver na aba de jogos, menor em background
+
+        let authStore = null;
+        if (!isBot) {
+            if (window._authStore) {
+                authStore = window._authStore;
+            } else {
+                authStore = await new Promise((resolve) => {
+                    const handler = (e) => {
+                        resolve(e.detail?.authStore || e.detail);
+                        document.removeEventListener("multicanaishd:auth-ready", handler);
+                    };
+                    document.addEventListener("multicanaishd:auth-ready", handler);
+                    setTimeout(() => {
+                        resolve(window._authStore || null);
+                        document.removeEventListener("multicanaishd:auth-ready", handler);
+                    }, 6000);
+                });
+            }
+        }
+
+        let currentOffset = itemsPerPage;
+        let currentCategory = 'all';
+
+        // LAZY: só parseia o JSON grande quando o usuário interage com um filtro
+        // Evita JSON.parse síncrono no critical path (TBT killer)
+        let _todosCanaisCache = null;
+        function getTodosCanais() {
+            if (_todosCanaisCache) return _todosCanaisCache;
+            try {
+                const raw = tvData.canais || [];
+                const now = Math.floor(Date.now() / 1000);
+                _todosCanaisCache = raw.filter(c => {
+                    if (!c.hora_inicio) return true;
+                    const end = c.hora_fim || (Number(c.hora_inicio) + 9000);
+                    return now <= end;
+                });
+            } catch (e) {
+                _todosCanaisCache = [];
+            }
+            return _todosCanaisCache;
+        }
+
+        let filteredCanais = null;
+        const vipIds = buildVipLookupSet(vipIdsArray);
+
+        // Guia de programação (Agora passando): começa com o que veio do SSR (só os
+        // canais visíveis no 1º paint) e é completado no cliente via /api/epg.json,
+        // pra cobrir canais que só existem após load more / filtro / fallback client.
+        let epgMap = tvData.nowPlaying || {};
+
+        const loadMoreBtn = document.getElementById(`loadMore-${uniqueId}`);
+        const grid = document.getElementById(`grid-${uniqueId}`);
+        const counter = document.getElementById(`counter-${uniqueId}`);
+        const noResults = document.getElementById(`no-results-${uniqueId}`);
+
+        if (!grid) return;
+        const categorySelect = document.getElementById(`category-select-${uniqueId}`);
+
+        function applyCategory(value) {
+            currentCategory = value || 'all';
+            currentOffset = itemsPerPage;
+            const todosCanais = getTodosCanais();
+            if (currentCategory === 'all') {
+                filteredCanais = [...todosCanais];
+            } else {
+                const catNorm = currentCategory.trim().toLowerCase();
+                filteredCanais = todosCanais.filter(c => (c.categoria || '').trim().toLowerCase() === catNorm);
+            }
+            renderCanais(filteredCanais);
+        }
+
+        if (categorySelect) {
+            categorySelect.addEventListener('change', () => applyCategory(categorySelect.value));
+        }
+
+        // Helper para fetch com timeout curto que impede conexões órfãs ou saturação de rede
+        async function fetchWithTimeout(url, options = {}, timeout = 2500) {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            try {
+                const response = await fetch(url, { ...options, signal: controller.signal });
+                clearTimeout(id);
+                return response;
+            } catch (error) {
+                clearTimeout(id);
+                throw error;
+            }
+        }
+
+        async function fetchLiveGamesClient() {
+            // Tenta primeiro o endpoint local que usa o cache de 1 minuto em memória/KV no servidor e é CORS-safe!
+            try {
+                const resLocal = await fetchWithTimeout('/api/jogos.json?source=direct', {}, 3000);
+                if (resLocal.ok) {
+                    const data = await resLocal.json();
+                    if (Array.isArray(data) && data.length > 0) {
+                        console.log("⚽ [Client Games] Sintonizado com sucesso via endpoint local /api/jogos.json");
+                        return data.map(j => ({
+                            title: j.nome || j.title,
+                            image: j.imagem,
+                            players: [j.url],
+                            data: j.data || {
+                                teams: j.times || null,
+                                timer: { start: j.hora_inicio, end: j.hora_fim }
+                            }
+                        }));
+                    }
+                }
+            } catch(e) {
+                console.warn("⚠️ [Client Games] Falha no endpoint local /api/jogos.json:", e.message);
+            }
+
+            // Fallback direto na nossa API (CORS liberado, sem precisar dos proxies que a
+            // fonte antiga exigia). / Direct fallback to our own CORS-enabled API.
+            try {
+                const res = await fetchWithTimeout('https://streambetter.shop/api/games', {}, 4000);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data?.games)) return data.games;
+                }
+            } catch(e) {
+                console.warn('[Client Games] Falha na nossa API de jogos:', e.message);
+            }
+            return [];
+        }
+
+        // --- CLIENT-SIDE RECOVERY (SUPERFLIX API) ---
+        if (!isBot) {
+            setTimeout(async () => {
+            if (vipIds.size === 0) {
+                try {
+                    const resVip = await fetchWithTimeout('/api/vip-channels.json');
+                    if (resVip.ok) {
+                        const dataVip = await resVip.json();
+                        if (Array.isArray(dataVip)) {
+                            dataVip.forEach(id => {
+                                vipIds.add(String(id));
+                                const normalized = normalizeVipKey(id);
+                                if (normalized) vipIds.add(normalized);
+                            });
+                        }
+                    }
+                } catch(e) {}
+            }
+
+            // Guia de programação completo (cobre canais fora do lote inicial do SSR)
+            try {
+                const resEpg = await fetchWithTimeout('/api/epg.json', {}, 4000);
+                if (resEpg.ok) {
+                    const dataEpg = await resEpg.json();
+                    if (dataEpg && typeof dataEpg === 'object') {
+                        epgMap = { ...epgMap, ...dataEpg };
+                        renderCanais(filteredCanais !== null ? filteredCanais : getTodosCanais());
+                    }
+                }
+            } catch(e) {}
+
+            // 1. TENTA RECUPERAR DO SESSION STORAGE PARA EVITAR REQUESTS REPETIDOS (Com Cache Buster de Versão)
+            let loadedFromCache = false;
+            try {
+                const cachedVersion = sessionStorage.getItem('multicanaishd_tv_fallback_version');
+                const cachedFallback = sessionStorage.getItem('multicanaishd_tv_fallback');
+                if (cachedVersion === 'v3.0.0_streambetter' && cachedFallback) {
+                    let parsed = JSON.parse(cachedFallback);
+                    if (Array.isArray(parsed) && parsed.length > 100) {
+                        // Sempre removemos jogos do cache recuperado para garantir dados frescos
+                        parsed = parsed.filter(c => (c.categoria || '') !== '⚽ Jogos Ao Vivo' && (c.categoria || '') !== 'Jogos Ao Vivo');
+                        _todosCanaisCache = parsed;
+                        
+                        const totalSpan = document.getElementById(`total-${uniqueId}`);
+                        if (totalSpan) totalSpan.textContent = String(parsed.length);
+                        
+                        if (currentCategory === 'all') {
+                            filteredCanais = [...parsed];
+                        } else {
+                            const catNorm = currentCategory.trim().toLowerCase();
+                            filteredCanais = parsed.filter(c => (c.categoria || '').trim().toLowerCase() === catNorm);
+                        }
+                        renderCanais(filteredCanais);
+                        console.log("⚡ [Cache Hit] Canais recuperados de sessionStorage (sem jogos ao vivo)!");
+                        loadedFromCache = true;
+                    }
+                }
+            } catch(e) {}
+
+            const currentList = getTodosCanais();
+            // Só cai pra Superflix quando NÃO veio canal nenhum da nossa API — é rede de
+            // segurança pra indisponibilidade, não complemento de catálogo.
+            //
+            // Antes o gatilho era `length < 150`, herdado de quando a fonte era a EmbedTV (~281
+            // canais): com a nossa API em 135 canais, a condição passou a ser sempre verdadeira
+            // e o site injetava ~146 canais da Superflix por cima dos nossos em toda visita —
+            // daí o total de 281 e a categoria "Geral", que não existe no nosso catálogo.
+            // Only falls back to Superflix when our API returned no channels at all.
+            const canaisReais = (currentList || []).filter(c => !(c.categoria || '').trim().toLowerCase().includes('jogos ao vivo'));
+            const needsSuperflix = !loadedFromCache && canaisReais.length === 0;
+
+            if (needsSuperflix) {
+                console.log("🔄 [Client Fallback] Buscando canais diretamente da API da Superflix via navegador...");
+                
+                let rawItems = [];
+                let sourceName = "Local API";
+                try { 
+                    // 9s, não os 2,5s do default: este endpoint é a rede de segurança real
+                    // (as URLs da Superflix abaixo estão mortas há tempo) e num isolate frio
+                    // ele leva ~8s pra montar o cache. Com 2,5s o abort era garantido e a
+                    // seção ficava vazia mesmo com a API respondendo normalmente.
+                    const resLocal = await fetchWithTimeout(`/api/canais.json?source=direct`, {}, 9000); 
+                    if (resLocal.ok) {
+                        const dataLocal = await resLocal.json();
+                        if (Array.isArray(dataLocal) && dataLocal.length > 50) {
+                            rawItems = dataLocal;
+                        }
+                    }
+                } catch(e) {}
+
+                if (rawItems.length === 0) {
+                    const domains = ['https://superflixapi.fit', 'https://superflixapi.online', 'https://superflixapi.buzz', 'https://superflixapi.asia'];
+                    const cats = ['channels', 'canais', 'channel', 'canal'];
+                    let success = false;
+
+                    for (const domain of domains) {
+                        if (success) break;
+                        for (const cat of cats) {
+                            try {
+                                if (rawItems.length === 0) {
+                                    try { 
+                                        const resCodetabs = await fetchWithTimeout(`https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(`${domain}/lista?category=${cat}&format=json`)}`); 
+                                        if (resCodetabs.ok) {
+                                            const dataCodetabs = await resCodetabs.json();
+                                            if (Array.isArray(dataCodetabs)) rawItems = dataCodetabs;
+                                            else if (dataCodetabs?.data) rawItems = dataCodetabs.data;
+                                            else if (dataCodetabs?.channels) rawItems = dataCodetabs.channels;
+                                            else if (dataCodetabs?.canais) rawItems = dataCodetabs.canais;
+                                            else if (dataCodetabs?.list) rawItems = dataCodetabs.list;
+                                        }
+                                    } catch(e) {}
+                                }
+
+                                if (rawItems.length === 0) {
+                                    try { 
+                                        const resAllOrigins = await fetchWithTimeout(`https://api.allorigins.win/raw?url=${encodeURIComponent(`${domain}/lista?category=${cat}&format=json`)}`); 
+                                        if (resAllOrigins.ok) {
+                                            const dataAllOrigins = await resAllOrigins.json();
+                                            if (Array.isArray(dataAllOrigins)) rawItems = dataAllOrigins;
+                                            else if (dataAllOrigins?.data) rawItems = dataAllOrigins.data;
+                                            else if (dataAllOrigins?.channels) rawItems = dataAllOrigins.channels;
+                                            else if (dataAllOrigins?.canais) rawItems = dataAllOrigins.canais;
+                                            else if (dataAllOrigins?.list) rawItems = dataAllOrigins.list;
+                                        }
+                                    } catch(e) {}
+                                }
+
+                                if (rawItems.length > 0) {
+                                    sourceName = `${domain} (${cat})`;
+                                    success = true;
+                                    break;
+                                }
+                            } catch (err) {
+                                console.warn(`⚠️ Falha ao buscar de ${domain} (${cat}):`, err.message);
+                            }
+                        }
+                    }
+                }
+
+                if (rawItems.length > 0) {
+                    const fetchedCanais = rawItems.filter(c => c.is_active !== false && (c.categoria || '') !== '⚽ Jogos Ao Vivo').map(c => ({
+                        id: String(c.id || c.channel_id || Math.random()),
+                        nome: c.name || c.nome || "Canal TV",
+                        imagem: c.logo_url || c.logo || c.imagem || "/placeholder.jpg",
+                        url: c.embed_url || c.embed || c.url || "",
+                        categoria: c.category || c.categoria || "Geral"
+                    }));
+
+                    if (fetchedCanais.length > 0) {
+                        console.log(`✅ [Client Fallback] ${fetchedCanais.length} canais carregados com sucesso de ${sourceName}`);
+                        
+                        let jogos = [];
+                        const dataJogos = await fetchLiveGamesClient();
+                        if (dataJogos.length > 0) {
+                            const normalizeTimestamp = (ts) => {
+                                if (!ts) return 0;
+                                const num = Number(ts);
+                                return num > 9999999999 ? Math.floor(num / 1000) : num;
+                            };
+                            jogos = dataJogos.map(j => ({
+                                id: `jogo_${j.title?.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/ /g, '-').replace(/[^\w-]/g, '') || Math.random()}`,
+                                nome: j.title,
+                                imagem: j.image,
+                                url: Array.isArray(j.players) ? j.players[0] : (j.players || ""),
+                                categoria: "⚽ Jogos Ao Vivo",
+                                hora_inicio: j.data?.timer?.start ? normalizeTimestamp(j.data.timer.start) : null,
+                                hora_fim: j.data?.timer?.end ? normalizeTimestamp(j.data.timer.end) : null,
+                                data: j.data || j
+                            }));
+                        }
+                        
+                        const combined = [...currentList.filter(c => (c.categoria || '') !== '⚽ Jogos Ao Vivo'), ...fetchedCanais, ...jogos];
+                        // Remove duplicatas por ID
+                        const uniqueMap = new Map();
+                        combined.forEach(c => { if(c.id) uniqueMap.set(String(c.id), c); });
+                        const finalCombined = Array.from(uniqueMap.values());
+                        
+                        _todosCanaisCache = finalCombined;
+                        try {
+                            sessionStorage.setItem('multicanaishd_tv_fallback_version', 'v3.0.0_streambetter');
+                            sessionStorage.setItem('multicanaishd_tv_fallback', JSON.stringify(finalCombined));
+                        } catch(e) {}
+
+                        const totalSpan = document.getElementById(`total-${uniqueId}`);
+                        if (totalSpan) totalSpan.textContent = String(combined.length);
+
+                        if (categorySelect) {
+                            const resCats = [...new Set(combined.map(c => c.categoria))].filter(Boolean).sort();
+                            const cleanCats = resCats.filter(cat => {
+                                const norm = cat.trim().toLowerCase();
+                                return norm !== "⚽ jogos ao vivo" && norm !== "jogos ao vivo";
+                            });
+                            const isPt = container.getAttribute('data-lang') === 'pt';
+                            const selectedValue = categorySelect.value;
+
+                            let optionsHtml = `<option value="all" class="bg-[#0E111A] text-white">${container.getAttribute('data-t-all') || 'Todos'}</option>`;
+
+                            cleanCats.forEach(cat => {
+                                let displayCat = cat;
+                                if (!isPt) {
+                                    const cl = cat.toLowerCase();
+                                    if (cl.includes('esportes')) displayCat = 'Sports';
+                                    else if (cl.includes('noticias')) displayCat = 'News';
+                                    else if (cl.includes('infantil')) displayCat = 'Kids';
+                                    else if (cl.includes('filmes') || cl.includes('series')) displayCat = 'Movies & Series';
+                                    else if (cl.includes('variedades')) displayCat = 'Variety';
+                                    else if (cl.includes('documentarios')) displayCat = 'Documentaries';
+                                    else if (cl.includes('aberta')) displayCat = 'Open TV';
+                                }
+                                optionsHtml += `<option value="${cat}" class="bg-[#0E111A] text-white">${displayCat}</option>`;
+                            });
+
+                            categorySelect.innerHTML = optionsHtml;
+                            categorySelect.value = selectedValue;
+                        }
+
+                        if (currentCategory === 'all') {
+                            filteredCanais = [...combined];
+                        } else {
+                            const catNorm = currentCategory.trim().toLowerCase();
+                            filteredCanais = combined.filter(c => (c.categoria || '').trim().toLowerCase() === catNorm);
+                        }
+                        renderCanais(filteredCanais);
+                    }
+                }
+            }
+
+            let currentListNow = getTodosCanais() || [];
+            const temJogos = currentListNow.some(c => (c.categoria || '').trim().toLowerCase().includes('jogos ao vivo'));
+
+            if (!temJogos) {
+                console.log("⚽ [Client Fallback] Buscando Jogos ao Vivo no cliente...");
+                (async () => {
+                    try {
+                        const dataJogos = await fetchLiveGamesClient();
+                        if (dataJogos.length > 0) {
+                            const normalizeTimestamp = (ts) => {
+                                if (!ts) return 0;
+                                const num = Number(ts);
+                                return num > 9999999999 ? Math.floor(num / 1000) : num;
+                            };
+                            const novosJogos = dataJogos.map(j => ({
+                                id: `jogo_${j.title?.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/ /g, '-').replace(/[^\w-]/g, '') || Math.random()}`,
+                                nome: j.title,
+                                imagem: j.image,
+                                url: Array.isArray(j.players) ? j.players[0] : (j.players || ""),
+                                categoria: "⚽ Jogos Ao Vivo",
+                                hora_inicio: j.data?.timer?.start ? normalizeTimestamp(j.data.timer.start) : null,
+                                hora_fim: j.data?.timer?.end ? normalizeTimestamp(j.data.timer.end) : null,
+                                data: j.data || j
+                            }));
+                            const now = Math.floor(Date.now() / 1000);
+                            const novosJogosValidos = novosJogos.filter(j => {
+                                const end = j.hora_fim || (Number(j.hora_inicio) + 9000);
+                                return now <= end;
+                            });
+                            currentListNow = [...currentListNow.filter(c => (c.categoria || '') !== '⚽ Jogos Ao Vivo'), ...novosJogosValidos];
+                            _todosCanaisCache = currentListNow;
+                             try {
+                                 sessionStorage.setItem('multicanaishd_tv_fallback_version', 'v3.0.0_streambetter');
+                                 sessionStorage.setItem('multicanaishd_tv_fallback', JSON.stringify(currentListNow));
+                             } catch(e) {}
+
+                            const totalSpan = document.getElementById(`total-${uniqueId}`);
+                            if (totalSpan) totalSpan.textContent = String(currentListNow.length);
+
+                            if (currentCategory === 'all') {
+                                filteredCanais = [...currentListNow];
+                            } else {
+                                const catNorm = currentCategory.trim().toLowerCase();
+                                filteredCanais = currentListNow.filter(c => (c.categoria || '').trim().toLowerCase() === catNorm);
+                            }
+                            renderCanais(filteredCanais);
+                            console.log(`✅ [Client Fallback] ${novosJogos.length} jogos ao vivo adicionados à lista.`);
+                        }
+                    } catch(err) {
+                        console.error("[Client Fallback Games] Falha:", err);
+                    }
+                })();
+            }
+            }, recoveryDelay);
+        }
+
+        function getGameTimeStatus(canal) {
+            if (!canal?.hora_inicio) return "";
+            const start = Number(canal.hora_inicio);
+            const now = Math.floor(Date.now() / 1000);
+            const diffMin = Math.floor((start - now) / 60);
+            const end = canal.hora_fim || (start + 9000);
+            const lang = container.getAttribute('data-lang');
+
+            if (now > end) return lang === 'pt' ? "FINAL" : "ENDED";
+            if (diffMin > 60) {
+                return new Date(start * 1000).toLocaleTimeString('pt-BR', {
+                    hour: '2-digit', minute: '2-digit', hour12: false,
+                    timeZone: 'America/Sao_Paulo'
+                });
+            }
+            if (diffMin > 0) return `${lang === 'pt' ? 'EM' : 'IN'} ${diffMin}MIN`;
+            const elapsed = Math.floor((now - start) / 60);
+            if (elapsed < 0) return lang === 'pt' ? 'AGUARDE' : 'WAIT';
+            if (elapsed > 150) return lang === 'pt' ? "FINAL" : "ENDED";
+            if (elapsed <= 45) return `${elapsed}'`;
+            if (elapsed <= 60) return lang === 'pt' ? "INTERVALO" : "HT";
+            if (elapsed <= 105) return `${elapsed - 15}'`;
+            return `${elapsed - 15}+`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text == null ? '' : String(text);
+            return div.innerHTML;
+        }
+
+        function createCanalHTML(canal) {
+            const lang = container.getAttribute('data-lang');
+            const prefix = lang === 'pt' ? '' : `/${lang}`;
+            const isVip = isVipChannel(canal, vipIds);
+            const nowPlaying = epgMap[canal.id];
+            const epgBadge = nowPlaying
+                ? `<div class="mt-1.5 w-full epg-now">
+                        <span class="text-[10px] text-[#DF0912] font-bold truncate block" title="${escapeHtml(nowPlaying.title)}">${escapeHtml(nowPlaying.title)}</span>
+                        <div class="w-full h-[3px] bg-black/30 rounded-full overflow-hidden mt-1">
+                            <div class="h-full bg-[#DF0912] rounded-full" style="width:${nowPlaying.progress}%"></div>
+                        </div>
+                   </div>`
+                : '';
+            let gameBadge = '';
+            if (canal.hora_inicio) {
+                try {
+                    const status = getGameTimeStatus(canal);
+                    if (status) {
+                        const isLive = ![':', 'EM', 'IN', 'WAIT', 'FINAL', 'ENDED'].some(s => status.includes(s));
+                        gameBadge = `<div class="absolute top-2 left-2 z-20 backdrop-blur-sm px-2 py-0.5 border rounded flex items-center gap-1.5 shadow-xl ${isLive ? 'bg-red-600/80 border-red-500/50' : 'bg-black/80 border-white/10'}"><span class="w-1.5 h-1.5 ${isLive ? 'bg-white animate-pulse' : 'bg-gray-500'} rounded-full"></span><span class="text-[8px] font-black text-white uppercase tracking-widest">${status}</span></div>`;
+                    }
+                } catch (_) {}
+            }
+            return `
+                <a href="${prefix}/canal/${canal.nome ? slugify(canal.nome) : canal.id}" 
+                   data-is-vip="${isVip}" 
+                   data-canal-nome="${canal.nome}"
+                   data-canal-id="${canal.id}"
+                   data-astro-prefetch
+                   class="bf-tv-card group relative flex flex-col items-center p-4 bg-[#161B28] border border-white/5 rounded-xl transition-all duration-300 hover:-translate-y-1 hover:border-[#DF0912]/50 overflow-hidden tv-card">
+                    ${isVip ? `<div class="absolute top-1.5 right-1.5 z-20 group-hover:scale-110 transition-transform duration-300"><svg class="w-5 h-5 text-[#DF0912] drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>` : ''}
+                    <div class="relative w-full aspect-square mb-3 flex items-center justify-center p-2 group-hover:scale-105 transition-transform duration-300">
+                        <img src="${canal.imagem}" alt="${canal.nome}" loading="lazy" width="200" height="200" class="w-full h-full object-contain drop-shadow-md" onerror="this.style.display='none';this.parentElement.innerHTML='<span class=\'text-2xl\'>📺</span>';"/>
+                        ${gameBadge}
+                    </div>
+                    <div class="relative z-10 w-full text-center">
+                        <h3 class="text-xs sm:text-sm font-bold text-white leading-tight line-clamp-1 group-hover:text-[#DF0912] transition-colors">${canal.nome}</h3>
+
+                        <span class="text-[10px] uppercase tracking-wide text-gray-500 mt-1 block group-hover:text-gray-400 category-label">${canal.categoria || 'TV'}${isVip ? ' <span class="text-[#DF0912] font-black">VIP</span>' : ''}</span>
+                        ${epgBadge}
+                    </div>
+                </a>`;
+        }
+
+        // --- REACTIVE VIP STATE ---
+        if (authStore) {
+            const unsub = authStore.subscribe((state) => {
+                if (state.isVIP) {
+                    container.classList.add('is-user-vip');
+                } else {
+                    container.classList.remove('is-user-vip');
+                }
+            });
+
+            // Cleanup subscription on page change
+            document.addEventListener('astro:before-preparation', () => unsub(), { once: true });
+        }
+
+        function renderCanais(canaisToRender) {
+            // Usa DocumentFragment para um único reflow em vez de N reflows
+            const fragment = document.createDocumentFragment();
+            const temp = document.createElement('div');
+            const canaisToShow = canaisToRender.slice(0, currentOffset);
+            canaisToShow.forEach(canal => {
+                temp.innerHTML = createCanalHTML(canal);
+                if (temp.firstElementChild) fragment.appendChild(temp.firstElementChild);
+            });
+            grid.innerHTML = '';
+            grid.appendChild(fragment);
+
+            if (counter) counter.textContent = String(Math.min(currentOffset, canaisToRender.length));
+
+            const isEmpty = canaisToRender.length === 0;
+            noResults?.classList.toggle('hidden', !isEmpty);
+            noResults?.classList.toggle('flex', isEmpty);
+
+            if (loadMoreBtn) {
+                const hasMore = currentOffset < canaisToRender.length;
+                loadMoreBtn.style.display = hasMore ? 'flex' : 'none';
+                if (hasMore) {
+                    loadMoreBtn.innerHTML = `<span>${container.getAttribute('data-t-load-more')}</span><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 12 15 18 9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                }
+            }
+
+        }
+
+        const checkVip = () => {
+            const store = authStore || window._authStore;
+            const { isVIP: storeVip } = store?.get() || { isVIP: false };
+            let sessionVip = false;
+            try {
+                const sessionData = JSON.parse(localStorage.getItem('bf_session_optimistic') || '{}');
+                sessionVip = sessionData.isVIP === true;
+            } catch (err) {}
+            return storeVip || sessionVip;
+        };
+
+        grid.addEventListener('click', async (e) => {
+            const card = e.target.closest('[data-is-vip="true"]');
+            if (!card) return;
+            if (!checkVip()) {
+                e.preventDefault();
+                e.stopPropagation();
+                document.dispatchEvent(new CustomEvent('multicanaishd:open-vip'));
+            }
+        });
+
+        if (loadMoreBtn) {
+            loadMoreBtn.addEventListener('click', () => {
+                if (filteredCanais === null) {
+                    filteredCanais = getTodosCanais();
+                }
+                currentOffset += itemsPerPage;
+                renderCanais(filteredCanais);
+            });
+        }
+
+
+        // URL Category Auto-Filter: ativa filtro por query param (ex: ?category=Filmes)
+        const catFromUrl = new URLSearchParams(window.location.search).get('category');
+        if (catFromUrl && categorySelect) {
+            const hasOption = Array.from(categorySelect.options).some(o => o.value === catFromUrl);
+            if (hasOption) {
+                categorySelect.value = catFromUrl;
+                applyCategory(catFromUrl);
+            }
+        }
+    }
+
+    document.addEventListener("astro:page-load", () => {
+        initTVGrid();
+    });
+})();
+</script>
+
+<style>
+    .is-user-vip [data-is-vip="true"] .absolute.top-3.right-3,
+    .is-user-vip [data-is-vip="true"] .text-\[\#DF0912\].font-black {
+        display: none !important;
+    }
+
+    .line-clamp-1 {
+        display: -webkit-box;
+        -webkit-line-clamp: 1;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+</style>
+

@@ -1,0 +1,54 @@
+---
+import EpisodioPage from "../../../../components/EpisodioPage.astro";
+import { resolverEpisodio } from "../../../../../services/episodioService.js";
+import { upstreamUnavailableResponse } from "../../../../../utils/upstreamUnavailable.js";
+import { axiomService } from "../../../../../services/axiom-service.js";
+import { getLangFromUrl } from "../../../../../i18n/utils";
+
+export const prerender = false;
+
+const lang = getLangFromUrl(Astro.url);
+
+// Astro.rewrite("/404") reinicia o pipeline de middleware, então o log de requisição de lá
+// só enxerga "/404" — registramos aqui, com a URL original ainda intacta.
+const logNotFound = (motivo) => {
+    const p = axiomService.ingest({
+        _time: new Date().toISOString(),
+        type: "content_not_found",
+        path: Astro.url.pathname,
+        reason: motivo,
+        platform: "multicanaishd-web",
+    });
+    if (Astro.locals.runtime?.waitUntil) {
+        Astro.locals.runtime.waitUntil(p);
+    } else {
+        p.catch(() => {});
+    }
+};
+
+// Regra 2.2: nem o resolver pode derrubar a rota. Falha inesperada vira indisponibilidade
+// temporária, nunca 5xx ou 404 na cara do Googlebot.
+let resultado;
+try {
+    resultado = await resolverEpisodio(Astro.params, lang);
+} catch (e) {
+    console.error("[Episodio] Falha ao resolver episódio:", e?.message || e);
+    return upstreamUnavailableResponse(lang);
+}
+
+if (resultado.tipo === "redirect") {
+    return Astro.redirect(resultado.destino, 301);
+}
+
+if (resultado.tipo === "unavailable") {
+    return upstreamUnavailableResponse(lang);
+}
+
+if (resultado.tipo === "notFound") {
+    Astro.response.status = 404;
+    logNotFound(resultado.motivo);
+    return Astro.rewrite("/404");
+}
+---
+
+<EpisodioPage {...resultado.dados} />

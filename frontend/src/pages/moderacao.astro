@@ -1,0 +1,145 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import CommentsSection from "./components/moderacao/CommentsSection.astro";
+import UsersSection from "./components/moderacao/UsersSection.astro";
+import ChannelsSection from "./components/moderacao/ChannelsSection.astro";
+import StatsSection from "./components/moderacao/StatsSection.astro";
+import ConfigSection from "./components/moderacao/ConfigSection.astro";
+import NotificationsSection from "./components/moderacao/NotificationsSection.astro";
+import MonitoringSection from "./components/moderacao/MonitoringSection.astro";
+import UrlRotationSection from "./components/moderacao/UrlRotationSection.astro";
+
+export const prerender = false;
+
+// Agrupamento da navegação lateral: rótulo da seção + itens.
+// `id` casa com o `data-tab` lido pelo moderacaoClient.js.
+const navGroups = [
+    {
+        label: "Geral",
+        items: [
+            { id: "comments", label: "Comentários" },
+            { id: "stats", label: "Estatísticas" },
+            { id: "monitoring", label: "Monitoramento" },
+        ],
+    },
+    {
+        label: "Administração",
+        items: [
+            { id: "users", label: "Gerenciar VIPs" },
+            { id: "channels", label: "Canais VIP" },
+            { id: "url-rotation", label: "Anti-DMCA" },
+        ],
+    },
+    {
+        label: "Integrações",
+        items: [{ id: "notifications", label: "Notificações" }],
+    },
+    {
+        label: "Sistema",
+        items: [{ id: "config", label: "Configurações" }],
+    },
+];
+
+const navItemBase =
+    "tab-btn w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-colors";
+const navItemInactive = `${navItemBase} text-gray-400 hover:bg-white/[0.06] hover:text-white`;
+const navItemActive = `${navItemBase} bg-[#DF0912] text-white`;
+---
+
+<BaseLayout title="Painel Administrativo | MultiCanaisHD" robots="noindex, nofollow">
+    <main class="container mx-auto px-4 sm:px-6 lg:px-8 py-24 min-h-screen">
+        <div class="max-w-7xl mx-auto lg:grid lg:grid-cols-[240px_1fr] lg:gap-10 lg:items-start">
+            <!-- O `hidden` fica sozinho no wrapper: qualquer utilitário de display com breakpoint
+                 (lg:block) venceria o `hidden` e vazaria a navegação antes da autenticação. -->
+            <nav
+                id="tabs-container"
+                class="hidden mb-8 lg:mb-0 lg:sticky lg:top-24 lg:border-r lg:border-white/5 lg:pr-6"
+            >
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:block gap-1.5 lg:gap-0">
+                    {navGroups.map((group, groupIndex) => (
+                        <>
+                            <p
+                                class:list={[
+                                    "hidden lg:block col-span-full text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500 mb-2",
+                                    groupIndex > 0 && "mt-6",
+                                ]}
+                            >
+                                {group.label}
+                            </p>
+                            {group.items.map((item) => (
+                                <button
+                                    data-tab={item.id}
+                                    class={item.id === "comments" ? navItemActive : navItemInactive}
+                                >
+                                    {item.label}
+                                </button>
+                            ))}
+                        </>
+                    ))}
+                </div>
+            </nav>
+
+            <div class="min-w-0 lg:col-start-2">
+                <header class="mb-8">
+                    <h1 class="text-3xl sm:text-4xl font-semibold text-white tracking-tight">
+                        Administração
+                    </h1>
+                    <p class="text-gray-400 text-sm mt-2 leading-relaxed">
+                        Painel restrito a administradores — moderação, VIPs, canais,
+                        métricas e integrações.
+                    </p>
+                </header>
+
+                <div
+                    id="auth-section"
+                    class="max-w-md rounded-2xl border border-white/10 bg-[#141414] p-8"
+                >
+                    <h2 class="text-lg font-semibold text-white">Acesso restrito</h2>
+                    <p class="text-gray-400 text-sm mt-2 leading-relaxed">
+                        Por segurança, o token é solicitado a cada nova sessão.
+                    </p>
+
+                    <div class="mt-6 space-y-3">
+                        <input
+                            type="password"
+                            id="mod-token"
+                            placeholder="MOD_SECRET_TOKEN"
+                            class="w-full bg-[#060911] border border-white/10 rounded-lg px-4 py-3 text-white text-sm font-mono placeholder:text-gray-600 focus:outline-none focus:border-[#DF0912]/60 transition-colors"
+                        />
+                        <button
+                            id="login-btn"
+                            class="w-full bg-[#DF0912] hover:bg-[#be080f] text-white font-semibold py-3 rounded-lg text-sm transition-colors"
+                            >Entrar</button
+                        >
+                        <p
+                            id="error-msg"
+                            class="text-[#DF0912] text-xs font-medium text-center hidden"
+                        >
+                            Token inválido.
+                        </p>
+                    </div>
+                </div>
+
+                <div id="dashboard-content" class="hidden">
+                    <!-- Content loaded dynamically after auth -->
+                </div>
+            </div>
+
+            <!-- Template for dashboard sections (injected via JS after auth) -->
+            <template id="dashboard-template">
+                <CommentsSection />
+                <UsersSection />
+                <ChannelsSection />
+                <UrlRotationSection />
+                <StatsSection />
+                <ConfigSection />
+                <NotificationsSection />
+                <MonitoringSection />
+            </template>
+        </div>
+    </main>
+</BaseLayout>
+
+<script>
+    import "./components/moderacao/moderacaoClient.js";
+</script>

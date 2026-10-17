@@ -1,0 +1,84 @@
+---
+// src/pages/components/StillWatchingModal.astro
+import { getLangFromUrl, useTranslations } from "../../i18n/utils";
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+
+// Bilingual translations for premium UI
+const modalTitle = lang === "en" ? "Are you still watching?" : "Você ainda está assistindo?";
+const modalDesc = lang === "en" 
+    ? "Your watch time points in the leaderboard will be paused if you do not respond." 
+    : "Sua pontuação de maratona no ranking global será pausada caso você não responda.";
+const btnText = lang === "en" ? "Continue Watching" : "Continuar Assistindo";
+---
+
+<div 
+    id="still-watching-modal" 
+    class="fixed inset-0 z-[9999] flex items-center justify-center bg-[#060911]/80 backdrop-blur-md opacity-0 pointer-events-none transition-all duration-300"
+>
+    <!-- Card Container with subtle scale-up animation -->
+    <div 
+        class="relative w-full max-w-md mx-4 p-8 bg-[#0E111A]/90 border border-white/10 rounded-2xl shadow-2xl text-center transform scale-90 transition-all duration-300"
+        id="still-watching-card"
+    >
+        <!-- Premium Pulsing Star/Clock Icon Header -->
+        <div class="flex justify-center mb-6">
+            <div class="relative flex items-center justify-center w-16 h-16 bg-[#DF0912]/10 rounded-full text-[#DF0912] animate-pulse">
+                <!-- Outer Ring Glow -->
+                <div class="absolute inset-0 rounded-full border border-[#DF0912]/30 scale-125 animate-ping opacity-70"></div>
+                
+                <!-- Fluent/Lucide Icon Clock -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Typography with elegant styling -->
+        <h3 class="text-2xl font-bold tracking-tight text-white mb-3">
+            {modalTitle}
+        </h3>
+        <p class="text-gray-400 text-sm leading-relaxed mb-8 max-w-sm mx-auto">
+            {modalDesc}
+        </p>
+
+        <!-- CTA Premium Button with smooth micro-interactions (Pilar 1) -->
+        <button 
+            id="still-watching-btn"
+            class="w-full py-4 px-6 bg-[#DF0912] hover:bg-[#f50d17] active:scale-[0.98] text-white font-semibold rounded-xl shadow-[0_4px_20px_rgba(223,9,18,0.35)] hover:shadow-[0_6px_25px_rgba(223,9,18,0.5)] transition-all duration-300 cursor-pointer"
+        >
+            {btnText}
+        </button>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("astro:page-load", () => {
+        const modal = document.getElementById("still-watching-modal");
+        const card = document.getElementById("still-watching-card");
+        const btn = document.getElementById("still-watching-btn");
+
+        if (!modal || !card || !btn) return;
+
+        // Custom global listener to trigger the popup
+        document.addEventListener("multicanaishd:still-watching", () => {
+            modal.classList.remove("opacity-0", "pointer-events-none");
+            card.classList.remove("scale-90");
+            card.classList.add("scale-100");
+        });
+
+        const handleResume = () => {
+            // Dismiss Modal
+            modal.classList.add("opacity-0", "pointer-events-none");
+            card.classList.remove("scale-100");
+            card.classList.add("scale-90");
+
+            // Dispatch global event that the user is active/watching
+            document.dispatchEvent(new CustomEvent("multicanaishd:still-watching-resume"));
+        };
+
+        btn.addEventListener("click", handleResume);
+    });
+</script>

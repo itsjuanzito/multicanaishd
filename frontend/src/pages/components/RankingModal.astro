@@ -1,0 +1,237 @@
+---
+// src/pages/components/RankingModal.astro
+---
+
+<div id="ranking-modal-overlay" class="fixed inset-0 z-[600] hidden items-center justify-center bg-black/90 backdrop-blur-xl transition-opacity duration-700">
+    <div id="ranking-modal-content" class="relative w-[92%] max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-[2rem] border border-white/10 bg-[#0a0a0a] shadow-2xl scale-95 opacity-0 transition-all duration-500 scrollbar-hide">
+        
+        <!-- No Background Glows (Removed as requested) -->
+
+        <!-- Close Button -->
+        <button id="ranking-modal-close" class="absolute right-5 top-5 z-50 w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white transition-all group" aria-label="Fechar">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+
+        <div class="relative z-10 p-5 sm:p-8">
+            <!-- Header Section -->
+            <div class="text-center mb-5 sm:mb-8">
+                <h2 class="text-3xl sm:text-5xl font-black text-white tracking-tighter leading-tight mb-2 sm:mb-3">
+                    RANKING
+                </h2>
+                <p class="text-gray-400 text-xs sm:text-sm font-medium leading-relaxed px-2 sm:px-4">
+                    A maior disputa de maratona do MultiCanaisHD começou. Quem assiste mais, ganha mais!
+                </p>
+            </div>
+
+            <!-- Prizes Grid -->
+            <div class="space-y-2 sm:space-y-3 mb-5 sm:mb-8">
+                <!-- 1st Place -->
+                <div class="group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl bg-white/5 border border-white/5">
+                    <div class="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 flex items-center justify-center rounded-xl bg-yellow-500 text-black text-lg sm:text-xl font-black shadow-lg shadow-yellow-500/20">
+                        1º
+                    </div>
+                    <div>
+                        <h4 class="text-white font-black text-xs sm:text-sm uppercase tracking-tight">Primeiro Lugar</h4>
+                        <p class="text-yellow-500/80 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest">1 Mês VIP Diamond 💎</p>
+                    </div>
+                </div>
+
+                <!-- 2nd & 3rd Place -->
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <div class="flex-1 flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/5">
+                        <div class="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl bg-gray-400 text-black text-sm font-black">2º</div>
+                        <div>
+                            <h4 class="text-white/70 font-bold text-[10px] uppercase">2º Lugar</h4>
+                            <p class="text-orange-400 text-[9px] font-black uppercase">1 Mês VIP Básico ⚡</p>
+                        </div>
+                    </div>
+                    <div class="flex-1 flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/5">
+                        <div class="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl bg-[#cd7f32] text-black text-sm font-black">3º</div>
+                        <div>
+                            <h4 class="text-white/70 font-bold text-[10px] uppercase">3º Lugar</h4>
+                            <p class="text-orange-400 text-[9px] font-black uppercase">1 Mês VIP Básico ⚡</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rules / How to Participate -->
+            <div class="bg-white/[0.03] rounded-2xl p-4 sm:p-5 border border-white/5 mb-5 sm:mb-8">
+                <h5 class="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Como Participar
+                </h5>
+                <p class="text-[11px] text-gray-400 leading-relaxed">
+                    É simples: basta estar logado e assistir seus conteúdos favoritos! Contamos cada segundo em <span class="text-white font-bold">Filmes, Séries, Canais de TV, Jogos</span>.
+                </p>
+                <div class="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-black text-[#DF0912] uppercase tracking-widest leading-tight">100% Gratuito</span>
+                        <span id="ranking-expiry-date" class="text-[9px] font-bold text-gray-500 uppercase tracking-tighter">Termina em: 12/07</span>
+                    </div>
+                    <span class="text-[10px] font-bold text-gray-600">Resultados no Telegram</span>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-col gap-3">
+                <button id="ranking-modal-confirm" class="w-full py-4 rounded-xl bg-[#DF0912] hover:bg-[#cf0811] text-white text-xs font-black uppercase tracking-[0.2em] transition-all transform active:scale-95 shadow-lg shadow-[#DF0912]/20">
+                    Vamos Maratona!
+                </button>
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <a href="/ranking" class="flex items-center justify-center gap-2 py-3.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-[10px] font-black uppercase tracking-widest transition-all border border-white/5">
+                        <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                        Meu Rank
+                    </a>
+                    <a href="https://t.me/+LzTPE6nAUoQwMGNh" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center gap-2 py-3.5 rounded-xl bg-white/5 hover:bg-[#229ED9]/10 text-gray-300 hover:text-white text-[10px] font-black uppercase tracking-widest transition-all border border-white/5">
+                        <svg class="w-4 h-4 text-[#229ED9]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.13-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/></svg>
+                        Telegram
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function initRankingModal() {
+        const isBot = typeof navigator !== 'undefined' && (navigator.webdriver === true || /lighthouse|pagespeed|bot|crawler|spider/i.test(navigator.userAgent));
+        if (isBot) return;
+
+        // 1. Calcula a expiração automaticamente a cada 30 dias (base: 12/07/2026)
+        const baseDate = new Date('2026-07-12T00:00:00');
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+
+        let nextReset = new Date(baseDate.getTime());
+        if (now > nextReset) {
+            const diffMs = now.getTime() - baseDate.getTime();
+            const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+            const intervals = Math.ceil(diffDays / 30);
+            nextReset.setDate(baseDate.getDate() + intervals * 30);
+        }
+
+        const day = String(nextReset.getDate()).padStart(2, '0');
+        const month = String(nextReset.getMonth() + 1).padStart(2, '0');
+        const dateStr = `${day}/${month}`;
+
+        const isPt = document.documentElement.lang !== 'en';
+        const label = isPt ? "Termina em: " : "Ends on: ";
+
+        const expiryEl = document.getElementById("ranking-expiry-date");
+        if (expiryEl) {
+            expiryEl.textContent = label + dateStr;
+        }
+
+        const modalId = "bf_ranking_modal_seen_v1";
+        const triggerEvents = ['mousedown', 'keydown', 'touchstart', 'scroll'];
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const forceShow = urlParams.has('test_ranking');
+
+        const hasSeenModal = () => {
+            try {
+                return localStorage.getItem(modalId) === "true";
+            } catch {
+                return false;
+            }
+        };
+
+        const markModalSeen = () => {
+            try {
+                localStorage.setItem(modalId, "true");
+            } catch {}
+        };
+
+        window._bfRankingModalCleanup?.();
+        window._bfRankingModalCleanup = null;
+        clearTimeout(window._bfRankingModalTimer);
+        
+        if (hasSeenModal() && !forceShow) return;
+
+        const overlay = document.getElementById("ranking-modal-overlay");
+        const content = document.getElementById("ranking-modal-content");
+        const closeBtn = document.getElementById("ranking-modal-close");
+        const confirmBtn = document.getElementById("ranking-modal-confirm");
+
+        if (!overlay || !content) return;
+
+        const closeModal = () => {
+            content.classList.remove("scale-100", "opacity-100");
+            content.classList.add("scale-95", "opacity-0");
+            markModalSeen();
+            
+            setTimeout(() => {
+                overlay.classList.remove("flex");
+                overlay.classList.add("hidden");
+            }, 500);
+        };
+
+        if (forceShow) {
+            console.log("⚙️ [Ranking Modal] Forçando exibição instantânea para testes.");
+            overlay.classList.remove("hidden");
+            overlay.classList.add("flex");
+            setTimeout(() => {
+                content.classList.remove("scale-95", "opacity-0");
+                content.classList.add("scale-100", "opacity-100");
+            }, 50);
+            
+            if (closeBtn) closeBtn.onclick = () => closeModal();
+            if (confirmBtn) confirmBtn.onclick = () => closeModal();
+            overlay.onclick = (e) => {
+                if (e.target === overlay) closeModal();
+            };
+            return;
+        }
+
+        // Inicia a contagem regressiva de 5 segundos apenas após a primeira interação real do usuário
+        const startTimer = () => {
+            cleanupTriggers();
+            if (hasSeenModal()) return;
+            
+            window._bfRankingModalTimer = setTimeout(() => {
+                if (hasSeenModal()) return;
+                markModalSeen();
+                overlay.classList.remove("hidden");
+                overlay.classList.add("flex");
+                
+                setTimeout(() => {
+                    content.classList.remove("scale-95", "opacity-0");
+                    content.classList.add("scale-100", "opacity-100");
+                }, 50);
+            }, 5000);
+        };
+
+        const cleanupTriggers = () => {
+            triggerEvents.forEach(e => window.removeEventListener(e, startTimer));
+            window._bfRankingModalCleanup = null;
+        };
+
+        window._bfRankingModalCleanup = cleanupTriggers;
+        triggerEvents.forEach(e => window.addEventListener(e, startTimer, { passive: true, once: true }));
+
+        if (closeBtn) closeBtn.onclick = () => {
+            cleanupTriggers();
+            clearTimeout(window._bfRankingModalTimer);
+            closeModal();
+        };
+        if (confirmBtn) confirmBtn.onclick = () => {
+            cleanupTriggers();
+            clearTimeout(window._bfRankingModalTimer);
+            closeModal();
+        };
+        
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                cleanupTriggers();
+                clearTimeout(window._bfRankingModalTimer);
+                closeModal();
+            }
+        };
+    }
+
+    document.addEventListener("astro:page-load", initRankingModal);
+</script>

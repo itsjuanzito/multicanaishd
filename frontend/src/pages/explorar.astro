@@ -1,0 +1,588 @@
+---
+import LayoutCardsStreaming from "../layouts/LayoutCardsStreaming.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+// i18n
+import { getLangFromUrl, useTranslations } from "../i18n/utils";
+import { contentSlug } from "../utils/slugify.js";
+import { getSiteUrl } from "../services/env-adapter.js";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+const langPrefix = isPt ? "" : `/${lang}`;
+const siteUrl = getSiteUrl(Astro.url);
+
+export const prerender = false;
+
+// Compartilhar cache na Edge CDN por 1 hora
+Astro.response.headers.set(
+    "Cache-Control",
+    "public, s-maxage=3600, stale-while-revalidate=86400",
+);
+
+const genresOptions = [
+    { id: 28, name: t("genre.action") },
+    { id: 12, name: t("genre.adventure") },
+    { id: 16, name: t("genre.animation") },
+    { id: 35, name: t("genre.comedy") },
+    { id: 80, name: t("genre.crime") },
+    { id: 99, name: t("genre.documentary") },
+    { id: 18, name: t("genre.drama") },
+    { id: 10751, name: t("genre.family") },
+    { id: 14, name: t("genre.fantasy") },
+    { id: 36, name: t("genre.history") },
+    { id: 27, name: t("genre.horror") },
+    { id: 10402, name: t("genre.music") },
+    { id: 9648, name: t("genre.mystery") },
+    { id: 10749, name: t("genre.romance") },
+    { id: 878, name: t("genre.scifi") },
+    { id: 53, name: t("genre.thriller") },
+    { id: 10752, name: t("genre.war") },
+    { id: 37, name: t("genre.western") },
+];
+
+const currentYear = new Date().getFullYear();
+const yearsOptions = Array.from({ length: 40 }, (_, i) => currentYear - i);
+
+// --- SEO: Server Side Rendering da primeira página ---
+import { GET as exploreAPI } from "./api/explore.js";
+let initialItems = [];
+let currentPage = 1;
+let nextPageUrlStr = "";
+const type = Astro.url.searchParams.get("type") || "all";
+
+try {
+    currentPage = parseInt(Astro.url.searchParams.get("page") || "1");
+    // Chama a API internamente passando a requisição atual (que contém os params)
+    const exploreRes = await exploreAPI({ request: Astro.request });
+    if (exploreRes.ok) {
+        initialItems = await exploreRes.json();
+    }
+
+    // Constrói URL da próxima página para o botão de SEO
+    const nextUrl = new URL(Astro.request.url);
+    nextUrl.searchParams.set("page", (currentPage + 1).toString());
+    nextPageUrlStr = nextUrl.toString();
+} catch (e) {
+    console.error("Erro SSR Explore:", e);
+}
+
+const titleMap = {
+    all: isPt
+        ? "Explorar Filmes, Séries e Animes Online Grátis em HD"
+        : "Explore Movies, Series and Anime Online Free in HD",
+    movie: isPt
+        ? "Explorar Filmes Online Grátis em HD | Catálogo Completo"
+        : "Explore Movies Online Free in HD | Complete Catalog",
+    tv: isPt
+        ? "Explorar Séries Online Grátis | Assista Episódios Completos"
+        : "Explore Series Online Free | Watch Complete Episodes",
+    anime: isPt
+        ? "Explorar Animes Online Grátis | Episódios Dublados e Legendados"
+        : "Explore Anime Online Free | Dubbed and Subtitled Episodes",
+    dorama: isPt
+        ? "Explorar Doramas Online Grátis | Séries Coreanas Legendadas"
+        : "Explore K-Dramas Online Free | Subtitled Korean Series",
+};
+
+const keywordsMap = {
+    all: isPt
+        ? "explorar filmes, buscar séries online, filmes por gênero, filmes por ano, assistir animes online, lançamentos 2026, melhor site de filmes"
+        : "explore movies, search series online, movies by genre, movies by year, watch anime online, 2026 releases, best movie site",
+    movie: isPt
+        ? "assistir filmes online, filmes grátis, lançamentos de filmes, filmes em HD, catálogo de filmes, melhor site de filmes"
+        : "watch movies online, free movies, movie releases, HD movies, movie catalog, best movie site",
+    tv: isPt
+        ? "assistir séries online, séries completas, séries dubladas, séries legendadas, maratonar séries, episódios online"
+        : "watch series online, complete series, dubbed series, subtitled series, binge series, episodes online",
+    anime: isPt
+        ? "assistir animes online, animes legendados, animes dublados, episódios de anime, melhores animes"
+        : "watch anime online, subtitled anime, dubbed anime, anime episodes, best anime",
+    dorama: isPt
+        ? "assistir doramas online, doramas legendados, séries coreanas, k-drama, melhores doramas"
+        : "watch k-drama online, subtitled k-drama, korean series, best k-dramas",
+};
+
+const pageTitle = titleMap[type] || titleMap.all;
+const pageKeywords = keywordsMap[type] || keywordsMap.all;
+
+// Título e descrição únicos por página evitam conteúdo duplicado no Google entre
+// /explorar?type=X&page=1, page=2, page=3... (cada uma já tem canonical próprio, mas
+// title/description idênticos entre elas diluem o sinal de relevância de cada URL).
+const pageSuffix = currentPage > 1 ? (isPt ? ` — Página ${currentPage}` : ` — Page ${currentPage}`) : '';
+const finalPageTitle = `${pageTitle}${pageSuffix}`;
+const finalPageDescription = currentPage > 1
+    ? `${t("explore.desc")} ${isPt ? `Página ${currentPage}.` : `Page ${currentPage}.`}`
+    : t("explore.desc");
+
+const exploreJsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+        {
+            "@type": "CollectionPage",
+            name: finalPageTitle,
+            description: finalPageDescription,
+            url: `${siteUrl}${Astro.url.pathname}`,
+        },
+        {
+            "@type": "SearchResultsPage",
+            name: "Catálogo MultiCanaisHD",
+            description: t("explore.desc"),
+        },
+    ],
+};
+---
+
+<BaseLayout
+    title={`${finalPageTitle} | MultiCanaisHD`}
+    description={finalPageDescription}
+    image="/icon-512.png"
+    type="website"
+    keywords={pageKeywords}
+    jsonLd={exploreJsonLd}
+>
+    <main
+        class="flex-grow container mx-auto px-4 py-8 mt-24 sm:mt-28"
+        data-lang={lang}
+        data-t-loading={t("explore.loading")}
+        data-t-no-more={t("explore.no_more")}
+        data-t-load-more={t("explore.load_more")}
+    >
+        <div
+            class="bg-[#161B28] rounded-2xl p-6 border border-white/5 shadow-2xl mb-12"
+        >
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <!-- Filtro: Tipo -->
+                <div class="space-y-2">
+                    <label
+                        class="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1"
+                        >{t("explore.filter_type")}</label
+                    >
+                    <select
+                        id="filterType"
+                        class="w-full bg-[#0E111A] text-white border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#DF0912] focus:ring-1 focus:ring-[#DF0912] transition-all cursor-pointer"
+                    >
+                        <option value="all">{t("explore.type_all")}</option>
+                        <option value="movie">{t("explore.type_movies")}</option
+                        >
+                        <option value="tv">{t("explore.type_series")}</option>
+                        <option value="anime">{t("nav.anime")}</option>
+                        <option value="dorama">{t("nav.doramas")}</option>
+                    </select>
+                </div>
+
+                <!-- Filtro: Gênero -->
+                <div class="space-y-2">
+                    <label
+                        class="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1"
+                        >{t("explore.filter_genre")}</label
+                    >
+                    <select
+                        id="filterGenre"
+                        class="w-full bg-[#0E111A] text-white border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#DF0912] focus:ring-1 focus:ring-[#DF0912] transition-all cursor-pointer"
+                    >
+                        <option value="">{t("explore.any_genre")}</option>
+                        {
+                            genresOptions.map((g) => (
+                                <option value={g.id}>{g.name}</option>
+                            ))
+                        }
+                    </select>
+                </div>
+
+                <!-- Filtro: Ano -->
+                <div class="space-y-2">
+                    <label
+                        class="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1"
+                        >{t("explore.filter_year")}</label
+                    >
+                    <select
+                        id="filterYear"
+                        class="w-full bg-[#0E111A] text-white border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#DF0912] focus:ring-1 focus:ring-[#DF0912] transition-all cursor-pointer"
+                    >
+                        <option value="">{t("explore.any_year")}</option>
+                        {
+                            yearsOptions.map((y) => (
+                                <option value={y}>{y}</option>
+                            ))
+                        }
+                    </select>
+                </div>
+
+                <!-- Filtro: Nota Mínima -->
+                <div class="space-y-2">
+                    <label
+                        class="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1"
+                        >{t("explore.filter_rating")}</label
+                    >
+                    <select
+                        id="filterRating"
+                        class="w-full bg-[#0E111A] text-white border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#DF0912] focus:ring-1 focus:ring-[#DF0912] transition-all cursor-pointer"
+                    >
+                        <option value="">{t("explore.any_rating")}</option>
+                        <option value="8">{t("explore.rating_8")}</option>
+                        <option value="7">{t("explore.rating_7")}</option>
+                        <option value="6">{t("explore.rating_6")}</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button
+                    id="btnSearch"
+                    class="bg-[#DF0912] hover:bg-[#be080f] text-white font-bold py-3 px-8 rounded-xl transition-colors flex items-center gap-2"
+                >
+                    <svg
+                        class="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        ><path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                        ></path></svg
+                    >
+                    {t("explore.search_btn")}
+                </button>
+            </div>
+        </div>
+
+        <!-- Resultados -->
+        <div id="loadingIndicator" class="hidden justify-center py-20">
+            <div
+                class="w-12 h-12 border-4 border-gray-700 border-t-[#DF0912] rounded-full animate-spin"
+            >
+            </div>
+        </div>
+
+        <div
+            id="resultsContainer"
+            class={initialItems.length > 0 ? "" : "hidden"}
+        >
+            <h2 class="text-2xl font-black mb-6 flex items-center gap-2">
+                <span class="w-1.5 h-6 bg-[#DF0912] rounded-full"></span>
+                {t("explore.results_found")}
+            </h2>
+
+            <div
+                id="cardsGrid"
+                class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-5"
+            >
+                {/* SSR Initial Render para SEO e Performance LCP */}
+                {
+                    initialItems.map((item) => (
+                        <a
+                            href={`${langPrefix}/${item.type === "movie" ? "filme" : "serie"}/${item.id}-${contentSlug(item.title)}`}
+                            class="bf-card flex-shrink-0 relative group/card block w-full aspect-[2/3] overflow-hidden rounded-xl cursor-pointer bg-[#161B28] animate-fade-in transition-all duration-300 transform hover:scale-105 hover:z-10 focus:outline-none"
+                        >
+                            <img
+                                src={item.poster || "/placeholder.jpg"}
+                                alt={item.title}
+                                loading="lazy"
+                                onerror="this.onerror=null;this.src='/placeholder.jpg';"
+                                class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-110"
+                            />
+                            <div class="absolute inset-x-0 bottom-0 p-4 transition-all duration-300 z-10 flex flex-col justify-end translate-y-2 group-hover/card:translate-y-0 opacity-0 group-hover/card:opacity-100">
+                                <div class="w-12 h-12 rounded-full bg-[#DF0912]/90 backdrop-blur-md flex mx-auto items-center justify-center mb-4 transform scale-50 opacity-0 group-hover/card:scale-100 group-hover/card:opacity-100 transition-all duration-300 ease-out shadow-lg">
+                                    <svg
+                                        class="w-6 h-6 text-white ml-1"
+                                        fill="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path d="M8 5v14l11-7z" />
+                                    </svg>
+                                </div>
+                            </div>
+                            {item.vote &&
+                                item.vote !== "N/A" &&
+                                item.vote !== "0.0" && (
+                                    <div class="absolute top-2 right-2 bg-black/80 backdrop-blur-md px-2 py-1 rounded border border-white/10 flex items-center gap-1 z-20">
+                                        <span class="text-[#DF0912]">★</span>
+                                        <span class="text-white text-xs font-bold leading-none">
+                                            {item.vote}
+                                        </span>
+                                    </div>
+                                )}
+                        </a>
+                    ))
+                }
+            </div>
+
+            <div
+                class={`mt-12 flex justify-center ${initialItems.length > 0 ? "" : "hidden"}`}
+                id="loadMoreContainer"
+            >
+                <a
+                    href={nextPageUrlStr}
+                    id="btnLoadMore"
+                    rel="next"
+                    class="bg-[#1D2437] text-center hover:bg-[#333] border border-white/5 text-white font-bold py-3 px-8 rounded-xl transition-all w-full max-w-sm block"
+                >
+                    {t("explore.load_more")}
+                </a>
+            </div>
+        </div>
+
+        <div
+            id="noResults"
+            class="hidden flex-col items-center justify-center py-20 text-center"
+        >
+            <div
+                class="w-24 h-24 mb-6 text-gray-600 bg-gray-800/50 rounded-full flex items-center justify-center"
+            >
+                <svg
+                    class="w-12 h-12"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    ><path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    ></path></svg
+                >
+            </div>
+            <h3 class="text-xl font-bold text-white mb-2">
+                {t("explore.no_results_title")}
+            </h3>
+            <p class="text-gray-400 max-w-md">
+                {t("explore.no_results_desc")}
+            </p>
+        </div>
+    </main>
+
+    <script>
+        function escapeHTML(str) {
+            if (!str && str !== 0) return "";
+            return str.toString().replace(
+                /[&<>'"]/g,
+                (tag) =>
+                    ({
+                        "&": "&amp;",
+                        "<": "&lt;",
+                        ">": "&gt;",
+                        "'": "&#39;",
+                        '"': "&quot;",
+                    })[tag] || tag,
+            );
+        }
+
+        // contentSlug, não slugify: os cards injetados no cliente montam URL /filme e /serie.
+        async function getContentSlugifier() {
+            const { contentSlug } = await import("../utils/slugify.js");
+            return contentSlug;
+        }
+
+        document.addEventListener("astro:page-load", () => {
+            const main = document.querySelector("main");
+            const btnSearch = document.getElementById("btnSearch");
+            const btnLoadMore = document.getElementById("btnLoadMore");
+            const loading = document.getElementById("loadingIndicator");
+            const resultsCont = document.getElementById("resultsContainer");
+            const noResults = document.getElementById("noResults");
+            const cardsGrid = document.getElementById("cardsGrid");
+            const loadMoreContainer =
+                document.getElementById("loadMoreContainer");
+
+            const fType = document.getElementById("filterType");
+            const fGenre = document.getElementById("filterGenre");
+            const fYear = document.getElementById("filterYear");
+            const fRating = document.getElementById("filterRating");
+
+            if (!btnSearch || !fType || !main) return;
+
+            const lang = main.dataset.lang || "pt";
+            const tLoading = main.dataset.tLoading || "...";
+            const tNoMore = main.dataset.tNoMore || "...";
+            const tLoadMore = main.dataset.tLoadMore || "...";
+
+            // Initialize filters from URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const typeParam = urlParams.get("type");
+            const genreParam = urlParams.get("genreId");
+
+            if (
+                typeParam &&
+                (typeParam === "movie" ||
+                    typeParam === "tv" ||
+                    typeParam === "anime" ||
+                    typeParam === "dorama")
+            ) {
+                fType.value = typeParam;
+            }
+            if (genreParam) {
+                fGenre.value = genreParam;
+            }
+
+            // Remove auto-trigger on load if we already have SSR items
+            const hasInitialSSR = cardsGrid && cardsGrid.children.length > 0;
+            if ((typeParam || genreParam) && !hasInitialSSR) {
+                setTimeout(() => fetchResults(), 100);
+            }
+
+            let currentPage = parseInt(urlParams.get("page") || "1");
+            let isLoading = false;
+
+            async function fetchResults(append = false) {
+                if (isLoading) return;
+                isLoading = true;
+
+                if (!append) {
+                    currentPage = 1;
+                    if (cardsGrid) cardsGrid.innerHTML = "";
+                    resultsCont?.classList.add("hidden");
+                    noResults?.classList.add("hidden");
+                    loading?.classList.remove("hidden");
+                    loading?.classList.add("flex");
+                } else {
+                    btnLoadMore.textContent = tLoading;
+                }
+
+                try {
+                    const url = new URL("/api/explore", window.location.origin);
+                    url.searchParams.set("type", fType.value);
+                    if (fGenre.value)
+                        url.searchParams.set("genreId", fGenre.value);
+                    if (fYear.value) url.searchParams.set("year", fYear.value);
+                    if (fRating.value)
+                        url.searchParams.set("rating", fRating.value);
+
+                    url.searchParams.set("lang", lang);
+                    url.searchParams.set("page", currentPage.toString());
+
+                    const res = await fetch(url);
+                    const items = await res.json();
+
+                    if (!append) {
+                        loading?.classList.add("hidden");
+                        loading?.classList.remove("flex");
+                    }
+
+                    if (items.length === 0) {
+                        if (!append) noResults?.classList.remove("hidden");
+                        if (append) {
+                            btnLoadMore.textContent = tNoMore;
+                            btnLoadMore.classList.add(
+                                "opacity-50",
+                                "cursor-not-allowed",
+                            );
+                        } else {
+                            loadMoreContainer?.classList.add("hidden");
+                        }
+                    } else {
+                        if (resultsCont) resultsCont.classList.remove("hidden");
+
+                        const contentSlugLocal = await getContentSlugifier();
+                        items.forEach((item) => {
+                            const slug = contentSlugLocal(item.title);
+                            const langPrefix = lang === "pt" ? "" : `/${lang}`;
+                            const card = document.createElement("a");
+                            card.href = `${langPrefix}/${item.type === "movie" ? "filme" : "serie"}/${item.id}-${slug}`;
+                            card.className =
+                                "bf-card flex-shrink-0 relative group/card block w-full aspect-[2/3] overflow-hidden rounded-xl cursor-pointer bg-[#161B28] animate-fade-in transition-all duration-300 transform hover:scale-105 hover:z-10 focus:outline-none";
+
+                            const ratingHtml =
+                                item.vote &&
+                                item.vote !== "N/A" &&
+                                item.vote !== "0.0"
+                                    ? `<div class="absolute top-2 right-2 bg-black/80 backdrop-blur-md px-2 py-1 rounded border border-white/10 flex items-center gap-1 z-20">
+                                     <span class="text-[#DF0912]">★</span>
+                                     <span class="text-white text-xs font-bold leading-none">${escapeHTML(item.vote)}</span>
+                                   </div>`
+                                    : "";
+
+                            card.innerHTML = `
+                                <img
+                                    src="${escapeHTML(item.poster) || "/placeholder.jpg"}"
+                                    alt="${escapeHTML(item.title)}"
+                                    loading="lazy"
+                                    onerror="this.onerror=null;this.src='/placeholder.jpg';"
+                                    class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-110"
+                                />
+                                <div class="absolute inset-x-0 bottom-0 p-4 transition-all duration-300 z-10 flex flex-col justify-end translate-y-2 group-hover/card:translate-y-0 opacity-0 group-hover/card:opacity-100">
+                                    <div class="w-12 h-12 rounded-full bg-[#DF0912]/90 backdrop-blur-md flex mx-auto items-center justify-center mb-4 transform scale-50 opacity-0 group-hover/card:scale-100 group-hover/card:opacity-100 transition-all duration-300 ease-out shadow-lg">
+                                        <svg class="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                    </div>
+                                </div>
+                                ${ratingHtml}
+                            `;
+                            if (cardsGrid) cardsGrid.appendChild(card);
+                        });
+
+                        if (loadMoreContainer) {
+                            loadMoreContainer.classList.remove("hidden");
+                            if (btnLoadMore) {
+                                btnLoadMore.textContent = tLoadMore;
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error("Busca falhou", error);
+                    if (!append) {
+                        loading?.classList.add("hidden");
+                        noResults?.classList.remove("hidden");
+                    }
+                } finally {
+                    isLoading = false;
+                }
+            }
+
+            if (btnSearch)
+                btnSearch.addEventListener("click", () => {
+                    // Update URL to remove page param on new search
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete("page");
+                    url.searchParams.set("type", fType.value);
+                    if (fGenre.value)
+                        url.searchParams.set("genreId", fGenre.value);
+                    else url.searchParams.delete("genreId");
+                    if (fYear.value) url.searchParams.set("year", fYear.value);
+                    else url.searchParams.delete("year");
+                    if (fRating.value)
+                        url.searchParams.set("rating", fRating.value);
+                    else url.searchParams.delete("rating");
+                    window.history.pushState({}, "", url);
+
+                    fetchResults(false);
+                });
+
+            if (btnLoadMore)
+                btnLoadMore.addEventListener("click", (e) => {
+                    e.preventDefault(); // Impede a navegação do <a href> e carrega dinamicamente
+                    currentPage++;
+
+                    // Update URL silently
+                    const url = new URL(window.location.href);
+                    url.searchParams.set("page", currentPage.toString());
+                    window.history.pushState({}, "", url);
+
+                    fetchResults(true);
+                });
+
+            // Se não tem SSR inicial, busca agora
+            if (!hasInitialSSR && !(typeParam || genreParam)) {
+                fetchResults(false);
+            }
+        });
+    </script>
+
+    <style>
+        @reference '../styles/global.css';
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+    </style>
+</BaseLayout>

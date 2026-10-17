@@ -1,0 +1,22 @@
+.vercel
+node_modules/
+.env*.local
+.claude/
+frontend/.wrangler/
+
+# Reforço no nível da raiz. O `frontend/.gitignore` JÁ cobre o `frontend/.env` — este arquivo
+# não cobria, porque `.env*.local` casa com `.env.local` e não com `.env`. Como o `frontend/.env`
+# carrega segredo de SERVIDOR (SUPABASE_SERVICE_ROLE_KEY, LIVEPIX_*_SECRET, AXIOM_TOKEN), a
+# proteção fica duplicada para não depender de um arquivo aninhado que alguém pode apagar.
+# O `.env` do mobile segue versionado de propósito: só tem `EXPO_PUBLIC_*`, valores públicos
+# que já vão embutidos no bundle do app.
+frontend/.env
+frontend/.env.*
+cron-worker/.env
+cron-worker/.env.*
+
+# Contém CRON_SECRET em texto puro — nunca versionar
+cron-worker/set-secret.sh
+
+# cache local do wrangler (contem id da conta) — vale pra raiz e pra qualquer app
+.wrangler/

@@ -1,0 +1,87 @@
+---
+// src/pages/components/FeaturedGrid.astro
+import { GET as getPreview } from '../api/preview-genre.js';
+// contentSlug em vez de cópia local de slugify: título não-latino virava slug vazio → link quebrado.
+import { contentSlug } from '../../utils/slugify.js';
+
+const { title, genreId, customApi, type = "movie" } = Astro.props;
+
+let items = [];
+try {
+    const origin = Astro.url.origin;
+    let res;
+    if (customApi) {
+        res = await fetch(new URL(customApi, origin));
+    } else {
+        res = await getPreview({ request: new Request(new URL(`/api/preview-genre?id=${genreId}&type=${type}`, origin)) });
+    }
+    
+    if (res.ok) {
+        const data = await res.json();
+        items = (data.results || []).slice(0, 6);
+    }
+} catch (e) {
+    console.error("FeaturedGrid Error:", e);
+}
+---
+
+{items.length > 0 && (
+    <div class="py-12">
+        <div class="flex items-center justify-between mb-10 px-4 sm:px-6 lg:px-8">
+            <h2 class="text-3xl sm:text-4xl font-black text-white tracking-tighter uppercase italic drop-shadow-lg">
+                <span class="text-[#DF0912] mr-2">//</span> {title}
+            </h2>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 px-4 sm:px-6 lg:px-8">
+            {items.map((item, idx) => {
+                const title = item.title || item.name;
+                const slug = contentSlug(title);
+                const mediaType = item.media_type || type;
+                const img = `https://image.tmdb.org/t/p/w500${item.poster_path}`;
+                
+                // V3 Mosaic Logic: First card is larger on desktop
+                const isLarge = idx === 0;
+                
+                return (
+                    <a 
+                        href={`/${mediaType === 'movie' ? 'filme' : 'serie'}/${item.id}-${slug}`}
+                        class={`bf-card group relative overflow-hidden rounded-sm transition-all duration-500 hover:scale-[1.02] bg-[#111] ${isLarge ? 'col-span-2 row-span-2' : ''}`}
+                    >
+                        <img 
+                            src={`https://image.tmdb.org/t/p/w500${item.poster_path}`} 
+                            srcset={`
+                                https://image.tmdb.org/t/p/w185${item.poster_path} 185w,
+                                https://image.tmdb.org/t/p/w342${item.poster_path} 342w,
+                                https://image.tmdb.org/t/p/w500${item.poster_path} 500w
+                            `}
+                            sizes={isLarge ? "(max-width: 640px) 300px, 500px" : "(max-width: 640px) 150px, 260px"}
+                            alt={title}
+                            width={isLarge ? "520" : "260"}
+                            height={isLarge ? "780" : "390"}
+                            class="w-full h-full object-cover transition-all duration-700 brightness-75 group-hover:brightness-110 group-hover:scale-110"
+                            loading="lazy"
+                            decoding="async"
+                            onerror={`this.onerror=null; this.srcset=''; this.sizes=''; this.src='https://placehold.co/500x750/141414/FF5555?text=${encodeURIComponent(title)}';`}
+                        />
+                        <div class="absolute inset-x-0 bottom-0 p-4 transition-all duration-500 bg-black/5 opacity-0 group-hover:opacity-100"></div>
+                        
+                        <div class="absolute bottom-4 left-4 right-4 translate-y-2 group-hover:translate-y-0 transition-transform duration-500">
+                            <p class="text-white text-xs sm:text-sm font-black uppercase tracking-tighter line-clamp-1">{title}</p>
+                            <div class="flex items-center gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                                <span class="w-2 h-2 bg-[#DF0912] rounded-full"></span>
+                                <span class="text-[9px] text-gray-400 font-bold uppercase">Assistir</span>
+                            </div>
+                        </div>
+
+                        {isLarge && (
+                            <div class="absolute top-4 left-4 z-10 px-3 py-1 bg-[#DF0912] text-white text-[10px] font-black uppercase tracking-widest shadow-2xl">
+                                EM ALTA
+                            </div>
+                        )}
+                    </a>
+                )
+            })}
+        </div>
+    </div>
+)}

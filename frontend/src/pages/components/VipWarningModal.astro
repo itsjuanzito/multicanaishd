@@ -1,0 +1,144 @@
+---
+// src/pages/components/VipWarningModal.astro
+import { getLangFromUrl, useTranslations } from "../../i18n/utils";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+---
+
+<div id="vip-warning-modal-overlay" class="fixed inset-0 z-[400] hidden items-center justify-center bg-black/90 backdrop-blur-md transition-opacity duration-500 opacity-0">
+    <div id="vip-warning-modal-content" class="relative w-[92%] max-w-lg rounded-[2rem] border border-white/10 bg-[#0f0f0f] p-6 sm:p-10 shadow-2xl scale-95 opacity-0 transition-all duration-500">
+        
+        <!-- Close Button -->
+        <button id="vip-warning-modal-close" class="absolute right-4 top-4 sm:right-6 sm:top-6 z-50 w-10 h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-[#DF0912] text-gray-400 hover:text-white transition-all group border border-white/5 hover:border-red-500/20" aria-label="Fechar">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 group-hover:rotate-90 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+
+        <div class="relative z-10 text-center">
+            <!-- Pulsing Warning Icon -->
+            <div class="w-16 h-16 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center justify-center mx-auto mb-6 text-[#DF0912] animate-pulse">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+            </div>
+
+            <span class="inline-block px-3.5 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-[#DF0912] text-[10px] font-black uppercase tracking-widest mb-4">
+                {isPt ? "Aviso Urgente" : "Urgent Warning"}
+            </span>
+
+            <h2 class="text-2xl sm:text-3.5xl font-black text-white tracking-tighter leading-none mb-4 uppercase italic">
+                {isPt ? "Instabilidade no VIP" : "VIP System Maintenance"} <br/>
+                <span class="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-amber-500 font-extrabold text-xl sm:text-2xl leading-tight block mt-1">
+                    {isPt ? "Ativação de VIP Manual" : "Manual VIP Activation Required"}
+                </span>
+            </h2>
+
+            <div class="bg-white/[0.02] border border-white/5 rounded-2xl p-4 sm:p-5 mb-6 text-left">
+                <p class="text-gray-300 text-xs sm:text-sm leading-relaxed mb-4">
+                    {isPt 
+                      ? "Nosso sistema de ativação automática de VIP está passando por uma instabilidade técnica temporária." 
+                      : "Our automatic VIP activation system is currently experiencing temporary technical instability."}
+                </p>
+                <p class="text-gray-300 text-xs sm:text-sm leading-relaxed font-semibold text-amber-400">
+                    {isPt 
+                      ? "⚠️ Se você realizar a compra do VIP agora, sua ativação não será imediata. Você deve abrir um ticket no suporte no nosso Telegram e enviar o comprovante de pagamento junto com o e-mail da sua conta para liberarmos manualmente!" 
+                      : "⚠️ If you purchase VIP right now, activation will not be automatic. You must open a support ticket in our Telegram with your payment proof and account email to be activated manually!"}
+                </p>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-3">
+                <a href="https://t.me/+LzTPE6nAUoQwMGNh" target="_blank" class="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#229ED9] hover:bg-[#1c85b7] px-4 py-3 text-xs font-black text-white uppercase tracking-widest transition-all hover:scale-[1.02] shadow-lg shadow-sky-950/10 active:scale-95">
+                    <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.13-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/></svg>
+                    Telegram
+                </a>
+            </div>
+
+            <button id="vip-warning-modal-continue" class="mt-4 w-full py-3.5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-black uppercase text-[10px] tracking-widest rounded-xl transition-all duration-300 hover:scale-[1.02] shadow-lg shadow-red-950/20 active:scale-95">
+                {isPt ? "Entendi, ir para o pagamento" : "Got it, proceed to payment"}
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function initVipWarningModal() {
+        const modalKey = "bf_vip_warning_v1_seen";
+        const overlay = document.getElementById("vip-warning-modal-overlay");
+        const content = document.getElementById("vip-warning-modal-content");
+        const closeBtn = document.getElementById("vip-warning-modal-close");
+        const continueBtn = document.getElementById("vip-warning-modal-continue");
+
+        if (!overlay || !content) return;
+
+        // Limpa qualquer timeout agendado anteriormente para evitar ativação fantasma após transição de página
+        if (window._bfVipWarningTimeout) {
+            clearTimeout(window._bfVipWarningTimeout);
+            window._bfVipWarningTimeout = null;
+        }
+
+        const showModal = () => {
+            overlay.classList.remove("hidden");
+            overlay.classList.add("flex");
+            
+            setTimeout(() => {
+                overlay.classList.remove("opacity-0");
+                content.classList.remove("scale-95", "opacity-0");
+                content.classList.add("scale-100", "opacity-100");
+            }, 50);
+        };
+
+        const closeModal = () => {
+            overlay.classList.add("opacity-0");
+            content.classList.remove("scale-100", "opacity-100");
+            content.classList.add("scale-95", "opacity-0");
+            sessionStorage.setItem(modalKey, "true");
+            
+            setTimeout(() => {
+                overlay.classList.remove("flex");
+                overlay.classList.add("hidden");
+            }, 500);
+        };
+
+        const proceedToPayment = () => {
+            overlay.classList.add("opacity-0");
+            content.classList.remove("scale-100", "opacity-100");
+            content.classList.add("scale-95", "opacity-0");
+            sessionStorage.setItem(modalKey, "true");
+            
+            setTimeout(() => {
+                overlay.classList.remove("flex");
+                overlay.classList.add("hidden");
+                // Dispara o evento para abrir o modal de pagamento real
+                document.dispatchEvent(new CustomEvent('multicanaishd:open-vip-real'));
+            }, 500);
+        };
+
+        // 1. Sempre escuta o gatilho global de compra do VIP como um fail-safe
+        // Remove listener antigo para evitar empilhamento em ViewTransitions
+        document.removeEventListener("multicanaishd:open-vip", window._bfOpenVipWarningHandler);
+        window._bfOpenVipWarningHandler = showModal;
+        document.addEventListener("multicanaishd:open-vip", window._bfOpenVipWarningHandler);
+
+        // 2. Só exibe o popup automaticamente se o usuário estiver na home e ainda não tiver visto nesta sessão
+        const isHome = window.location.pathname === '/' || window.location.pathname === '/en' || window.location.pathname === '/en/';
+        const hasSeen = sessionStorage.getItem(modalKey) === "true";
+
+        if (isHome && !hasSeen) {
+            const isBot = navigator.webdriver === true || /lighthouse|pagespeed|bot|crawler|spider/i.test(navigator.userAgent);
+
+            if (!isBot) {
+                window._bfVipWarningTimeout = setTimeout(showModal, 2000);
+            }
+        }
+
+        closeBtn?.addEventListener("click", closeModal);
+        continueBtn?.addEventListener("click", proceedToPayment);
+        overlay.addEventListener("click", (e) => {
+            if (e.target === overlay) closeModal();
+        });
+    }
+
+    document.addEventListener("astro:page-load", initVipWarningModal);
+</script>

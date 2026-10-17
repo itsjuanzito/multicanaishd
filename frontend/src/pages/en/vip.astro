@@ -1,0 +1,5 @@
+---
+// src/pages/en/vip.astro
+export const prerender = false;
+return Astro.rewrite(`/vip?lang=en&${Astro.url.searchParams.toString()}`);
+---

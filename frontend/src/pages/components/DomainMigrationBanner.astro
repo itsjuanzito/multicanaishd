@@ -1,0 +1,89 @@
+---
+// src/pages/components/DomainMigrationBanner.astro
+// Aviso temporário só visível nos domínios legados (HOSTS_LEGADOS), apontando pro novo.
+// Link clicável, não redirect HTTP — não cria vínculo técnico entre os domínios pro Google.
+//
+// ATENÇÃO: hoje isto é inalcançável. O middleware (§2.1, services/canonicalHost.js) responde
+// 301 pros domínios legados antes de renderizar qualquer página, então o banner nunca chega
+// a aparecer. Fica aqui, correto e com rótulo derivado do domínio canônico, caso o 301 seja
+// desligado em alguma migração futura — mas não conte com ele sem tirar o redirect antes.
+import { getSiteUrl } from "../../services/env-adapter.js";
+import { HOSTS_LEGADOS } from "../../services/canonicalHost.js";
+import { getLangFromUrl } from "../../i18n/utils";
+
+// Lê a mesma lista que o middleware usa em vez de repetir um domínio aqui: a cópia local
+// ficou presa no .click enquanto duas migrações passavam.
+const isOldDomain = HOSTS_LEGADOS.some((legado) => Astro.url.hostname.includes(legado));
+
+const lang = getLangFromUrl(Astro.url);
+const isPt = lang === "pt";
+
+const newUrl = isOldDomain ? `${getSiteUrl()}${Astro.url.pathname}${Astro.url.search}` : null;
+const newDomainLabel = (() => {
+    try {
+        return new URL(getSiteUrl()).hostname;
+    } catch {
+        return "";
+    }
+})();
+---
+
+{isOldDomain && (
+    <div
+        id="domain-migration-banner"
+        class="hidden fixed top-0 left-0 z-[110] w-full bg-[#DF0912] text-white text-xs sm:text-sm font-bold px-4 py-2.5 flex items-center justify-center gap-3 text-center"
+    >
+        <span>
+            {isPt ? "O site mudou de endereço! Acesse:" : "The site has a new address! Visit:"}
+            {" "}
+            <a href={newUrl} class="underline underline-offset-2 hover:opacity-80">{newDomainLabel}</a>
+        </span>
+        <button
+            type="button"
+            id="domain-migration-banner-close"
+            aria-label={isPt ? "Fechar aviso" : "Close notice"}
+            class="shrink-0 text-white/80 hover:text-white text-base leading-none"
+        >
+            &times;
+        </button>
+    </div>
+    <script>
+        // Header.astro é `position: fixed`, então ignora o fluxo normal da página — sem isso,
+        // o banner e o header flutuante ficam sobrepostos. Empurramos o header pra baixo em
+        // runtime, na altura exata do banner, sem precisar alterar o Header.astro.
+        const KEY = "bf_domain_migration_banner_dismissed";
+        const banner = document.getElementById("domain-migration-banner");
+        const closeBtn = document.getElementById("domain-migration-banner-close");
+        const header = document.getElementById("main-header");
+
+        function pushHeaderDown() {
+            if (!banner) return;
+            const bannerHeight = banner.getBoundingClientRect().height;
+            document.body.style.paddingTop = `${bannerHeight}px`;
+            if (!header) return;
+            if (!header.dataset.originalTop) {
+                header.dataset.originalTop = String(parseFloat(getComputedStyle(header).top) || 0);
+            }
+            header.style.top = `${parseFloat(header.dataset.originalTop) + bannerHeight}px`;
+        }
+
+        function restoreHeader() {
+            document.body.style.removeProperty("padding-top");
+            if (!header) return;
+            header.style.removeProperty("top");
+        }
+
+        if (banner && !localStorage.getItem(KEY)) {
+            banner.classList.remove("hidden");
+            pushHeaderDown();
+            window.addEventListener("resize", pushHeaderDown);
+        }
+
+        closeBtn?.addEventListener("click", () => {
+            localStorage.setItem(KEY, "1");
+            banner?.classList.add("hidden");
+            restoreHeader();
+            window.removeEventListener("resize", pushHeaderDown);
+        });
+    </script>
+)}

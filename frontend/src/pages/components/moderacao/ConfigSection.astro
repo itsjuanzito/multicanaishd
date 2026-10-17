@@ -1,0 +1,87 @@
+---
+---
+
+                <div id="config-section" class="hidden space-y-4 animate-in fade-in duration-500">
+                    <div class="flex items-center justify-between gap-3 bg-[#141414] p-4 rounded-xl border border-white/10">
+                        <h3 class="text-white text-sm font-semibold flex items-center gap-2.5">
+                            <span class="w-1.5 h-1.5 bg-orange-500 rounded-full"></span>
+                            Configurações globais de fontes
+                        </h3>
+                        <div id="config-loader" class="animate-spin h-3 w-3 border-2 border-[#DF0912] border-t-transparent rounded-full hidden"></div>
+                    </div>
+
+                    <div class="grid gap-4">
+                        <!-- Card de Provedor de Anúncios / Ads Provider -->
+                        <div class="bg-[#141414] border border-white/10 rounded-xl p-5">
+                            <div class="max-w-2xl">
+                                <h4 class="text-white text-sm font-semibold mb-1.5">Provedor de anúncios</h4>
+                                <p class="text-gray-400 text-xs leading-relaxed mb-4">
+                                    Alterna a rede de anúncios ativa em toda a plataforma (Smartlink, Popunder e scripts). Vale imediatamente para filmes, séries, watchparties e player.
+                                </p>
+
+                                <div class="flex items-center gap-3">
+                                    <select id="ads-provider-select" class="bg-[#060911] border border-white/10 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#DF0912]/60 transition-colors" data-active-provider="adsterra">
+                                        <option value="profiton">ProfitOn</option>
+                                        <option value="adsterra">Adsterra</option>
+                                        <option value="monetag">Monetag</option>
+                                        <option value="admaven">AdMaven</option>
+                                    </select>
+                                    <div id="toggle-ads-spinner" class="animate-spin h-3.5 w-3.5 border-2 border-[#DF0912] border-t-transparent rounded-full hidden"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-[#141414] border border-white/10 rounded-xl p-5">
+                            <h4 class="text-white text-sm font-semibold mb-4">APIs e canais</h4>
+                            <div class="space-y-4 max-w-2xl">
+                                <div class="space-y-1.5">
+                                    <label class="block text-xs text-orange-500">StreamBetter (jogos ao vivo)</label>
+                                    <div class="flex gap-2">
+                                        <input type="text" data-config-key="SB_GAMES_API_URL" placeholder="https://..." class="config-input flex-1 bg-[#060911] border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-gray-600 focus:outline-none focus:border-[#DF0912]/60 transition-colors" />
+                                        <button class="save-config-btn bg-white/[0.04] hover:bg-[#DF0912] text-white p-2.5 rounded-lg border border-white/10 transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
+                                    </div>
+                                </div>
+                                <div class="space-y-1.5">
+                                    <label class="block text-xs text-orange-500">StreamBetter (canais de TV)</label>
+                                    <div class="flex gap-2">
+                                        <input type="text" data-config-key="SB_CHANNELS_API_URL" placeholder="https://..." class="config-input flex-1 bg-[#060911] border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-gray-600 focus:outline-none focus:border-[#DF0912]/60 transition-colors" />
+                                        <button class="save-config-btn bg-white/[0.04] hover:bg-[#DF0912] text-white p-2.5 rounded-lg border border-white/10 transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
+                                    </div>
+                                </div>
+                                <div class="space-y-1.5">
+                                    <label class="block text-xs text-indigo-400">Download direto (origem VIP Diamond)</label>
+                                    <div class="flex gap-2">
+                                        <input type="text" data-config-key="DIRECT_DOWNLOAD_BASE_URL" placeholder="https://..." class="config-input flex-1 bg-[#060911] border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-gray-600 focus:outline-none focus:border-[#DF0912]/60 transition-colors" />
+                                        <button class="save-config-btn bg-white/[0.04] hover:bg-[#DF0912] text-white p-2.5 rounded-lg border border-white/10 transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
+                                    </div>
+                                </div>
+                                <div class="space-y-1.5">
+                                    <label class="block text-xs text-indigo-400">Download direto (header Origin do provedor)</label>
+                                    <div class="flex gap-2">
+                                        <input type="text" data-config-key="DIRECT_DOWNLOAD_ORIGIN" placeholder="https://..." class="config-input flex-1 bg-[#060911] border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-gray-600 focus:outline-none focus:border-[#DF0912]/60 transition-colors" />
+                                        <button class="save-config-btn bg-white/[0.04] hover:bg-[#DF0912] text-white p-2.5 rounded-lg border border-white/10 transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-[#141414] border border-white/10 rounded-xl p-5">
+                            <div class="max-w-2xl">
+                                <h4 class="text-white text-sm font-semibold mb-1.5">Administração de ranking</h4>
+                                <p class="text-gray-400 text-xs leading-relaxed mb-4">
+                                    Inicia uma nova temporada zerando as horas competitivas de todos os usuários. Não afeta as horas totais (históricas) exibidas no perfil.
+                                </p>
+
+                                <div class="flex items-center gap-3">
+                                    <button id="reset-ranking-btn" class="px-4 py-2.5 rounded-lg text-sm font-medium transition-colors border flex items-center gap-2.5 bg-transparent text-[#DF0912] border-[#DF0912]/30 hover:bg-[#DF0912]/10">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                                        <span id="reset-ranking-label">Zerar horas de ranking (nova temporada)</span>
+                                    </button>
+                                    <div id="reset-ranking-spinner" class="animate-spin h-3.5 w-3.5 border-2 border-[#DF0912] border-t-transparent rounded-full hidden"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+

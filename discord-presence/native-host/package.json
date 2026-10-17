@@ -1,0 +1,22 @@
+{
+  "name": "multicanaishd-discord-presence-host",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Native messaging host que conecta a extensão do MultiCanaisHD ao Rich Presence do Discord Desktop",
+  "main": "host.js",
+  "scripts": {
+    "build-exe": "pkg host.js --targets node18-win-x64 --output ../../frontend/public/downloads/multicanaishd-presence-host.exe"
+  },
+  "pkg": {
+    "assets": [
+      "node_modules/discord-rpc/**/*"
+    ]
+  },
+  "dependencies": {
+    "discord-rpc": "^4.0.1",
+    "ws": "^8.21.1"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  }
+}

@@ -1,0 +1,742 @@
+---
+// src/layouts/BaseLayout.astro
+import "../styles/global.css";
+import { ViewTransitions } from "astro:transitions";
+import SEO from "../pages/components/SEO.astro";
+import Footer from "../pages/components/Footer.astro";
+import Header from "../pages/components/Header.astro";
+import DomainMigrationBanner from "../pages/components/DomainMigrationBanner.astro";
+import ScrollProgress from "../pages/components/ScrollProgress.astro";
+import BackToTop from "../pages/components/BackToTop.astro";
+
+// Global Modals & Portals
+import RankingModal from "../pages/components/RankingModal.astro";
+import RandomPicker from "../pages/components/RandomPicker.astro";
+import StillWatchingModal from "../pages/components/StillWatchingModal.astro";
+// TorrentModal NÃO mora mais aqui: ele carregava em toda página do site um modal de
+// downloads (38 KB de JS inline + a marcação) que só pode ser aberto por um botão dentro das
+// rotas /filme/[slug] e /serie/[slug] — os únicos lugares que disparam o evento
+// `multicanaishd:open-torrent`. Renderizado só nelas, sai de todas as outras páginas.
+import DiscordModal from "../pages/components/DiscordModal.astro";
+import VipExpiryNotice from "../pages/components/VipExpiryNotice.astro";
+
+// i18n
+import { getLangFromUrl, useTranslations } from "../i18n/utils";
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+
+// Configurações de Monetização Dinâmica — as duas leituras não dependem uma da outra,
+// então rodam em paralelo (eram sequenciais e somavam latência extra ao TTFB de toda página).
+import { getConfig, getAdSettings } from "../services/configService.js";
+const [adProvider, socialBarFlagResult] = await Promise.all([
+    // Sem o catch, KV fora do ar derrubava o layout de TODAS as páginas (regra de SSR):
+    // cai no provedor padrão, que é o mesmo fallback do getConfig.
+    getConfig("AD_PROVIDER", "adsterra").catch(() => "adsterra"),
+    getConfig("AD_SOCIAL_BAR", "on").catch(() => "on"),
+]);
+const adSettings = getAdSettings(adProvider);
+const smartlink = adSettings.smartlink;
+const popunderScript = adSettings.popunderScript;
+const popunderZone = adSettings.popunderZone;
+
+// Formatos persistentes (hoje só a social bar da Adsterra) rodam EM CIMA do provedor
+// ativo, independentes do AD_PROVIDER. Killable sem deploy pelo
+// /api/admin/config — se ela começar a atrapalhar, é só gravar AD_SOCIAL_BAR = "off" (nome legado da chave).
+// getConfig com KV fora do ar não pode derrubar o layout inteiro (regra de SSR): sem
+// saber o flag, esses formatos simplesmente não entram — perder impressão é o lado barato.
+const persistentAdsFlag = String(socialBarFlagResult).toLowerCase() === "off" ? "" : "on";
+
+// Extraia as propriedades repassadas para o SEO e configurações locais
+const { title, description, image, type, keywords, url, jsonLd, preloadImage, preloadImageSet, preloadImageSizes, robots, alternates, bodyClass = "flex flex-col", hideFooter = false } = Astro.props;
+---
+
+<!doctype html>
+<html lang={lang} class="bg-[#0E111A]">
+    <head>
+        <SEO 
+            title={title}
+            description={description}
+            image={image}
+            type={type}
+            keywords={keywords}
+            url={url}
+            jsonLd={jsonLd}
+            preloadImage={preloadImage}
+            preloadImageSet={preloadImageSet}
+            preloadImageSizes={preloadImageSizes}
+            robots={robots}
+            alternates={alternates}
+        />
+        <meta name="monetag" content="c8570a6e3a00cf9dd65d399de6b48673" />
+        {import.meta.env.PROD && (
+            <script is:inline>
+                (function(c,l,a,r,i,t,y){
+                    function load(){
+                        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+                        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+                        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+                    }
+                    // Analytics não é crítico pro primeiro paint: adia pra depois do load
+                    // pra não competir com o carregamento da home no caminho crítico.
+                    if (document.readyState === "complete") {
+                        load();
+                    } else {
+                        window.addEventListener("load", load, { once: true });
+                    }
+                })(window, document, "clarity", "script", "xqs6bgfeai");
+            </script>
+        )}
+        <slot name="head" />
+        <ViewTransitions fallback="swap" />
+    </head>
+    <body class={`min-h-screen bg-[#0E111A] text-white font-sans ${bodyClass}`}>
+        <ScrollProgress />
+        <DomainMigrationBanner />
+        <Header />
+        <slot />
+        {!hideFooter && <Footer />}
+        <BackToTop />
+        <div id="nuclear-script-loader"></div>
+
+        <!-- Global Modals & Portals -->
+        <RankingModal />
+        <RandomPicker />
+        <StillWatchingModal />
+        <DiscordModal />
+        <VipExpiryNotice />
+
+        {/* Lite Protection active - No false positives */}
+        <!-- Nuclear Config Layer -->
+        <!-- transition:persist é obrigatório aqui, não cosmético: sem ele o ViewTransitions
+             troca o body inteiro e este elemento renasce a cada navegação, zerando
+             data-initialized/data-started. Com os flags zerados, o branch rápido de
+             re-impressão (800ms, logo abaixo) nunca executava e toda navegação interna
+             recaía no init completo — 1000ms no desktop, 4500ms no mobile deslogado, ou
+             espera por gesto do usuário. Era perda de impressão na maioria dos pageviews. -->
+        <div
+            id="nuclear-config"
+            transition:persist
+            hidden
+            data-is-prod={import.meta.env.PROD ? "true" : "false"}
+            data-cf-token={import.meta.env.PUBLIC_CLOUDFLARE_BEACON_TOKEN}
+            data-ad-provider={adProvider}
+            data-smartlink={smartlink}
+            data-popunder-script={popunderScript}
+            data-popunder-zone={popunderZone}
+            data-persistent-ads={persistentAdsFlag}
+        ></div>
+
+        <script>
+            import { AD_SW_HOSTS } from "../services/adSettings.js";
+            // Kill switch do PWA: o site removeu o Service Worker, mas quem já tinha ele
+            // instalado (de antes desse deploy) continua com ele ativo indefinidamente —
+            // nada no servidor consegue parar isso remotamente. Desregistra e limpa o
+            // cache do Workbox pra essas sessões voltarem a pegar sempre a versão mais nova.
+            //
+            // Só o SW PRÓPRIO: a versão anterior desregistrava todo SW do domínio, inclusive
+            // os que Monetag/Adsterra/AdMaven registram pra push/popunder — derrubando esses
+            // formatos em todo carregamento completo de página. A limpeza de SW de anúncio
+            // (provedor inativo / VIP) é responsabilidade do loader de ads mais abaixo.
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then((regs) => {
+                    regs.forEach((reg) => {
+                        const url = (reg.active || reg.waiting || reg.installing)?.scriptURL || "";
+                        if (AD_SW_HOSTS.some((host) => url.includes(host))) return;
+                        reg.unregister();
+                    });
+                }).catch(() => {});
+                if ('caches' in window) {
+                    caches.keys().then((keys) => {
+                        keys.filter((key) => /workbox|precache|runtime/i.test(key))
+                            .forEach((key) => caches.delete(key));
+                    }).catch(() => {});
+                }
+            }
+        </script>
+
+        <script>
+            import { initSmartlinkInterceptor } from "../scripts/smartlinkInterceptor.js";
+            import { PERSISTENT_ADS } from "../services/adSettings.js";
+            // Helper seguro para obter a sessão otimista sem risco de crash no JSON.parse
+            function getSafeOptimisticSession() {
+                try {
+                    if (typeof localStorage !== 'undefined') {
+                        const raw = localStorage.getItem('bf_session_optimistic');
+                        if (raw && raw !== 'undefined') {
+                            return JSON.parse(raw) || {};
+                        }
+                    }
+                } catch (e) {}
+                return {};
+            }
+
+            // "bot" solto casava com UA de navegador real que só contém a sequência em
+            // outro trecho (ex: aparelhos CUBOT) — e esse usuário ficava sem anúncio nenhum.
+            // Crawlers de verdade se identificam como "Nomebot/versão".
+            const BOT_UA_RE = /lighthouse|pagespeed|crawler|spider|bot\//i;
+
+            // O isVIP do localStorage é otimista e pode ter ficado de uma assinatura já
+            // vencida: sem checar o vipUntil, o ex-VIP seguia sem anúncio até o auth
+            // re-sincronizar a sessão.
+            function isOptimisticVIP(session) {
+                if (session?.isVIP !== true) return false;
+                if (!session.vipUntil) return true;
+                return new Date(session.vipUntil) > new Date();
+            }
+
+            // Fallback só usado se o data-popunder-script/zone vier vazio do servidor (não
+            // deveria acontecer — configService.js sempre resolve os 3 provedores válidos).
+            const AD_PROVIDER_FALLBACKS = {
+                profiton: { script: "//zo.canopicdrowns.com/rMBYyAY6paoj4jn/158240", zone: "" },
+                adsterra: { script: "https://aarems.org/1/f6a78099ede6a674f2b00836f9558c9a", zone: "" },
+                monetag: { script: "https://al5sm.com/tag.min.js", zone: "12027674" },
+                admaven: { script: "//d2pf0ys5xus6n.cloudfront.net/?syfpd=1564857", zone: "" }
+            };
+
+            // Host único de cada provedor no service worker/script que ele registra — usado
+            // pra limpar popunders/SW de provedores diferentes do ativo no momento (ex: trocou
+            // de Adsterra pra Monetag, mas o SW antigo do Adsterra ainda está registrado).
+            const AD_PROVIDER_SW_HOSTS = {
+                profiton: "canopicdrowns",
+                adsterra: "aarems",
+                monetag: "al5sm",
+                admaven: "d2pf0ys5xus6n"
+            };
+
+            /**
+             * Formatos persistentes da Monetag (push, in-page push, vignette) — somam ao
+             * provedor ativo, não substituem.
+             *
+             * Ao contrário do popunder, NÃO são reinjetados a cada navegação SPA: são widgets
+             * que vivem na página inteira, e reinjetar empilharia uma instância por página
+             * visitada. Por isso ficam ancorados no <html> (não no <body>, que o
+             * ViewTransitions troca) e guardados por zona, então a chamada extra a cada
+             * navegação é no-op e só serve pra recuperar um formato que tenha sumido.
+             *
+             * @param {string} enabled vazio = desligados pelo servidor (AD_SOCIAL_BAR=off).
+             */
+            function injectPersistentAds(enabled) {
+                if (!enabled) return;
+                for (const ad of PERSISTENT_ADS) {
+                    if (document.querySelector(`script[data-bf-persistent-ad="${ad.key}"]`)) continue;
+
+                    const s = document.createElement("script");
+                    s.dataset.bfPersistentAd = ad.key;
+                    if (ad.zone) s.dataset.zone = ad.zone;
+                    s.async = true;
+                    // Mesmo motivo do popunder: o Rocket Loader pode quebrar o contexto de
+                    // execução do provedor e zerar a impressão sem erro no console.
+                    s.setAttribute("data-cfasync", "false");
+                    s.src = ad.src;
+                    s.onerror = () => console.warn(`[MultiCanaisHD Ads] Falha ao carregar ${ad.key}.`);
+                    document.documentElement.appendChild(s);
+                }
+            }
+
+            /** VIP não pode ter esses formatos na tela: tira os scripts deles. */
+            function removePersistentAds() {
+                document.querySelectorAll("script[data-bf-persistent-ad]").forEach(s => s.remove());
+            }
+
+            // --- MONETAG GLOBAL CLICK POPUNDER REMOVED ---
+
+            // --- SHIELD ANTI-HIJACK DE BOTÃO DE VOLTAR DO NAVEGADOR: REMOVIDO ---
+            // Bloqueava pushState/replaceState/popstate de qualquer script com "adsterra",
+            // "theoreticalassertshame" ou "smartlink" no stack trace — só que isso também
+            // bloqueava o próprio mecanismo de popunder desses provedores (mesmo problema já
+            // identificado e corrigido antes pro Monetag/al5sm). Removido por completo: a
+            // lista de bloqueio já tinha ficado vazia de qualquer keyword realmente em uso.
+
+            let authStore, initAuth;
+
+            // NUCLEAR SCRIPT LOADER (Fase 5)
+            // Carrega scripts pesados APENAS após a página estar totalmente pronta por um tempo
+            // ou se o usuário interagir primeiro.
+            document.addEventListener("astro:page-load", async () => {
+                const isBot = navigator.webdriver === true || BOT_UA_RE.test(navigator.userAgent);
+                
+                if (isBot) {
+                    console.log("🤖 PageSpeed Detectado: Bloqueando scripts pesados para otimização.");
+                    window._nuclearLoaded = true;
+                    return;
+                }
+
+                const config = document.getElementById("nuclear-config");
+                if (!config) return;
+
+                // --- IMPRESSÃO POR PÁGINA (SPA-safe) ---
+                // A cada navegação, reinjectamos o script de anúncio para contar nova impressão.
+                // On each SPA navigation, re-inject the ad script to count a new impression.
+                const isProdNav = config.dataset.isProd === "true";
+                const adProviderNav = config.dataset.adProvider || "adsterra";
+                const fallbackNav = AD_PROVIDER_FALLBACKS[adProviderNav] || AD_PROVIDER_FALLBACKS.adsterra;
+                const popunderScriptNav = config.dataset.popunderScript || fallbackNav.script;
+                const popunderZoneNav = config.dataset.popunderZone || fallbackNav.zone;
+                if (config.dataset.initialized && isProdNav) {
+                    const sessionDataNav = getSafeOptimisticSession();
+                    const isVIPNav = (window._authStore ? window._authStore.get().isVIP : false) || isOptimisticVIP(sessionDataNav);
+                    if (!isVIPNav) {
+                        setTimeout(() => {
+                            // Remove script anterior para evitar duplicação
+                            document.querySelectorAll('script[data-bf-popunder="true"]').forEach(s => s.remove());
+                            const navAdTarget = [document.documentElement, document.body].filter(Boolean).pop();
+                            const navAdScript = navAdTarget.appendChild(document.createElement("script"));
+                            navAdScript.dataset.bfPopunder = "true";
+                            if (popunderScriptNav.includes("al5sm.com")) {
+                                navAdScript.dataset.zone = popunderZoneNav || '11309863';
+                            } else {
+                                navAdScript.async = true;
+                            }
+                            // Rocket Loader (ou qualquer otimizador que adie/async o script) pode quebrar
+                            // o contexto de execução do provedor de anúncio e zerar a impressão
+                            // silenciosamente, sem erro no console — vale para qualquer provedor.
+                            navAdScript.setAttribute('data-cfasync', 'false');
+                            navAdScript.src = popunderScriptNav;
+
+                            // No-op se a barra já estiver de pé (o normal — ela vive no <html>,
+                            // fora do que o ViewTransitions troca). Só age se tiver se perdido.
+                            injectPersistentAds(config.dataset.persistentAds || "");
+                        }, 800);
+                    }
+                    return;
+                }
+
+                // Primeira carga: inicialização completa (auth + listeners + ads)
+                // First load: full initialization (auth + listeners + ads)
+                config.dataset.initialized = "true";
+
+                const isProd = config?.dataset.isProd === "true";
+                const cfToken = config?.dataset.cfToken;
+
+                const checkAndCleanVIP = async () => {
+                    try {
+                        if (!authStore) return;
+                        const { isVIP: storeVip } = authStore.get();
+                        const sessionData = getSafeOptimisticSession();
+                        const isVIP = storeVip || isOptimisticVIP(sessionData);
+                        if (isVIP) {
+                            document.querySelectorAll('script[data-bf-popunder="true"]').forEach(s => s.remove());
+                            removePersistentAds();
+                            if ('serviceWorker' in navigator) {
+                                const adHosts = Object.values(AD_PROVIDER_SW_HOSTS);
+                                navigator.serviceWorker.getRegistrations().then(registrations => {
+                                    for (let registration of registrations) {
+                                        const url = registration.active?.scriptURL || "";
+                                        if (adHosts.some(host => url.includes(host)) || url.endsWith('sw.js')) {
+                                            registration.unregister();
+                                        }
+                                    }
+                                }).catch(() => {});
+                            }
+                        }
+                    } catch (e) {}
+                };
+                
+                const loadNuclearScripts = async (e) => {
+                    try {
+                        const isBot = navigator.webdriver === true || BOT_UA_RE.test(navigator.userAgent);
+                        
+                        if (isBot) {
+                            console.log("🤖 PageSpeed Detectado: Bloqueando scripts pesados para otimização.");
+                            return;
+                        }
+
+                        if (!window._authStoreInitialized) {
+                            try {
+                                const authModule = await import("../store/authStore");
+                                authStore = authModule.authStore;
+                                initAuth = authModule.initAuth;
+                                
+                                window._authStore = authStore;
+                                window._removeFromHistory = authModule.removeFromHistory;
+                                window._clearCloudHistory = authModule.clearCloudHistory;
+                                document.dispatchEvent(new CustomEvent("multicanaishd:auth-ready", { 
+                                    detail: { 
+                                        authStore, 
+                                        removeFromHistory: authModule.removeFromHistory, 
+                                        clearCloudHistory: authModule.clearCloudHistory 
+                                    } 
+                                }));
+                                
+                                await checkAndCleanVIP();
+                                await initAuth();
+                                
+                                window._authStoreInitialized = true;
+                            } catch (e) {
+                                console.error("Erro ao inicializar auth:", e);
+                            }
+                        }
+
+                        const isProd = config?.dataset.isProd === "true";
+                        const cfToken = config?.dataset.cfToken;
+                        const isPt = document.documentElement.lang === 'pt';
+                        
+                        const storeVip = authStore ? authStore.get().isVIP : false;
+                        const sessionData = getSafeOptimisticSession();
+                        const isVIP = storeVip || isOptimisticVIP(sessionData);
+
+                        if (cfToken && isProd && !document.querySelector('script[src*="cloudflareinsights"]')) {
+                            const cfScript = document.createElement("script");
+                            cfScript.defer = true;
+                            cfScript.src = "https://static.cloudflareinsights.com/beacon.min.js";
+                            cfScript.setAttribute("data-cf-beacon", JSON.stringify({ token: cfToken }));
+                            document.body.appendChild(cfScript);
+                        }
+
+                        if (!isVIP && isProd) {
+                            const adProvider = config?.dataset.adProvider || "adsterra";
+                            const fallback = AD_PROVIDER_FALLBACKS[adProvider] || AD_PROVIDER_FALLBACKS.adsterra;
+                            const popunderScript = config?.dataset.popunderScript || fallback.script;
+                            const popunderZone = config?.dataset.popunderZone || fallback.zone;
+                            // Vazio = desligada pelo servidor (AD_SOCIAL_BAR=off, ou KV fora do ar).
+                            // Sem fallback hardcoded de propósito: um kill switch que o cliente
+                            // ignora não é kill switch.
+                            const persistentAdsEnabled = config?.dataset.persistentAds || "";
+                            console.log(isPt ? `☢️ Usuário Comum: Preparando scripts de anúncio (${adProvider})...` : `☢️ Regular User: Preparing ad scripts (${adProvider})...`);
+                            
+                            // Clique/scroll do usuário: injeta quase imediato (50ms).
+                            // Caminho ocioso: este delay NÃO precisa mais proteger o LCP —
+                            // startEverything só chega aqui depois de requestIdleCallback +
+                            // 2000ms (desktop) ou 4500ms (mobile deslogado). Os 1000/1500ms
+                            // antigos empilhavam em cima disso e davam ~6s até a primeira
+                            // impressão em mobile: sessão curta saía sem anúncio nenhum.
+                            const isUserEvent = e && ["click", "scroll", "keydown", "touchstart"].includes(e.type);
+                            const adDelay = isUserEvent ? 50 : 400;
+                            
+                            const adLoadToken = Date.now().toString(36) + Math.random().toString(36).slice(2);
+                            window._bfAdLoadToken = adLoadToken;
+                            
+                            // Limpa qualquer script ou iframe de popunder órfão antes de reinjetar (compatibilidade total com SPA)
+                            document.querySelectorAll('script[data-bf-popunder="true"]').forEach(s => s.remove());
+                            
+                            setTimeout(() => {
+                                if (window._bfAdLoadToken !== adLoadToken) return;
+
+                                const currentVip = (authStore ? authStore.get().isVIP === true : false) || isOptimisticVIP(getSafeOptimisticSession());
+                                if (currentVip) {
+                                    console.log(isPt ? "💎 MultiCanaisHD VIP Detectado antes da injeção: Abortando anúncios." : "💎 MultiCanaisHD VIP Detected before injection: Aborting ads.");
+                                    document.querySelectorAll('script[data-bf-popunder="true"]').forEach(s => s.remove());
+                                    removePersistentAds();
+                                    if ('serviceWorker' in navigator) {
+                                        const adHosts = Object.values(AD_PROVIDER_SW_HOSTS);
+                                        navigator.serviceWorker.getRegistrations().then(registrations => {
+                                            for (let registration of registrations) {
+                                                const url = registration.active?.scriptURL || "";
+                                                if (adHosts.some(host => url.includes(host)) || url.endsWith('sw.js')) {
+                                                    registration.unregister();
+                                                }
+                                            }
+                                        }).catch(() => {});
+                                    }
+                                    return;
+                                }
+                                
+                                console.log(isPt ? `🚀 Produção detectada: Injetando Popunder (${adProvider})...` : `🚀 Production detected: Injecting Popunder (${adProvider})...`);
+                                const adTarget = [document.documentElement, document.body].filter(Boolean).pop();
+                                const adScript = adTarget.appendChild(document.createElement("script"));
+                                adScript.id = "bf-popunder-script";
+                                adScript.dataset.bfPopunder = "true";
+
+                                // Clean conflicting service workers to prevent impression hijacking
+                                if ('serviceWorker' in navigator) {
+                                    // Push, in-page push e vignette da Monetag foram removidos; antes não estavam em
+                                    // AD_PROVIDER_SW_HOSTS, então esta varredura de provedores inativos
+                                    // nunca desregistra o SW deles.
+                                    navigator.serviceWorker.getRegistrations().then(registrations => {
+                                        for (let registration of registrations) {
+                                            const url = registration.active?.scriptURL || "";
+                                            for (const [name, host] of Object.entries(AD_PROVIDER_SW_HOSTS)) {
+                                                if (name !== adProvider && url.includes(host)) {
+                                                    registration.unregister().then(() => console.log(`🧹 [AdShield] Unregistered ${name} Service Worker.`));
+                                                }
+                                            }
+                                        }
+                                    }).catch(() => {});
+                                }
+
+                                if (popunderScript.includes("al5sm.com")) {
+                                    adScript.dataset.zone = popunderZone || '11309863';
+                                } else {
+                                    adScript.async = true;
+                                }
+                                // Vale para qualquer provedor: evita que o Rocket Loader adie/async o
+                                // script e zere a impressão silenciosamente.
+                                adScript.setAttribute('data-cfasync', 'false');
+                                adScript.src = popunderScript;
+                                adScript.onload = () => console.log(`[MultiCanaisHD Ads] Popunder (${adProvider}) carregado.`);
+                                adScript.onerror = () => console.warn(`[MultiCanaisHD Ads] Falha ao carregar popunder (${adProvider}).`);
+
+                                injectPersistentAds(persistentAdsEnabled);
+                            }, adDelay);
+                        } else if (isVIP) {
+                            console.log(isPt ? "💎 MultiCanaisHD VIP Detectado: Popunders bloqueados." : "💎 MultiCanaisHD VIP Detected: Popunders blocked.");
+                            document.querySelectorAll('script[data-bf-popunder="true"]').forEach(s => s.remove());
+                            removePersistentAds();
+                            if ('serviceWorker' in navigator) {
+                                navigator.serviceWorker.getRegistrations().then(registrations => {
+                                    for (let registration of registrations) {
+                                        const url = registration.active?.scriptURL || "";
+                                        if (Object.values(AD_PROVIDER_SW_HOSTS).some(host => url.includes(host)) || url.endsWith('sw.js')) {
+                                            registration.unregister();
+                                        }
+                                    }
+                                }).catch(() => {});
+                            }
+                        }
+
+                        if (authStore && !window._vipAdsShieldSubscribed) {
+                            window._vipAdsShieldSubscribed = true;
+                            authStore.subscribe(state => {
+                                const sessionData = getSafeOptimisticSession();
+                                if (state.isVIP || isOptimisticVIP(sessionData)) {
+                                    document.querySelectorAll('script[data-bf-popunder="true"]').forEach(s => s.remove());
+                                    removePersistentAds();
+                                    if ('serviceWorker' in navigator) {
+                                        navigator.serviceWorker.getRegistrations().then(registrations => {
+                                            for (let registration of registrations) {
+                                                const url = registration.active?.scriptURL || "";
+                                                if (Object.values(AD_PROVIDER_SW_HOSTS).some(host => url.includes(host)) || url.endsWith('sw.js')) {
+                                                    registration.unregister();
+                                                }
+                                            }
+                                        }).catch(() => {});
+                                    }
+                                }
+                            });
+                        }
+
+                    } catch (err) {
+                        console.error("❌ [NuclearLoader] Erro Crítico:", err);
+                        window._nuclearLoaded = false;
+                    }
+                };
+
+                const startEverything = (e) => {
+                   if (config.dataset.started === "true") return;
+                   config.dataset.started = "true";
+                   loadNuclearScripts(e);
+                   if (!window._heartbeatStarted) {
+                        window._heartbeatStarted = true;
+                        initHeartbeat();
+                   }
+                   triggers.forEach(t => window.removeEventListener(t, startEverything));
+                };
+
+                const triggers = ["click", "scroll", "keydown", "touchstart"];
+                
+                const hasSession = (() => {
+                    try {
+                        if (typeof localStorage === 'undefined') return false;
+                        if (localStorage.getItem('bf_session_optimistic')) return true;
+                        for (let i = 0; i < localStorage.length; i++) {
+                            const key = localStorage.key(i);
+                            if (key && (key.startsWith('sb-') || key.includes('supabase.auth.token'))) {
+                                return true;
+                            }
+                        }
+                    } catch (e) {}
+                    return false;
+                })();
+
+                if (hasSession) {
+                    const isMobile = window.matchMedia("(max-width: 767px)").matches;
+                    const startDelay = isMobile ? 3500 : 1000;
+                    if (typeof requestIdleCallback !== 'undefined') {
+                        requestIdleCallback(() => {
+                            setTimeout(() => startEverything(), startDelay);
+                        });
+                    } else {
+                        setTimeout(() => startEverything(), startDelay + 200);
+                    }
+                } else {
+                    triggers.forEach(t => window.addEventListener(t, startEverything, { once: true, passive: true }));
+                    const isMobile = window.matchMedia("(max-width: 767px)").matches;
+                    const startDelay = isMobile ? 4500 : 2000;
+                    if (typeof requestIdleCallback !== 'undefined') {
+                        requestIdleCallback(() => {
+                            setTimeout(() => startEverything(), startDelay);
+                        }, { timeout: 3000 });
+                    } else {
+                        setTimeout(() => startEverything(), startDelay + 500);
+                    }
+                }
+
+            }); // fim do astro:page-load
+
+            // Retrocompatibilidade global para o botão de ativação VIP
+            window.openVipBuyModal = () => {
+                document.dispatchEvent(new CustomEvent('multicanaishd:open-vip'));
+            };
+
+            // INTERCEPTOR GLOBAL DE CANAIS VIP (Fase 15 - Bloqueio em Nível de Layout)
+            document.addEventListener("multicanaishd:open-vip", () => {
+                // Se o modal VIP estiver disponível no DOM, abre ele em vez de redirecionar
+                const modal = document.getElementById('vip-modal');
+                if (modal && window.openVipModal) {
+                    window.openVipModal();
+                    return;
+                }
+                const isEn = document.documentElement.lang === "en";
+                window.location.href = isEn ? "/en/vip" : "/vip";
+            });
+
+            // Interceptador de smartlink extraido pra src/scripts/smartlinkInterceptor.js.
+            // getSafeOptimisticSession fica aqui porque o resto do layout tambem usa.
+            initSmartlinkInterceptor(getSafeOptimisticSession);
+            
+            // --- HEARTBEAT SYSTEM (Otimizado para não floodar na navegação) ---
+            function initHeartbeat() {
+                // Não roda heartbeat para crawlers/pagespeed
+                if (navigator.webdriver === true || /lighthouse|pagespeed|crawler|spider|bot\//i.test(navigator.userAgent)) return;
+
+                let sessionId = localStorage.getItem('bf_presence_session');
+                if (!sessionId) {
+                    sessionId = crypto.randomUUID();
+                    localStorage.setItem('bf_presence_session', sessionId);
+                }
+
+                const sendHeartbeat = async () => {
+                    const now = Date.now();
+                    const lastHeartbeat = parseInt(localStorage.getItem('bf_last_heartbeat') || '0');
+
+                    // Só envia se o último foi há mais de 9 minutos (cada ping é um upsert no
+                    // Supabase; a janela de "online" no painel é de 12 min, ver stats.js)
+                    if (now - lastHeartbeat < 9 * 60 * 1000) return;
+
+                    let userId = null;
+                    try {
+                        const { authStore } = await import('../store/authStore');
+                        userId = authStore.get()?.user?.id || null;
+                    } catch (e) {}
+
+                    fetch('/api/heartbeat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ sessionId, path: window.location.pathname, userId })
+                    }).then(() => {
+                        localStorage.setItem('bf_last_heartbeat', Date.now().toString());
+                    }).catch(() => {});
+                };
+
+                // Aguarda 15s antes do primeiro envio para não aparecer no critical path
+                // (PageSpeed reportava /api/heartbeat como bloqueante a 6.3s)
+                setTimeout(sendHeartbeat, 15_000);
+
+                // Pausa o heartbeat com a aba em background — evita gastar cota do Worker
+                // mantendo presença de abas que ninguém está olhando.
+                let heartbeatInterval = setInterval(sendHeartbeat, 10 * 60 * 1000);
+                document.addEventListener('visibilitychange', () => {
+                    if (document.hidden) {
+                        if (heartbeatInterval) {
+                            clearInterval(heartbeatInterval);
+                            heartbeatInterval = null;
+                        }
+                    } else if (!heartbeatInterval) {
+                        sendHeartbeat();
+                        heartbeatInterval = setInterval(sendHeartbeat, 10 * 60 * 1000);
+                    }
+                });
+            }
+            // -------------------------
+        </script>
+
+        <!-- Global Toast Container -->
+        <div id="global-toast-container" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[99999] flex flex-col items-center pointer-events-none"></div>
+
+        <script>
+            // Script de inicialização única (roda apenas 1 vez e vive durante todo o SPA lifecycle)
+            async function initToastSystem() {
+                if (window._toastSystemInitialized) return;
+                window._toastSystemInitialized = true;
+                const { toastStore } = await import("../store/toastStore");
+                
+                toastStore.subscribe((toast) => {
+                if (!toast) return;
+                
+                // Buscamos o container a cada invocação pois o ViewTransitions pode ter trocado a DOM
+                const container = document.getElementById('global-toast-container');
+                if (!container) return;
+
+                const el = document.createElement("div");
+                const color = toast.type === 'success' ? 'bg-emerald-600' : (toast.type === 'error' ? 'bg-[#DF0912]' : 'bg-blue-600');
+                
+                el.className = `${color} text-white px-6 py-3 rounded-xl font-bold text-sm shadow-2xl transition-all duration-300 transform translate-y-12 opacity-0 mb-3 pointer-events-auto`;
+                el.innerHTML = toast.type === 'success' 
+                    ? `<span class="flex items-center gap-2"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> ${toast.message}</span>`
+                    : `<span>${toast.message}</span>`;
+                
+                container.appendChild(el);
+
+                // Animate In
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        el.classList.remove('translate-y-12', 'opacity-0');
+                        el.classList.add('translate-y-0', 'opacity-100');
+                    });
+                });
+
+                // Animate Out
+                setTimeout(() => {
+                    el.classList.remove('translate-y-0', 'opacity-100');
+                    el.classList.add('translate-y-12', 'opacity-0');
+                    setTimeout(() => el.remove(), 300);
+                }, 3000);
+                });
+            }
+
+            // Inicializa o sistema de toasts apenas para humanos e com delay inteligente
+            document.addEventListener('astro:page-load', () => {
+                const isBot = navigator.webdriver === true || /lighthouse|pagespeed|crawler|spider|bot\//i.test(navigator.userAgent);
+                if (isBot) return;
+                
+                const isMobile = window.matchMedia("(max-width: 767px)").matches;
+                const delay = isMobile ? 5000 : 1500; // Delay maior no mobile para salvar o LCP
+                
+                if (window.requestIdleCallback) {
+                    window.requestIdleCallback(() => setTimeout(initToastSystem, delay));
+                } else {
+                    setTimeout(initToastSystem, delay);
+                }
+            });
+        </script>
+
+        <style is:global>
+            /* Lógica global para contornar pulos visuais ao navegar pelo ViewTransitions */
+            html {
+                scroll-behavior: smooth;
+            }
+
+            /* Scrollbar Global Estilizada */
+            ::-webkit-scrollbar {
+                width: 8px;
+                height: 8px;
+            }
+            ::-webkit-scrollbar-track {
+                background: #0E111A;
+            }
+            ::-webkit-scrollbar-thumb {
+                background: #333;
+                border-radius: 4px;
+                transition: background 0.3s;
+            }
+            ::-webkit-scrollbar-thumb:hover {
+                background: #df0912;
+            }
+        </style>
+        
+        <script is:inline>
+            // MultiCanaisHD Ninja Protection - Lite & Resilient
+            // Movido para o final do body para não bloquear o render inicial (SEO)
+            (function() {
+                if (window.location.search.includes('debug=multicanaishd')) return;
+                document.addEventListener('contextmenu', e => e.preventDefault());
+                document.addEventListener('keydown', e => {
+                    if (e.keyCode === 123 || (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) || (e.ctrlKey && e.keyCode === 85) || (e.ctrlKey && e.keyCode === 83)) {
+                        e.preventDefault();
+                        return false;
+                    }
+                });
+            })();
+        </script>
+    </body>
+</html>

@@ -1,0 +1,48 @@
+---
+// src/components/ScrollProgress.astro
+---
+<div id="scroll-progress-container" class="fixed top-0 left-0 w-full h-[3px] z-[1001] pointer-events-none">
+    <div id="scroll-progress-bar" class="h-full bg-gradient-to-r from-[#DF0912] to-[#be080f] w-0 transition-all duration-75 ease-out shadow-[0_0_10px_rgba(223,9,18,0.5)]"></div>
+</div>
+
+<script>
+    let ticking = false;
+    let cachedHeight = 0;
+
+    function updateHeight() {
+        cachedHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+    }
+
+    function updateScrollProgress() {
+        const progressBar = document.getElementById('scroll-progress-bar');
+        if (!progressBar) return;
+
+        const winScroll = window.scrollY || document.documentElement.scrollTop;
+        if (cachedHeight <= 0) updateHeight();
+        
+        const scrolled = cachedHeight > 0 ? (winScroll / cachedHeight) * 100 : 0;
+        
+        progressBar.style.width = scrolled + "%";
+        progressBar.style.opacity = winScroll < 10 ? "0" : "1";
+        
+        ticking = false;
+    }
+
+    function onScroll() {
+        if (!ticking) {
+            window.requestAnimationFrame(updateScrollProgress);
+            ticking = true;
+        }
+    }
+
+    document.addEventListener('astro:page-load', () => {
+        // Reseta a altura em cache ao navegar (sem medir imediatamente).
+        // A medição real acontece somente quando o usuário rola a página.
+        // Reset cached height on navigation (no eager measurement).
+        // Actual measurement happens only when the user scrolls.
+        cachedHeight = 0;
+
+        window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', updateHeight, { passive: true });
+    });
+</script>

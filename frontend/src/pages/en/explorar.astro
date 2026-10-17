@@ -1,0 +1,5 @@
+---
+// src/pages/en/explorar.astro
+export const prerender = false;
+return Astro.rewrite(`/explorar?lang=en&${Astro.url.searchParams.toString()}`);
+---
