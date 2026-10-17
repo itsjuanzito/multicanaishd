@@ -1,0 +1,11 @@
+name = "multicanaishd"
+pages_build_output_dir = "./dist"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Binding de KV deste projeto. Precisa ser o namespace DESTE site: o sitemap, o
+# mapa de slugs pt/en e o log do anti-DMCA sao gravados aqui. Apontar para o
+# namespace de outro projeto faz um site servir o cache do outro.
+[[kv_namespaces]]
+binding = "SESSION"
+id = "19462e19afde4198975ec61e9cf8e3ad"
