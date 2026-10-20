@@ -29,6 +29,7 @@ export async function GET(context) {
                 nome: j.title || j.nome,
                 imagem: j.image || j.imagem || `${origin}/api/canais/imagem/${gameId}`,
                 categoria: "⚽ Jogos Ao Vivo",
+                sport: j.sport || null,
                 url: directSource
                     ? playerUrl
                     : buildEmbedUrl({ kind: "game", slug: slugify(j.title || j.nome) }),

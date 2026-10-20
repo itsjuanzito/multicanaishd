@@ -5,10 +5,11 @@ import { slugify } from '../utils/slugify.js';
 import { getRedisClient } from './redis-client.js';
 import { axiomService } from './axiom-service.js';
 
+// v8: os jogos passaram a carregar `sport` (a home separa por esporte); cache v7 não tinha o campo.
 // v7: a fonte dos canais mudou de embedtv.lat para a nossa API (streambetter.lol) e os IDs
 // passaram a ser slugs nossos. Reaproveitar o blob v6 serviria canais mortos com IDs que não
 // existem mais. / Cache key bumped because channel IDs changed with the provider swap.
-const REDIS_CANAIS_CACHE_KEY = 'multicanaishd_canais_cache_v7';
+const REDIS_CANAIS_CACHE_KEY = 'multicanaishd_canais_cache_v8';
 const REDIS_CACHE_TTL = 180; // 3 minutos
 
 // Nossa API. Chaves de config novas (e não as antigas TV_CHANNELS_API_URL/LIVE_SPORTS_API_URL)
@@ -42,14 +43,14 @@ if (!globalThis._bf_channels_state) {
         vipChannelsCache: null,
         vipCacheTimestamp: 0,
         currentVipFetchPromise: null,
-        version: 'v7'
+        version: 'v8'
     };
-} else if (globalThis._bf_channels_state.version !== 'v7') {
+} else if (globalThis._bf_channels_state.version !== 'v8') {
     // Invalida cache antigo mantendo a estrutura para os testes unitários
     globalThis._bf_channels_state.canaisCache = null;
     globalThis._bf_channels_state.cacheTimestamp = 0;
     globalThis._bf_channels_state.currentFetchPromise = null;
-    globalThis._bf_channels_state.version = 'v7';
+    globalThis._bf_channels_state.version = 'v8';
 }
 const state = globalThis._bf_channels_state;
 const CACHE_TTL = 900000; // 15 minutos
@@ -140,6 +141,7 @@ export async function fetchJogos() {
             image: j.image, // Compatibilidade total
             url: Array.isArray(j.players) ? j.players[0] : (j.players || ""),
             categoria: "⚽ Jogos Ao Vivo",
+            sport: j.sport || null,
             hora_inicio: j.data?.timer?.start ? normalizeTimestamp(j.data.timer.start) : null,
             hora_fim: j.data?.timer?.end ? normalizeTimestamp(j.data.timer.end) : null,
             data: j.data || j // Garante que o LiveGamesSection encontre teams/timer

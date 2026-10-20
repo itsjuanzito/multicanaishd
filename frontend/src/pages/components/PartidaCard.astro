@@ -1,0 +1,64 @@
+---
+// Card de partida usado pelo hub de futebol e pela seção de outros esportes.
+const { partida, isPt } = Astro.props;
+---
+
+<a
+    href={partida.href}
+    class="group relative block bg-[#0E111A] border border-white/5 hover:border-[#DF0912]/50 transition-all duration-500 hover:-translate-y-1"
+>
+    <div class="flex items-center justify-between px-4 pt-4">
+        {partida.aoVivo ? (
+            <span class="inline-flex items-center gap-1.5 bg-[#DF0912] px-2.5 py-1">
+                <span class="relative flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                </span>
+                <span class="text-[9px] font-black uppercase tracking-wider italic">{isPt ? "Ao vivo" : "Live"}</span>
+            </span>
+        ) : (
+            <span class="inline-block bg-white/5 border border-white/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-gray-300">
+                {partida.data} · {partida.horario}
+            </span>
+        )}
+        <span class="text-[8px] font-black uppercase tracking-wider text-white/50 truncate max-w-[110px]">
+            {partida.campeonato}
+        </span>
+    </div>
+
+    <div class="p-5 flex flex-col items-center justify-center gap-4">
+        <div class="flex items-center justify-center gap-5 w-full">
+            {[partida.casa, partida.fora].map((time, indice) => (
+                <>
+                    {indice === 1 && <span class="text-xl font-black text-[#DF0912] italic">VS</span>}
+                    <div class="flex flex-col items-center gap-2 flex-1 min-w-0">
+                        {time?.image ? (
+                            <img
+                                src={time.image}
+                                alt={time.name || ""}
+                                width="64"
+                                height="64"
+                                loading="lazy"
+                                decoding="async"
+                                class="w-14 h-14 sm:w-16 sm:h-16 object-contain bg-white/5 rounded-full p-2.5 border border-white/10 group-hover:border-[#DF0912]/40 transition-colors duration-300"
+                            />
+                        ) : (
+                            <span class="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center bg-white/5 rounded-full border border-white/10 text-sm font-black text-white/50">
+                                {time?.name?.charAt(0) || "?"}
+                            </span>
+                        )}
+                        <span class="text-[11px] font-bold uppercase tracking-tight text-center line-clamp-2">
+                            {time?.name || (indice === 0 ? (isPt ? "Casa" : "Home") : (isPt ? "Visitante" : "Away"))}
+                        </span>
+                    </div>
+                </>
+            ))}
+        </div>
+
+        <span class="w-full text-center py-2 bg-white/5 group-hover:bg-[#DF0912] text-[10px] font-black uppercase tracking-widest transition-colors duration-300">
+            {partida.aoVivo
+                ? (isPt ? "Assistir agora" : "Watch now")
+                : partida.status || (isPt ? "Ver detalhes" : "See details")}
+        </span>
+    </div>
+</a>

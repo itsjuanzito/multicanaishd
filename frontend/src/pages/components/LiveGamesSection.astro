@@ -1,5 +1,6 @@
 ---
 import { slugify } from '../../utils/slugify';
+import { groupGames, renderGroupsHtml } from '../../utils/liveGamesRender.js';
 // src/pages/components/LiveGamesSection.astro
 // Seção de Jogos Ao Vivo - Cards fixos premium
 
@@ -67,130 +68,12 @@ if (initialGames) {
         liveGames = [];
     }
 }
-// Helper para normalizar timestamps para segundos (Pilar 4: Consistência de Dados)
-const normalizeTimestamp = (ts) => {
-    if (!ts) return 0;
-    const num = Number(ts);
-    return num > 9999999999 ? Math.floor(num / 1000) : num;
-};
-
-// A fonte não manda mais timer.end — sem isso assumimos 2h30 de duração (mesmo fallback
-// do recovery client-side), senão todo jogo cai em "unknown" e nunca aparece como ao vivo/encerrado.
-const DEFAULT_GAME_DURATION = 9000;
-function resolveGameEnd(start, endRaw) {
-    const end = normalizeTimestamp(endRaw);
-    if (end) return end;
-    return start ? start + DEFAULT_GAME_DURATION : 0;
-}
-
-// Helper para peso do status (Pilar 5: Inteligência de Negócio)
-function getStatusWeight(game) {
-    const start = normalizeTimestamp(game?.data?.timer?.start);
-    const end = resolveGameEnd(start, game?.data?.timer?.end);
-    const now = Math.floor(Date.now() / 1000);
-
-    if (!start || !end) return 1; // unknown tratamos como upcoming
-    if (now >= start && now <= end) return 0; // Ao Vivo
-    if (now < start) return 1; // Próximo
-    return 2; // Encerrado — removido imediatamente, sem ocupar vaga de jogo ao vivo
-}
-
-// Filtra os jogos encerrados (Pilar 5: Inteligência de Negócio)
-liveGames = liveGames.filter(game => getStatusWeight(game) !== 2);
-
-// Ordena os jogos: Ao Vivo (0) > Próximos (1) > Encerrados (2)
-liveGames.sort((a, b) => {
-    const weightA = getStatusWeight(a);
-    const weightB = getStatusWeight(b);
-    
-    if (weightA !== weightB) {
-        return weightA - weightB;
-    }
-    
-    // Se ambos forem próximos, ordena pelo mais próximo de começar
-    if (weightA === 1) {
-        const startA = normalizeTimestamp(a?.data?.timer?.start) || 0;
-        const startB = normalizeTimestamp(b?.data?.timer?.start) || 0;
-        return startA - startB;
-    }
-    
-    return 0;
-});
-
-// Limita a 8 jogos para não sobrecarregar (Pilar 4: Otimização)
-const displayGames = liveGames.slice(0, 4);
-
-// Helper para verificar status do jogo
-function getGameStatus(game) {
-    const start = normalizeTimestamp(game?.data?.timer?.start);
-    const end = resolveGameEnd(start, game?.data?.timer?.end);
-
-    if (!start || !end) {
-        return { type: 'unknown', label: t('live.match_start').toUpperCase() };
-    }
-    
-    const now = Math.floor(Date.now() / 1000);
-    
-    if (now >= start && now <= end) {
-        return { type: 'live', label: t('live.status_live') };
-    }
-    if (now < start) {
-        const diffMin = Math.ceil((start - now) / 60);
-        
-        if (diffMin > 60) {
-            const date = new Date(start * 1000);
-            const timeStr = date.toLocaleTimeString('pt-BR', { 
-                hour: '2-digit', 
-                minute: '2-digit', 
-                hour12: false, 
-                timeZone: 'America/Sao_Paulo' 
-            });
-            return { 
-                type: 'upcoming', 
-                label: `${t('live.at')} ${timeStr}` 
-            };
-        }
-        
-        return { type: 'upcoming', label: `${t('live.in')} ${diffMin}${t('live.min')}` };
-    }
-    return { type: 'ended', label: t('live.status_ended') };
-}
-
-// Helper para gerar ID do canal igual ao channelsService.js
-function generateCanalId(title) {
-    if (!title) return 'jogo_unknown';
-    return `jogo_${title.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/ /g, '-').replace(/[^\w-]/g, '')}`;
-}
-
-// Extrai times do título "Time A x Time B"
-function parseTeamsFromTitle(title) {
-    if (!title) return { home: { name: null, image: null }, away: { name: null, image: null } };
-    const parts = title.split(/\s+[xX]\s+/);
-    return {
-        home: { name: parts[0]?.trim() || null, image: null },
-        away: { name: parts[1]?.trim() || null, image: null },
-    };
-}
-
-// Helper para formatar hora (HH:mm)
-function formatUnixTime(timestamp) {
-    const ts = normalizeTimestamp(timestamp);
-    if (!ts) return "";
-    try {
-        const date = new Date(ts * 1000);
-        return date.toLocaleTimeString('pt-BR', { 
-            hour: '2-digit', 
-            minute: '2-digit', 
-            hour12: false,
-            timeZone: 'America/Sao_Paulo'
-        });
-    } catch (e) {
-        return "";
-    }
-}
+const groups = groupGames(liveGames);
+const isVipGame = (game) => Array.from(buildVipCandidates(game.canalId, game.title)).some((k) => vipIds.has(k));
+const gamesHtml = renderGroupsHtml(groups, { isPt, langPrefix, isVip: isVipGame });
 ---
 
-    <section class="py-10 w-full mx-auto relative z-20 overflow-hidden" id="live-games-section" style={liveGames.length === 0 ? "display: none;" : ""}>
+    <section class="py-10 w-full mx-auto relative z-20 overflow-hidden" id="live-games-section" style={groups.length === 0 ? "display: none;" : ""}>
         <div class="px-4 sm:px-6 lg:px-12">
             {/* Header */}
             <div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
@@ -220,161 +103,15 @@ function formatUnixTime(timestamp) {
                 </div>
             </div>
 
-            {/* Fixed Cards Grid - Não usa scroll, é fixo */}
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5" id="live-games-grid">
-                {displayGames.map((game) => {
-                    const parsedTeams = parseTeamsFromTitle(game.title);
-                    const homeTeam = game.data?.teams?.home?.name ? game.data.teams.home : parsedTeams.home;
-                    const awayTeam = game.data?.teams?.away?.name ? game.data.teams.away : parsedTeams.away;
-                    const league = game.data?.league || t('home.championship');
-                    const status = getGameStatus(game);
-                    const canalId = generateCanalId(game.title);
-                    const isVip = Array.from(buildVipCandidates(canalId, game.title)).some((k) => vipIds.has(k));
-                    
-                    const isLive = status.type === 'live';
-                    const isUpcoming = status.type === 'upcoming';
-                    
-                    return (
-                        <a
-                            href={`${langPrefix}/canal/${slugify(game.title)}`}
-                            data-is-vip={isVip}
-                            data-canal-id={canalId}
-                            data-game-end={normalizeTimestamp(game?.data?.timer?.end) || (normalizeTimestamp(game?.data?.timer?.start) ? normalizeTimestamp(game.data.timer.start) + 9000 : '')}
-                            class="bf-live-card group relative block bg-[#0E111A] border border-white/5 hover:border-[#DF0912]/50 transition-all duration-500 hover:-translate-y-1"
-                        >
-                            {/* Status Badge */}
-                            <div class="absolute top-3 left-3 z-20">
-                                {isLive ? (
-                                    <div class="flex items-center gap-1.5 bg-[#DF0912] px-2.5 py-1.5">
-                                        <span class="relative flex h-2 w-2">
-                                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                                            <span class="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-                                        </span>
-                                        <span class="text-[9px] font-black text-white uppercase tracking-wider italic">{status.label}</span>
-                                    </div>
-                                ) : isUpcoming ? (
-                                    <div class="flex items-center gap-1.5 bg-[#FFCC00] px-2.5 py-1.5">
-                                        <svg class="w-3 h-3 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                        <span class="text-[9px] font-black text-black uppercase tracking-wider italic">{status.label}</span>
-                                    </div>
-                                ) : (
-                                    <div class="flex items-center gap-1.5 bg-gray-600 px-2.5 py-1.5">
-                                        <svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                                        </svg>
-                                        <span class="text-[9px] font-black text-white uppercase tracking-wider italic">{status.label}</span>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* League Badge */}
-                            <div class="absolute top-3 right-3 z-20">
-                                <div class="bg-black/60 px-2.5 py-1.5 border border-white/10">
-                                    <span class="text-[8px] font-black text-white/80 uppercase tracking-wider truncate max-w-[100px] block">
-                                        {league}
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* VIP Badge */}
-                            {isVip && (
-                                <div class="absolute bottom-3 right-3 z-20">
-                                    <div class="bg-black rounded-lg p-2 shadow-2xl border border-white/5 group-hover:scale-110 transition-transform duration-300">
-                                        <svg class="w-4 h-4 text-[#DF0912]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Content - Clean Design */}
-                            <div class="p-5 pt-12 aspect-square flex flex-col justify-center">
-                                {/* Teams */}
-                                <div class="flex items-center justify-center gap-4 sm:gap-6">
-                                    {/* Home Team */}
-                                    <div class="flex flex-col items-center gap-3">
-                                        {homeTeam?.image ? (
-                                            <div class="w-20 h-20 bg-white/5 rounded-full p-3 border border-white/10 group-hover:border-[#DF0912]/40 group-hover:bg-white/10 transition-all duration-300">
-                                                <img
-                                                    src={homeTeam.image?.includes('cloudfront.net') ? `${homeTeam.image}?w=96&h=96&fit=max` : homeTeam.image}
-                                                    alt={homeTeam.name}
-                                                    width="80"
-                                                    height="80"
-                                                    class="w-full h-full object-contain"
-                                                    loading="lazy"
-                                                    decoding="async"
-                                                />
-                                            </div>
-                                        ) : (
-                                            <div class="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center border border-white/10">
-                                                <span class="text-xs font-black text-white/50">{homeTeam?.name?.charAt(0) || 'H'}</span>
-                                            </div>
-                                        )}
-                                        <span class="text-[11px] font-bold text-white uppercase tracking-tight text-center line-clamp-1 max-w-[90px]">
-                                            {homeTeam?.name || "Home"}
-                                        </span>
-                                    </div>
-
-                                    {/* VS */}
-                                    <div class="flex flex-col items-center">
-                                        <span class="text-3xl font-black text-[#DF0912] italic">VS</span>
-                                    </div>
-
-                                    {/* Away Team */}
-                                    <div class="flex flex-col items-center gap-3">
-                                        {awayTeam?.image ? (
-                                            <div class="w-20 h-20 bg-white/5 rounded-full p-3 border border-white/10 group-hover:border-[#DF0912]/40 group-hover:bg-white/10 transition-all duration-300">
-                                                <img
-                                                    src={awayTeam.image?.includes('cloudfront.net') ? `${awayTeam.image}?w=96&h=96&fit=max` : awayTeam.image}
-                                                    alt={awayTeam.name}
-                                                    width="80"
-                                                    height="80"
-                                                    class="w-full h-full object-contain"
-                                                    loading="lazy"
-                                                    decoding="async"
-                                                />
-                                            </div>
-                                        ) : (
-                                            <div class="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center border border-white/10">
-                                                <span class="text-xs font-black text-white/50">{awayTeam?.name?.charAt(0) || 'A'}</span>
-                                            </div>
-                                        )}
-                                        <span class="text-[11px] font-bold text-white uppercase tracking-tight text-center line-clamp-1 max-w-[90px]">
-                                            {awayTeam?.name || "Away"}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {!isLive && (
-                                    <div class="flex flex-col items-center mt-4">
-                                        <div class="bg-black/40 px-3 py-1.5 border border-white/5 backdrop-blur-sm">
-                                            <span class="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em]">
-                                                {t('live.match_start')}: <span class="text-white">{formatUnixTime(game.data?.timer?.start)}</span>
-                                            </span>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Assistir CTA - Always visible on mobile, hover on desktop */}
-                                <div class="flex items-center justify-center mt-4 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300">
-                                    <div class="bg-[#DF0912] px-6 py-3 group-hover:bg-[#be080f] transition-colors">
-                                        <span class="text-xs font-black text-white uppercase tracking-widest italic flex items-center gap-2">
-                                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                                <path d="M8 5v14l11-7z"/>
-                                            </svg>
-                                            {t('live.watch')}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </a>
-                    );
-                })}
+            {/* Grupos por esporte, em fileiras compactas */}
+            <div class="space-y-5" id="live-games-grid" set:html={gamesHtml}></div>
             </div>
         </div>
     </section>
 
 <script>
+import { groupGames, groupsSignature, renderGroupsHtml } from '../../utils/liveGamesRender.js';
+
 (function() {
     /**
      * MultiCanaisHD Live & VIP Sync (Client-Side Recovery)
@@ -433,21 +170,14 @@ function formatUnixTime(timestamp) {
         return window._bf_live_games_state;
     };
 
-    const buildGamesSignature = (games = []) =>
-        games
-            .map((g) => String(g?.id || g?.nome || g?.title || '').trim())
-            .filter(Boolean)
-            .join('|');
-
     const smartRenderGames = (grid, games, isPt) => {
         const state = getLiveGamesState();
-        const cardsCount = grid.querySelectorAll('.bf-live-card').length;
-        const nextList = games.slice(0, 4);
-        const nextSignature = buildGamesSignature(nextList);
+        const groups = groupGames(games);
+        const nextSignature = groupsSignature(groups);
 
         if (state.renderSignature === nextSignature) return;
 
-        renderGames(grid, nextList, isPt);
+        renderGames(grid, groups, isPt);
         state.renderSignature = nextSignature;
     };
 
@@ -523,6 +253,7 @@ function formatUnixTime(timestamp) {
                     id: `jogo_${j.title?.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/ /g, '-').replace(/[^\w-]/g, '') || Math.random()}`,
                     nome: j.title,
                     imagem: j.image,
+                    sport: j.sport,
                     url: Array.isArray(j.players) ? j.players[0] : (j.players || ""),
                     categoria: "⚽ Jogos Ao Vivo",
                     hora_inicio: j.data?.timer?.start ? normalizeTimestamp(j.data.timer.start) : null,
@@ -601,8 +332,8 @@ function formatUnixTime(timestamp) {
                             card.setAttribute('data-is-vip', 'true');
                             if (!card.querySelector('.bf-vip-star')) {
                                 const star = document.createElement('div');
-                                star.className = 'bf-vip-star absolute bottom-3 right-3 z-20';
-                                star.innerHTML = '<div class="bg-black rounded-lg p-2 shadow-2xl border border-white/5"><svg class="w-4 h-4 text-[#DF0912]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>';
+                                star.className = 'bf-vip-star absolute bottom-2 right-2 z-20';
+                                star.innerHTML = '<svg class="w-3.5 h-3.5 text-[#DF0912]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>';
                                 card.appendChild(star);
                             }
                         }
@@ -616,15 +347,7 @@ function formatUnixTime(timestamp) {
         }
     }
 
-    function renderGames(container, games, isPt) {
-        const watchLabel = isPt ? 'ASSISTIR' : 'WATCH';
-        const championshipLabel = isPt ? 'Campeonato' : 'Championship';
-        const atLabel = isPt ? 'ÀS' : 'AT';
-        const inLabel = isPt ? 'EM' : 'IN';
-        const minLabel = isPt ? 'MIN' : 'MIN';
-        const startLabel = isPt ? 'INÍCIO DO JOGO' : 'MATCH START';
-        const section = document.getElementById('live-games-section');
-        
+    function renderGames(container, groups, isPt) {
         // Lê o blob VIP compartilhado da página (emitido por LayoutCardTV) em vez de
         // carregar uma segunda cópia serializada da mesma lista — eram 20 KB duplicados.
         // Sem o blob os jogos ainda renderizam, só sem o selo VIP.
@@ -640,102 +363,9 @@ function formatUnixTime(timestamp) {
                 }));
             }
         } catch (e) {}
-        
-        container.innerHTML = games.map(game => {
-            const gameTitle = game.nome || game.title || '';
-            const titleParts = gameTitle.split(/\s+[xX]\s+/);
-            const parsedHome = { name: titleParts[0]?.trim() || null, image: null };
-            const parsedAway = { name: titleParts[1]?.trim() || null, image: null };
-            const homeTeam = (game.data?.teams?.home?.name) ? game.data.teams.home : (parsedHome.name ? parsedHome : (game.data?.teams?.home || {}));
-            const awayTeam = (game.data?.teams?.away?.name) ? game.data.teams.away : (parsedAway.name ? parsedAway : (game.data?.teams?.away || {}));
-            const league = game.data?.league || championshipLabel;
-            
-            // Timer logic for client-side card status
-            const start = Number(game.hora_inicio);
-            const end = game.hora_fim || (start + 9000);
-            const now = Math.floor(Date.now() / 1000);
-            
-            let statusBadge = '';
-            let isLive = false;
-            let isUpcoming = false;
-            let timeLabel = '';
-            
-            if (start && end) {
-                if (now >= start && now <= end) {
-                    isLive = true;
-                    statusBadge = `<div class="flex items-center gap-1.5 bg-[#DF0912] px-2.5 py-1.5"><span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-white"></span></span><span class="text-[9px] font-black text-white uppercase tracking-wider italic">${isPt ? 'AO VIVO' : 'LIVE'}</span></div>`;
-                } else if (now < start) {
-                    isUpcoming = true;
-                    const diffMin = Math.ceil((start - now) / 60);
-                    let label = '';
-                    if (diffMin > 60) {
-                        const date = new Date(start * 1000);
-                        const timeStr = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Sao_Paulo' });
-                        label = `${atLabel} ${timeStr}`;
-                    } else {
-                        label = `${inLabel} ${diffMin}${minLabel}`;
-                    }
-                    statusBadge = `<div class="flex items-center gap-1.5 bg-[#FFCC00] px-2.5 py-1.5"><svg class="w-3 h-3 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span class="text-[9px] font-black text-black uppercase tracking-wider italic">${label}</span></div>`;
-                } else {
-                    statusBadge = `<div class="flex items-center gap-1.5 bg-gray-600 px-2.5 py-1.5"><svg class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg><span class="text-[9px] font-black text-white uppercase tracking-wider italic">${isPt ? 'ENCERRADO' : 'ENDED'}</span></div>`;
-                }
-            } else {
-                statusBadge = `<div class="flex items-center gap-1.5 bg-[#FFCC00] px-2.5 py-1.5"><span class="text-[9px] font-black text-black uppercase tracking-wider italic">${startLabel}</span></div>`;
-            }
 
-            if (start) {
-                try {
-                    const date = new Date(start * 1000);
-                    timeLabel = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Sao_Paulo' });
-                } catch(e) {}
-            }
-
-            // VIP Check
-            const canalId = game.id || `jogo_${game.nome?.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, "").replace(/ /g, '-').replace(/[^\w-]/g, '')}`;
-            
-            const isVip = Array.from(buildVipCandidates(canalId, game.nome || game.title)).some((k) => vipSet.has(k));
-
-            const vipBadge = isVip ? `<div class="absolute bottom-3 right-3 z-20"><div class="bg-black rounded-lg p-2 shadow-2xl border border-white/5 group-hover:scale-110 transition-transform duration-300"><svg class="w-4 h-4 text-[#DF0912]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div></div>` : '';
-
-            const homeImg = homeTeam.image ? `<img src="${homeTeam.image.includes('cloudfront.net') ? `${homeTeam.image}?w=96&h=96&fit=max` : homeTeam.image}" alt="${homeTeam.name}" width="80" height="80" class="w-full h-full object-contain" loading="lazy" decoding="async" />` : `<span class="text-xs font-black text-white/50">${homeTeam.name?.charAt(0) || 'H'}</span>`;
-            const awayImg = awayTeam.image ? `<img src="${awayTeam.image.includes('cloudfront.net') ? `${awayTeam.image}?w=96&h=96&fit=max` : awayTeam.image}" alt="${awayTeam.name}" width="80" height="80" class="w-full h-full object-contain" loading="lazy" decoding="async" />` : `<span class="text-xs font-black text-white/50">${awayTeam.name?.charAt(0) || 'A'}</span>`;
-
-            const targetSlug = slugifyLocal(game.nome || game.title);
-
-            return `
-                <a href="${isPt ? '' : '/en'}/canal/${targetSlug}"
-                   data-is-vip="${isVip}"
-                   data-canal-id="${canalId}"
-                   data-game-end="${end || ''}"
-                   class="bf-live-card group relative block bg-[#0E111A] border border-white/5 hover:border-[#DF0912]/50 transition-all duration-500 hover:-translate-y-1"
-                >
-                    <div class="absolute top-3 left-3 z-20">${statusBadge}</div>
-                    <div class="absolute top-3 right-3 z-20"><div class="bg-black/60 px-2.5 py-1.5 border border-white/10"><span class="text-[8px] font-black text-white/80 uppercase tracking-wider truncate max-w-[100px] block">${league}</span></div></div>
-                    ${vipBadge}
-                    <div class="p-5 pt-12 aspect-square flex flex-col justify-center">
-                        <div class="flex items-center justify-center gap-4 sm:gap-6">
-                            <div class="flex flex-col items-center gap-3">
-                                <div class="w-20 h-20 bg-white/5 rounded-full p-3 border border-white/10 group-hover:border-[#DF0912]/40 group-hover:bg-white/10 transition-all duration-300 flex items-center justify-center">${homeImg}</div>
-                                <span class="text-[11px] font-bold text-white uppercase tracking-tight text-center line-clamp-1 max-w-[90px]">${homeTeam.name || "Home"}</span>
-                            </div>
-                            <div class="flex flex-col items-center"><span class="text-3xl font-black text-[#DF0912] italic">VS</span></div>
-                            <div class="flex flex-col items-center gap-3">
-                                <div class="w-20 h-20 bg-white/5 rounded-full p-3 border border-white/10 group-hover:border-[#DF0912]/40 group-hover:bg-white/10 transition-all duration-300 flex items-center justify-center">${awayImg}</div>
-                                <span class="text-[11px] font-bold text-white uppercase tracking-tight text-center line-clamp-1 max-w-[90px]">${awayTeam.name || "Away"}</span>
-                            </div>
-                        </div>
-                        ${!isLive && timeLabel ? `<div class="flex flex-col items-center mt-4"><div class="bg-black/40 px-3 py-1.5 border border-white/5 backdrop-blur-sm"><span class="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em]">${startLabel}: <span class="text-white">${timeLabel}</span></span></div></div>` : ''}
-                        <div class="flex items-center justify-center mt-4 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300">
-                            <div class="bg-[#DF0912] px-6 py-3 group-hover:bg-[#be080f] transition-colors">
-                                <span class="text-xs font-black text-white uppercase tracking-widest italic flex items-center gap-2">
-                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>${watchLabel}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </a>
-            `;
-        }).join('');
+        const isVip = (game) => Array.from(buildVipCandidates(game.canalId, game.title)).some((k) => vipSet.has(k));
+        container.innerHTML = renderGroupsHtml(groups, { isPt, langPrefix: isPt ? '' : '/en', isVip });
     }
 
     // Remove cards que encerraram com a aba aberta. É só leitura de DOM, sem rede:
@@ -748,6 +378,9 @@ function formatUnixTime(timestamp) {
         grid.querySelectorAll('.bf-live-card').forEach((card) => {
             const end = Number(card.getAttribute('data-game-end'));
             if (end > 0 && nowSec > end) card.remove();
+        });
+        grid.querySelectorAll('.bf-sport-group').forEach((group) => {
+            if (!group.querySelector('.bf-live-card')) group.remove();
         });
         if (grid.querySelectorAll('.bf-live-card').length === 0) {
             section.style.display = 'none';

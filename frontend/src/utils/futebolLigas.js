@@ -97,8 +97,20 @@ export const LIGAS = [
 /** Config de uma liga pelo slug, ou null se o slug não existir. */
 export const obterLiga = (slug) => LIGAS.find((liga) => liga.slug === slug) || null;
 
-/** True se o jogo pertence à liga. Liga sem `matchers` (hub geral) aceita tudo. */
+/**
+ * Esporte do jogo, vindo de `sport` na API ("Futebol", "Basquete"...). Jogo sem o campo é
+ * futebol: era o único esporte da fonte antes de ela passar a mandar `sport`.
+ */
+export const esporteDoJogo = (jogo) => {
+    const bruto = String(jogo?.sport || jogo?.data?.sport || "").trim();
+    return { slug: bruto ? slugify(bruto) : "futebol", nome: bruto || "Futebol" };
+};
+
+export const ehFutebol = (jogo) => esporteDoJogo(jogo).slug === "futebol";
+
+/** True se o jogo pertence à liga. Liga sem `matchers` (hub geral) aceita qualquer jogo de futebol. */
 export const jogoPertenceALiga = (jogo, liga) => {
+    if (!ehFutebol(jogo)) return false;
     if (!liga?.matchers) return true;
     const nomeLiga = normalizarLiga(jogo?.data?.league);
     if (!nomeLiga) return false;

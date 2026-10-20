@@ -10,7 +10,8 @@
 // they expire after kickoff.
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { fetchAllRelevantGames, isGameLive, getGameTimeStatus } from "../../services/liveGamesService.js";
-import { LIGAS, obterLiga, jogoPertenceALiga } from "../../utils/futebolLigas.js";
+import PartidaCard from "./PartidaCard.astro";
+import { LIGAS, obterLiga, jogoPertenceALiga, esporteDoJogo, ehFutebol } from "../../utils/futebolLigas.js";
 import { slugify } from "../../utils/slugify.js";
 import { getSiteUrl } from "../../services/env-adapter.js";
 import { getLangFromUrl } from "../../i18n/utils";
@@ -28,12 +29,16 @@ const copy = isPt ? liga.pt : liga.en;
 // Regra 2.2: nenhum await de SSR sem rede de proteção. Grade vazia é uma página com empty
 // state; uma exceção aqui seria um 5xx na cara do Googlebot.
 let jogos = [];
+let jogosOutros = [];
 try {
-    const todos = await fetchAllRelevantGames();
-    jogos = (todos || []).filter((jogo) => jogoPertenceALiga(jogo, liga));
+    const todos = (await fetchAllRelevantGames()) || [];
+    jogos = todos.filter((jogo) => jogoPertenceALiga(jogo, liga));
+    // Outros esportes (basquete etc.) só entram no hub geral; as páginas de liga são de futebol.
+    jogosOutros = liga.matchers ? [] : todos.filter((jogo) => !ehFutebol(jogo));
 } catch (e) {
     console.error(`[FutebolHub] Falha ao carregar jogos da liga ${ligaSlug}:`, e?.message || e);
     jogos = [];
+    jogosOutros = [];
 }
 
 const normalizarTimestamp = (ts) => {
@@ -71,20 +76,66 @@ const formatarData = (ts) => {
     }
 };
 
-const partidas = jogos.slice(0, 60).map((jogo) => ({
-    titulo: jogo?.title || "",
-    href: `${langPrefix}/canal/${slugify(jogo?.title)}`,
+// A hora de início vem em DOIS lugares, dependendo da fonte: `data.timer.start`
+// (formato do provedor antigo) e `hora_inicio` (o que /api/jogos.json devolve
+// hoje, em epoch de segundos). O hub só lia o primeiro — com `timer: ""` toda
+// partida virava inicio=0, e a seção "Próximos jogos" nunca renderizava porque
+// nenhuma passava no teste `inicio > agora`.
+const inicioDe = (jogo) =>
+    normalizarTimestamp(jogo?.data?.timer?.start) || normalizarTimestamp(jogo?.hora_inicio);
+
+const montarPartida = (jogo) => ({
+    titulo: jogo?.title || jogo?.nome || "",
+    href: `${langPrefix}/canal/${slugify(jogo?.title || jogo?.nome)}`,
     casa: jogo?.data?.teams?.home || null,
     fora: jogo?.data?.teams?.away || null,
     campeonato: jogo?.data?.league || liga[isPt ? "pt" : "en"].nome,
     aoVivo: isGameLive(jogo),
-    inicio: normalizarTimestamp(jogo?.data?.timer?.start),
-    horario: formatarHorario(jogo?.data?.timer?.start),
-    data: formatarData(jogo?.data?.timer?.start),
+    inicio: inicioDe(jogo),
+    horario: formatarHorario(inicioDe(jogo)),
+    data: formatarData(inicioDe(jogo)),
     status: getGameTimeStatus(jogo),
-}));
+});
+
+const partidas = jogos.slice(0, 60).map(montarPartida);
+
+const nomesEsporteEn = { basquete: "Basketball", beisebol: "Baseball", volei: "Volleyball", tenis: "Tennis", "futebol-americano": "American Football" };
+const gruposOutros = [];
+for (const jogo of jogosOutros.slice(0, 60)) {
+    const { slug, nome } = esporteDoJogo(jogo);
+    let grupo = gruposOutros.find((g) => g.slug === slug);
+    if (!grupo) {
+        grupo = { slug, nome: isPt ? nome : (nomesEsporteEn[slug] || nome), partidas: [] };
+        gruposOutros.push(grupo);
+    }
+    grupo.partidas.push(montarPartida(jogo));
+}
 
 const totalAoVivo = partidas.filter((p) => p.aoVivo).length;
+
+// "Próximos dias": partidas que ainda não entraram no ar, agrupadas por data.
+//
+// A grade acima mostra tudo junto, com selo de data/hora. Esta seção existe
+// porque a intenção de busca é OUTRA: "jogos de amanhã", "próximos jogos",
+// "agenda da semana" — quem procura isso não quer a grade de hoje. Agrupar por
+// dia é o que permite (a) o visitante achar o dia dele e (b) o texto da página
+// conter as datas por extenso, em vez de só um selo curto no card.
+const agoraSegundos = Math.floor(Date.now() / 1000);
+const proximos = partidas
+    .filter((p) => !p.aoVivo && p.inicio > agoraSegundos)
+    .sort((a, b) => a.inicio - b.inicio);
+
+// Agrupa preservando a ordem cronológica. `data` já vem formatada por partida
+// ("21 de out."), então o rótulo do grupo é o do primeiro jogo do dia.
+const gruposProximos = [];
+for (const partida of proximos) {
+    const ultimo = gruposProximos[gruposProximos.length - 1];
+    if (ultimo && ultimo.rotulo === partida.data) {
+        ultimo.jogos.push(partida);
+    } else {
+        gruposProximos.push({ rotulo: partida.data, jogos: [partida] });
+    }
+}
 
 // SportsEvent por partida + ItemList do conjunto: é o que dá ao Google a leitura de
 // "grade de jogos" em vez de uma página de links solta.
@@ -192,7 +243,7 @@ const palavrasChave = isPt
                 ))}
             </nav>
 
-            {partidas.length === 0 ? (
+            {partidas.length === 0 && gruposOutros.length === 0 ? (
                 <div class="border border-white/10 bg-[#0E111A] p-10 sm:p-16 text-center">
                     <h2 class="text-xl sm:text-2xl font-black uppercase italic tracking-tight mb-3">
                         {isPt ? "Nenhuma partida na grade agora" : "No matches scheduled right now"}
@@ -212,66 +263,68 @@ const palavrasChave = isPt
             ) : (
                 <section aria-label={copy.heading}>
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
-                        {partidas.map((partida) => (
-                            <a
-                                href={partida.href}
-                                class="group relative block bg-[#0E111A] border border-white/5 hover:border-[#DF0912]/50 transition-all duration-500 hover:-translate-y-1"
-                            >
-                                <div class="flex items-center justify-between px-4 pt-4">
-                                    {partida.aoVivo ? (
-                                        <span class="inline-flex items-center gap-1.5 bg-[#DF0912] px-2.5 py-1">
-                                            <span class="relative flex h-2 w-2">
-                                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                                                <span class="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-                                            </span>
-                                            <span class="text-[9px] font-black uppercase tracking-wider italic">{isPt ? "Ao vivo" : "Live"}</span>
-                                        </span>
-                                    ) : (
-                                        <span class="inline-block bg-white/5 border border-white/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-gray-300">
-                                            {partida.data} · {partida.horario}
-                                        </span>
-                                    )}
-                                    <span class="text-[8px] font-black uppercase tracking-wider text-white/50 truncate max-w-[110px]">
-                                        {partida.campeonato}
-                                    </span>
-                                </div>
+                        {partidas.map((partida) => <PartidaCard partida={partida} isPt={isPt} />)}
+                    </div>
+                </section>
+            )}
 
-                                <div class="p-5 flex flex-col items-center justify-center gap-4">
-                                    <div class="flex items-center justify-center gap-5 w-full">
-                                        {[partida.casa, partida.fora].map((time, indice) => (
-                                            <>
-                                                {indice === 1 && <span class="text-xl font-black text-[#DF0912] italic">VS</span>}
-                                                <div class="flex flex-col items-center gap-2 flex-1 min-w-0">
-                                                    {time?.image ? (
-                                                        <img
-                                                            src={time.image}
-                                                            alt={time.name || ""}
-                                                            width="64"
-                                                            height="64"
-                                                            loading="lazy"
-                                                            decoding="async"
-                                                            class="w-14 h-14 sm:w-16 sm:h-16 object-contain bg-white/5 rounded-full p-2.5 border border-white/10 group-hover:border-[#DF0912]/40 transition-colors duration-300"
-                                                        />
-                                                    ) : (
-                                                        <span class="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center bg-white/5 rounded-full border border-white/10 text-sm font-black text-white/50">
-                                                            {time?.name?.charAt(0) || "?"}
-                                                        </span>
-                                                    )}
-                                                    <span class="text-[11px] font-bold uppercase tracking-tight text-center line-clamp-2">
-                                                        {time?.name || (indice === 0 ? (isPt ? "Casa" : "Home") : (isPt ? "Visitante" : "Away"))}
+            {/* Outros esportes — só no hub geral. As páginas de liga são de futebol por definição. */}
+            {gruposOutros.map((grupo) => (
+                <section class="mt-16" aria-label={grupo.nome}>
+                    <h2 class="text-2xl sm:text-3xl font-black uppercase italic tracking-tighter mb-6 flex items-center gap-3">
+                        <span class="w-1.5 h-7 bg-[#DF0912]"></span>
+                        {grupo.nome} {isPt ? "ao vivo" : "live"}
+                    </h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+                        {grupo.partidas.map((partida) => <PartidaCard partida={partida} isPt={isPt} />)}
+                    </div>
+                </section>
+            ))}
+
+            {/* Próximos dias — links reais para as páginas de partida, agrupados por data.
+                É a superfície que atende "jogos de amanhã" / "próximos jogos", intenção
+                diferente da grade ao vivo acima. */}
+            {gruposProximos.length > 0 && (
+                <section class="mt-16" aria-label={isPt ? "Próximos jogos" : "Upcoming matches"}>
+                    <h2 class="text-2xl sm:text-3xl font-black uppercase italic tracking-tighter mb-2">
+                        {isPt ? "Próximos jogos" : "Upcoming matches"}
+                    </h2>
+                    <p class="text-sm text-gray-400 mb-8 max-w-3xl">
+                        {isPt
+                            ? "Partidas das próximas rodadas já com data e horário de Brasília. A transmissão fica disponível na página de cada jogo."
+                            : "Fixtures for the coming days with date and Brasilia kickoff time. The stream becomes available on each match page."}
+                    </p>
+
+                    <div class="space-y-8">
+                        {gruposProximos.map((grupo) => (
+                            <div>
+                                <h3 class="text-[11px] font-black uppercase tracking-[0.3em] text-[#DF0912] mb-3 border-b border-white/10 pb-2">
+                                    {grupo.rotulo}
+                                </h3>
+                                <ul class="divide-y divide-white/5">
+                                    {grupo.jogos.map((partida) => (
+                                        <li>
+                                            <a
+                                                href={partida.href}
+                                                class="group flex items-center gap-4 py-3 hover:bg-white/[0.03] transition-colors duration-200 px-2 -mx-2"
+                                            >
+                                                <span class="w-14 shrink-0 text-sm font-black tabular-nums text-[#DF0912]">
+                                                    {partida.horario}
+                                                </span>
+                                                <span class="flex-1 min-w-0">
+                                                    <span class="block text-sm font-bold truncate">{partida.titulo}</span>
+                                                    <span class="block text-[10px] font-black uppercase tracking-wider text-white/40 truncate">
+                                                        {partida.campeonato}
                                                     </span>
-                                                </div>
-                                            </>
-                                        ))}
-                                    </div>
-
-                                    <span class="w-full text-center py-2 bg-white/5 group-hover:bg-[#DF0912] text-[10px] font-black uppercase tracking-widest transition-colors duration-300">
-                                        {partida.aoVivo
-                                            ? (isPt ? "Assistir agora" : "Watch now")
-                                            : partida.status || (isPt ? "Ver detalhes" : "See details")}
-                                    </span>
-                                </div>
-                            </a>
+                                                </span>
+                                                <span class="shrink-0 text-[10px] font-black uppercase tracking-widest text-white/40 group-hover:text-[#DF0912] transition-colors duration-200">
+                                                    {isPt ? "Ver jogo" : "View match"}
+                                                </span>
+                                            </a>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
                         ))}
                     </div>
                 </section>
