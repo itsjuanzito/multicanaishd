@@ -1,4 +1,4 @@
----
+﻿---
 import { slugify } from '../../utils/slugify';
 // src/pages/components/LiveGamesSection.astro
 // Seção de Jogos Ao Vivo - Cards fixos premium
@@ -427,7 +427,6 @@ function formatUnixTime(timestamp) {
         if (!window._bf_live_games_state) {
             window._bf_live_games_state = {
                 renderSignature: '',
-                pendingShrinkSignature: '',
                 isSyncRunning: false
             };
         }
@@ -446,21 +445,10 @@ function formatUnixTime(timestamp) {
         const nextList = games.slice(0, 4);
         const nextSignature = buildGamesSignature(nextList);
 
-        // Anti-flicker: só encolhe a lista se o mesmo resultado menor vier 2x seguidas.
-        if (cardsCount > 0 && nextList.length < cardsCount) {
-            if (state.pendingShrinkSignature !== nextSignature) {
-                state.pendingShrinkSignature = nextSignature;
-                return;
-            }
-        } else {
-            state.pendingShrinkSignature = '';
-        }
-
         if (state.renderSignature === nextSignature) return;
 
         renderGames(grid, nextList, isPt);
         state.renderSignature = nextSignature;
-        state.pendingShrinkSignature = '';
     };
 
     async function syncLiveGames(options = {}) {
@@ -784,7 +772,7 @@ function formatUnixTime(timestamp) {
                 const end = Number(card.getAttribute('data-game-end'));
                 return end > 0 && nowSec > end;
             });
-            const skipGamesUpdate = existingCards >= 4 && !hasEndedCard;
+            const skipGamesUpdate = false;
             
             if (window._bf_live_games_timer) {
                 clearTimeout(window._bf_live_games_timer);

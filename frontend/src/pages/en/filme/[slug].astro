@@ -3,6 +3,7 @@
 // Redirects to canonical English-slug URL, then rewrites to the PT route with lang=en.
 export const prerender = false;
 import { slugDeDetalhes } from '../../../utils/canonicalSlug.js';
+import { resolveRotatedSlug } from '../../../services/urlRotationService.js';
 import { getTMDBDetails } from '../../../services/tmdb.js';
 import { axiomService } from '../../../services/axiom-service.js';
 
@@ -27,7 +28,15 @@ try {
         // Fonte única de verdade compartilhada com o sitemap, a rota PT (lang=en) e o redirect
         // de idioma — se os quatro não calcularem o MESMO slug, cada acesso vira 301 (ou pior,
         // ping-pong entre as rotas). Ver canonicalSlug.js.
-        const expectedEnSlug = slugDeDetalhes(id, details, 'en');
+        // A rotacao anti-DMCA TAMBEM vale aqui. Sem ela a rota comparava o slug do path
+        // com o slug BASE e devolvia 301 do slug rotacionado (?-1) para o slug
+        // denunciado, que responde 451 -- a rotacao nao servia para nada em /en/.
+        const expectedEnSlug = await resolveRotatedSlug(
+            id,
+            'movie',
+            slugDeDetalhes(id, details, 'en'),
+            'en',
+        );
         if (slug !== expectedEnSlug) {
             // Slug está errado (provavelmente PT) — redireciona para o slug inglês canônico.
             // Slug is wrong (probably PT) — redirect to canonical English slug.
