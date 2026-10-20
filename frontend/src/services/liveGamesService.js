@@ -1,5 +1,5 @@
 // src/services/liveGamesService.js
-// Serviço para buscar jogos ao vivo da nossa API (streambetter.shop)
+// Serviço para buscar jogos ao vivo da nossa API (streambetter.lol)
 import { getConfig } from './configService.js';
 import { getRedisClient } from './redis-client.js';
 
@@ -143,7 +143,7 @@ export async function fetchAllGames() {
  */
 async function executeFetchAllGames() {
     try {
-        const API_URL = await getConfig('SB_GAMES_API_URL', 'https://streambetter.shop/api/games');
+        const API_URL = await getConfig('SB_GAMES_API_URL', 'https://streambetter.lol/api/games');
         const busterUrl = `${API_URL}${API_URL.includes('?') ? '&' : '?'}t=${Date.now()}`;
 
         // A fonte agora libera CORS direto pra gente, então os proxies (codetabs/allorigins)

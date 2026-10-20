@@ -4,7 +4,7 @@
 import { getEnv } from './env-adapter.js';
 
 export function getShopUrl() {
-    return getEnv('STREAMBETTER_SHOP_URL', 'https://streambetter.shop').replace(/\/$/, '');
+    return getEnv('STREAMBETTER_SHOP_URL', 'https://streambetter.lol').replace(/\/$/, '');
 }
 
 export function getEmbedPublicKey() {

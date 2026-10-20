@@ -520,7 +520,7 @@ const { sharedVipBlob = false } = Astro.props;
             // Fallback direto na nossa API (CORS liberado, sem precisar dos proxies que a
             // fonte antiga exigia). / Direct fallback to our own CORS-enabled API.
             try {
-                const res = await fetchWithTimeout('https://streambetter.shop/api/games', {}, 4000);
+                const res = await fetchWithTimeout('https://streambetter.lol/api/games', {}, 4000);
                 if (res.ok) {
                     const data = await res.json();
                     if (Array.isArray(data?.games)) return data.games;

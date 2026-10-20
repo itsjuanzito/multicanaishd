@@ -6,7 +6,7 @@ let cacheData = null;
 let cacheTimestamp = null;
 const CACHE_DURATION = 10 * 60 * 1000; // 10 minutos
 
-const SB_CALENDAR_URL = "https://streambetter.shop/api/calendario";
+const SB_CALENDAR_URL = "https://streambetter.lol/api/calendario";
 const MAX_PAGES = 3; // limite de páginas buscadas (100 itens cada) por segurança
 
 async function fetchCalendarPage(page) {

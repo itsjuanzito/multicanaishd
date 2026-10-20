@@ -1,4 +1,4 @@
-﻿---
+---
 import { slugify } from '../../utils/slugify';
 // src/pages/components/LiveGamesSection.astro
 // Seção de Jogos Ao Vivo - Cards fixos premium
@@ -503,7 +503,7 @@ function formatUnixTime(timestamp) {
             // contornar o bloqueio da fonte antiga. / Our own CORS-enabled API.
             let data = null;
             try {
-                const res = await fetchWithTimeout('https://streambetter.shop/api/games', {}, 4000);
+                const res = await fetchWithTimeout('https://streambetter.lol/api/games', {}, 4000);
                 if (res.ok) {
                     const json = await res.json();
                     if (Array.isArray(json?.games)) data = json.games;

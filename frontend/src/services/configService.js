@@ -54,10 +54,10 @@ function withTimeout(promise, ms) {
 // Valores Hardcoded (Fallbacks Seguros)
 const CONFIG_DEFAULTS = {
     'SOURCE_S1_URL': 'https://superflixapi.pro',
-    // Nossa API (streambetter.shop) — fonte oficial de canais de TV, jogos ao vivo e EPG.
-    'SB_CHANNELS_API_URL': 'https://streambetter.shop/api/channels',
-    'SB_GAMES_API_URL': 'https://streambetter.shop/api/games',
-    'SB_EPG_API_URL': 'https://streambetter.shop/api/epg',
+    // Nossa API (streambetter.lol) — fonte oficial de canais de TV, jogos ao vivo e EPG.
+    'SB_CHANNELS_API_URL': 'https://streambetter.lol/api/channels',
+    'SB_GAMES_API_URL': 'https://streambetter.lol/api/games',
+    'SB_EPG_API_URL': 'https://streambetter.lol/api/epg',
     'SUPERFLIX_DOMAINS': 'https://superflixapi.pro,https://superflixapi.online,https://superflixapi.buzz,https://superflixapi.asia',
     'AD_PROVIDER': 'adsterra',
     // Base da função Supabase (redetoons.lol trocou de site próprio pra Supabase Edge

@@ -5,7 +5,7 @@ import { slugify } from '../utils/slugify.js';
 import { getRedisClient } from './redis-client.js';
 import { axiomService } from './axiom-service.js';
 
-// v7: a fonte dos canais mudou de embedtv.lat para a nossa API (streambetter.shop) e os IDs
+// v7: a fonte dos canais mudou de embedtv.lat para a nossa API (streambetter.lol) e os IDs
 // passaram a ser slugs nossos. Reaproveitar o blob v6 serviria canais mortos com IDs que não
 // existem mais. / Cache key bumped because channel IDs changed with the provider swap.
 const REDIS_CANAIS_CACHE_KEY = 'multicanaishd_canais_cache_v7';
@@ -120,7 +120,7 @@ export async function fetchJogos() {
         // Sem os proxies CORS (codetabs/allorigins) que existiam pra contornar bloqueio da
         // EmbedTV: a API é nossa, o fetch é server-side e cada proxy era mais uma requisição
         // paga a terceiro em toda montagem de cache. / Our own API needs no CORS proxies.
-        const baseApiUrl = await getConfig(SB_GAMES_URL_KEY, 'https://streambetter.shop/api/games');
+        const baseApiUrl = await getConfig(SB_GAMES_URL_KEY, 'https://streambetter.lol/api/games');
         const apiUrl = `${baseApiUrl}${baseApiUrl.includes('?') ? '&' : '?'}t=${Date.now()}`;
 
         const payload = await fetchNossaApi(apiUrl, JOGOS_TIMEOUT);
@@ -259,8 +259,11 @@ export async function fetchCanais(forceFreshJogos = false) {
     }
 
     // 5. Se NÃO temos cache inicial de forma alguma (Cold Start + Cache Miss no Redis), busca com timeout
+    if (state.currentFetchPromise && Date.now() - (state.canaisFetchStartedAt || 0) > CANAIS_FETCH_CEILING_MS) {
+        state.currentFetchPromise = null;
+    }
     if (state.currentFetchPromise) {
-        return state.currentFetchPromise;
+        return withCeiling(state.currentFetchPromise, CANAIS_FETCH_CEILING_MS, state.canaisCache || []);
     }
 
     console.log('📡 [Service] Sem cache inicial e Redis vazio. Buscando de forma síncrona com timeout estrito de 8.5 segundos...');
@@ -328,6 +331,7 @@ export async function fetchCanais(forceFreshJogos = false) {
     // ficava servindo a mesma promise pendurada (o 524 medido em /canal/*).
     const promessa = withCeiling(buscaInicial, CANAIS_FETCH_CEILING_MS, state.canaisCache || []);
     state.currentFetchPromise = promessa;
+    state.canaisFetchStartedAt = Date.now();
     const liberar = () => {
         if (state.currentFetchPromise === promessa) state.currentFetchPromise = null;
     };
@@ -372,7 +376,7 @@ async function fetchNossosCanais() {
     // Teto de páginas: a API pagina em no máximo 100 por vez e hoje são ~135 canais. O limite
     // impede que uma paginação inconsistente vire um laço infinito dentro do SSR.
     const MAX_PAGES = 5;
-    const apiUrl = await getConfig(SB_CHANNELS_URL_KEY, 'https://streambetter.shop/api/channels');
+    const apiUrl = await getConfig(SB_CHANNELS_URL_KEY, 'https://streambetter.lol/api/channels');
 
     try {
         const primeira = await fetchNossosCanaisPagina(apiUrl, 1, FETCH_TIMEOUT);
@@ -426,7 +430,7 @@ const EPG_HOURS_FUTURE = 36;
 
 async function fetchEpgAll() {
     try {
-        const epgBase = await getConfig(SB_EPG_URL_KEY, 'https://streambetter.shop/api/epg');
+        const epgBase = await getConfig(SB_EPG_URL_KEY, 'https://streambetter.lol/api/epg');
         const separador = epgBase.includes('?') ? '&' : '?';
         const epgUrl = `${epgBase}${separador}channel=all&hoursPast=${EPG_HOURS_PAST}&hoursFuture=${EPG_HOURS_FUTURE}`;
 
@@ -599,7 +603,14 @@ export async function fetchVipChannels(forceFresh = false) {
         return state.vipChannelsCache;
     }
 
-    if (state.currentVipFetchPromise) return state.currentVipFetchPromise;
+    // Teto por chamador: o timer do teto compartilhado nasce na requisição que iniciou a busca
+    // e morre com ela no Workers, deixando a promise pendurada para todas as seguintes.
+    if (state.currentVipFetchPromise && Date.now() - (state.vipFetchStartedAt || 0) > VIP_FETCH_CEILING_MS) {
+        state.currentVipFetchPromise = null;
+    }
+    if (state.currentVipFetchPromise) {
+        return withCeiling(state.currentVipFetchPromise, VIP_FETCH_CEILING_MS, state.vipChannelsCache || []);
+    }
 
     const buscaVip = (async () => {
         let timeoutId;
@@ -633,6 +644,7 @@ export async function fetchVipChannels(forceFresh = false) {
     // também /canal/* (que monta o cadeado VIP aqui).
     const promessa = withCeiling(buscaVip, VIP_FETCH_CEILING_MS, state.vipChannelsCache || []);
     state.currentVipFetchPromise = promessa;
+    state.vipFetchStartedAt = Date.now();
     const liberar = () => {
         if (state.currentVipFetchPromise === promessa) state.currentVipFetchPromise = null;
     };

@@ -6,7 +6,7 @@ import { getShopUrl } from "./streamEmbedService.js";
 // Endpoint da StreamBetter com TODOS os tmdb_id do catálogo numa resposta só (~100 KB gzip),
 // separados por categoria. Substitui a varredura de ~320 páginas de /api/filmes|series|...,
 // que levava minutos (120 req/min por IP) e, quando falhava no meio, gravava categorias
-// vazias no KV. Ver streambetter.shop/docs.
+// vazias no KV. Ver streambetter.lol/docs.
 const IDS_PATH = '/api/titles/ids';
 const CATEGORY_KEYS = { movies: 'movie', series: 'tv', anime: 'anime', doramas: 'dorama' };
 
