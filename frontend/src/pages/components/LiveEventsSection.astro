@@ -1,0 +1,66 @@
+---
+// src/pages/components/LiveEventsSection.astro
+// Seção de Eventos Ao Vivo (lutas, shows, transmissões especiais) — fica acima de Jogos Ao Vivo.
+// Só renderiza quando há evento cadastrado; sem eventos, a seção inteira some.
+import { renderEventsHtml } from '../../utils/liveEventsRender.js';
+import { getLangFromUrl, useTranslations } from "../../i18n/utils";
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+const langPrefix = isPt ? "" : `/${lang}`;
+
+const { initialEvents = [] } = Astro.props;
+const eventsHtml = initialEvents.length > 0 ? renderEventsHtml(initialEvents, { isPt, langPrefix }) : '';
+---
+
+<section class="py-10 w-full mx-auto relative z-20 overflow-hidden" id="live-events-section" data-lang-prefix={langPrefix} style={initialEvents.length === 0 ? "display: none;" : ""}>
+    <div class="px-4 sm:px-6 lg:px-12">
+        <div class="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
+            <h2 class="text-2xl sm:text-5xl font-black text-white tracking-tighter uppercase italic flex items-center gap-3 sm:gap-4">
+                <span class="w-1.5 h-7 sm:h-12 bg-[#DF0912]"></span>
+                {t('home.live_events')}
+            </h2>
+        </div>
+        <div id="live-events-grid" set:html={eventsHtml}></div>
+    </div>
+</section>
+
+<script>
+import { renderEventsHtml } from '../../utils/liveEventsRender.js';
+
+// Recuperação no cliente: se o SSR veio vazio (timeout da API), busca direto da fonte (CORS
+// liberado, não passa pelo Worker). Roda só com a grade vazia; com cards SSR não faz nada.
+document.addEventListener("astro:page-load", () => {
+    const section = document.getElementById('live-events-section');
+    const grid = document.getElementById('live-events-grid');
+    if (!section || !grid) {
+        return;
+    }
+    if (grid.children.length > 0) {
+        return;
+    }
+    const isPt = !window.location.pathname.startsWith('/en');
+    const run = async () => {
+        try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 4000);
+            const res = await fetch('https://streambetter.lol/api/events', { signal: controller.signal });
+            clearTimeout(timer);
+            if (!res.ok) {
+                return;
+            }
+            const json = await res.json();
+            const events = Array.isArray(json?.events) ? json.events : [];
+            if (events.length === 0) {
+                return;
+            }
+            grid.innerHTML = renderEventsHtml(events, { isPt, langPrefix: section.dataset.langPrefix || '' });
+            section.style.display = 'block';
+        } catch (e) {
+            console.warn('[Live Events] Falha na recuperação:', e?.message || e);
+        }
+    };
+    setTimeout(run, 2000);
+});
+</script>

@@ -58,6 +58,7 @@ import Top10Section from "./components/Top10Section.astro";
 import BannerAd from "./components/ads/BannerAd.astro";
 import RecentEpisodes from "./components/RecentEpisodes.astro";
 import LiveGamesSection from "./components/LiveGamesSection.astro";
+import LiveEventsSection from "./components/LiveEventsSection.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { fetchTrending } from "../services/trendingService";
 import { fetchCanais, fetchVipChannels } from "../services/channelsService.js";
@@ -97,8 +98,9 @@ import { getContentList } from "../services/content-lists.js";
 import { isKidsProfile, filtrarItensInfantis } from "../services/kidsProfile.js";
 import { reforcarComClassificacao } from "../services/contentRating.js";
 import { fetchTodayRelevantGames } from "../services/liveGamesService.js";
+import { fetchLiveEvents } from "../services/liveEventsService.js";
 
-let trendingAll = [], canaisTVData = [], liveGamesData = [], vipIdsData = [];
+let trendingAll = [], canaisTVData = [], liveGamesData = [], vipIdsData = [], liveEventsData = [];
 let listAction = [], listAnime = [], listComedy = [], listHorror = [], listDorama = [], listFamily = [];
 
 try {
@@ -143,7 +145,14 @@ try {
             PER_SOURCE_TIMEOUT_MS
         ))
     ]);
-    const results = await Promise.allSettled(dataPromises.map(comTeto));
+    // Eventos ao vivo ficam fora de dataPromises de propósito: os índices acima são
+    // posicionais e as prateleiras do crawler entram condicionalmente no fim.
+    const eventsPromise = isKids ? Promise.resolve([]) : comTeto(fetchLiveEvents()).catch(() => []);
+    const [results, eventsRes] = await Promise.all([
+        Promise.allSettled(dataPromises.map(comTeto)),
+        eventsPromise
+    ]);
+    liveEventsData = eventsRes || [];
 
     // [DIAGNÓSTICO] Desabilitado em produção — use o dashboard de erros do servidor
     // Diagnostic logs disabled — use server error dashboard instead
@@ -381,6 +390,13 @@ const preloadImageSizes = getBackdropSizes(isMobileUA);
             <section class="mt-12 relative z-30">
                 <ContinueWatching />
             </section>
+
+            {/* Live Events Section - Eventos Ao Vivo, acima dos jogos (fora do perfil infantil) */}
+            {!isKids && (
+                <section class="relative z-20">
+                    <LiveEventsSection initialEvents={liveEventsData} />
+                </section>
+            )}
 
             {/* Live Games Section - Jogos Ao Vivo (fora do perfil infantil) */}
             {!isKids && (

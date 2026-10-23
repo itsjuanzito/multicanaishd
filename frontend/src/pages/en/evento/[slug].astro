@@ -1,0 +1,6 @@
+---
+// src/pages/en/evento/[slug].astro
+export const prerender = false;
+const { slug } = Astro.params;
+return Astro.rewrite(`/evento/${slug}?lang=en`);
+---

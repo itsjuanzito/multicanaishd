@@ -1,0 +1,104 @@
+---
+// src/pages/evento/[slug].astro
+// Player de evento ao vivo (embed público da StreamBetter). Efêmero por natureza: noindex.
+// @ts-nocheck
+import "../../styles/global.css";
+export const prerender = false;
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { getLangFromUrl, useTranslations } from "../../i18n/utils";
+import { fetchLiveEvents } from "../../services/liveEventsService.js";
+import { buildEmbedUrl, getShopUrl, getEmbedPublicKey } from "../../services/streamEmbedService.js";
+
+const lang = getLangFromUrl(Astro.url);
+const t = useTranslations(lang);
+const isPt = lang === "pt";
+const langPrefix = isPt ? "" : `/${lang}`;
+
+const { slug } = Astro.params;
+if (!slug) return Astro.redirect("/");
+
+let events = [];
+try {
+    events = await fetchLiveEvents();
+} catch (e) {
+    console.error("[Evento] Falha ao buscar eventos:", e);
+}
+const evento = events.find((e) => e.slug === slug);
+const titulo = evento?.title || slug.replace(/-/g, " ").replace(/(^\w|\s\w)/g, (m) => m.toUpperCase());
+
+// Sem chave no SSR (HTML cacheável, não varia por viewer): o cliente inclui a chave se for VIP.
+const embedUrl = buildEmbedUrl({ kind: "event", slug, includeKey: false });
+const seoTitle = isPt ? `Assistir ${titulo} Ao Vivo - MultiCanaisHD` : `Watch ${titulo} Live - MultiCanaisHD`;
+const seoDescription = isPt
+    ? `Assista ${titulo} ao vivo e grátis em HD no MultiCanaisHD.`
+    : `Watch ${titulo} live for free in HD on MultiCanaisHD.`;
+---
+
+<BaseLayout title={seoTitle} description={seoDescription} image={evento?.cover_url} type="video.other" robots="noindex, nofollow">
+    <main
+        class="flex-grow container mx-auto px-4 py-8 mt-24 sm:mt-28 max-w-7xl relative min-h-[500px]"
+        data-embed-base={getShopUrl()}
+        data-embed-key={getEmbedPublicKey()}
+        data-embed-slug={slug}
+        data-source-url={embedUrl}
+    >
+        <a href={`${langPrefix}/`} class="inline-block mb-4 text-[11px] font-black uppercase tracking-widest text-white/60 hover:text-[#DF0912] transition-colors">← {t('nav.home')}</a>
+        <h1 class="text-2xl sm:text-4xl font-black text-white uppercase italic tracking-tighter mb-6 flex items-center gap-3">
+            <span class="w-1.5 h-7 sm:h-10 bg-[#DF0912]"></span>{titulo}
+        </h1>
+        <div class="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-white/5">
+            <iframe
+                id="eventFrame"
+                src=""
+                title={`${t('tv.watch_title_prefix')} ${titulo}`}
+                allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; web-share *; accelerometer; gyroscope; clipboard-write"
+                allowfullscreen="true"
+                class="absolute top-0 left-0 w-full h-full"
+            ></iframe>
+        </div>
+    </main>
+
+    <script>
+        import { authStore } from "../../store/authStore";
+
+        function isVipAgora() {
+            try {
+                const store = window._authStore || authStore;
+                if (store?.get?.()?.isVIP === true) return true;
+            } catch (e) {}
+            try {
+                const raw = localStorage.getItem('bf_session_optimistic');
+                if (raw && raw !== 'undefined') return JSON.parse(raw)?.isVIP === true;
+            } catch (e) {}
+            return false;
+        }
+
+        // A chave pública tira o anúncio da StreamBetter: só vai no iframe se o viewer for VIP.
+        function montarUrl(main) {
+            const base = main.dataset.embedBase || '';
+            const slug = main.dataset.embedSlug || '';
+            if (!base || !slug) return main.dataset.sourceUrl || '';
+            const key = main.dataset.embedKey || '';
+            return isVipAgora() && key ? `${base}/evento/${slug}?key=${encodeURIComponent(key)}` : `${base}/evento/${slug}`;
+        }
+
+        document.addEventListener('astro:page-load', () => {
+            const main = document.querySelector('main[data-embed-slug]');
+            const frame = document.getElementById('eventFrame');
+            if (!main || !frame) return;
+            frame.src = montarUrl(main);
+            try {
+                const store = window._authStore || authStore;
+                if (!store?.get?.()?.isVIP && store?.subscribe) {
+                    const unsubscribe = store.subscribe((state) => {
+                        if (!state?.isVIP) return;
+                        frame.src = montarUrl(main);
+                        try { unsubscribe(); } catch (e) {}
+                    });
+                }
+            } catch (e) {
+                console.error('[Evento] Falha ao observar VIP:', e);
+            }
+        });
+    </script>
+</BaseLayout>
