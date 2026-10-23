@@ -28,12 +28,15 @@ const badge = (startMs, isPt, now) => {
 const cardHtml = (event, { isPt, langPrefix, now }) => {
     const cover = event.cover_url && /^https?:\/\//.test(event.cover_url) ? event.cover_url : "";
     const startMs = eventStartMs(event.starts_at);
-    const img = cover
-        ? `<img src="${esc(cover)}" alt="${esc(event.title)}" width="320" height="180" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" decoding="async" />`
-        : "";
-    return `<a href="${esc(langPrefix)}/evento/${esc(event.slug)}" data-event-start="${startMs || ""}" class="bf-event-card group relative flex flex-col shrink-0 snap-start w-[250px] sm:w-[calc(25%-9px)] sm:min-w-[230px] bg-[#0E111A] border border-white/5 hover:border-[#DF0912]/50 transition-all duration-300 hover:-translate-y-0.5 overflow-hidden">
-        <div class="relative w-full aspect-video bg-[#141414] overflow-hidden">${img}<div class="absolute top-2 left-2 z-10">${badge(startMs, isPt, now)}</div></div>
-        <div class="p-3"><span class="text-[12px] font-black text-white uppercase tracking-tight line-clamp-2">${esc(event.title)}</span></div>
+    const thumb = cover
+        ? `<img src="${esc(cover)}" alt="${esc(event.title)}" width="48" height="48" class="w-full h-full object-cover object-top" loading="lazy" decoding="async" />`
+        : `<span class="text-[10px] font-black text-white/50">${esc(event.title?.charAt(0) || "?")}</span>`;
+    return `<a href="${esc(langPrefix)}/evento/${esc(event.slug)}" data-event-start="${startMs || ""}" class="bf-event-card group relative flex flex-col gap-3 shrink-0 snap-start w-[250px] sm:w-[calc(25%-9px)] sm:min-w-[230px] bg-[#0E111A] border border-white/5 hover:border-[#DF0912]/50 p-3 transition-all duration-300 hover:-translate-y-0.5">
+        <div class="flex items-center justify-between gap-2">${badge(startMs, isPt, now)}</div>
+        <div class="flex items-center gap-3 min-h-[48px]">
+            <div class="w-12 h-12 shrink-0 bg-white/5 rounded-full overflow-hidden border border-white/10 group-hover:border-[#DF0912]/40 transition-colors duration-300 flex items-center justify-center">${thumb}</div>
+            <span class="text-[11px] font-bold text-white uppercase tracking-tight line-clamp-2">${esc(event.title)}</span>
+        </div>
     </a>`;
 };
 
