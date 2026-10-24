@@ -221,7 +221,7 @@ const { sharedVipBlob = false } = Astro.props;
                         data-canal-nome={canal.nome}
                         data-canal-id={canal.id}
                         data-astro-prefetch
-                        class="bf-tv-card group relative flex flex-col items-center p-4 bg-[#161B28] border border-white/5 rounded-xl transition-all duration-300 hover:-translate-y-1 hover:border-[#DF0912]/50 overflow-hidden tv-card"
+                        class="bf-tv-card group relative flex flex-col items-center p-4 bg-[#161B28] border border-white/5 rounded-xl transition-all duration-300 hover:-translate-y-1 hover:border-[#DF0912]/50 overflow-hidden tv-card self-start"
                     >
                         {isVip && (
                             <div class="absolute top-1.5 right-1.5 z-20 group-hover:scale-110 transition-transform duration-300">
@@ -237,7 +237,7 @@ const { sharedVipBlob = false } = Astro.props;
                                 decoding="async"
                                 width="200"
                                 height="200"
-                                class="w-full h-full object-contain drop-shadow-md"
+                                class="absolute inset-0 w-full h-full object-contain drop-shadow-md" style="object-fit:contain"
                                 onerror="this.style.display='none'; this.parentElement.innerHTML='<span class=\'text-2xl\'>📺</span>';"
                             />
                             
@@ -874,10 +874,10 @@ const { sharedVipBlob = false } = Astro.props;
                    data-canal-nome="${canal.nome}"
                    data-canal-id="${canal.id}"
                    data-astro-prefetch
-                   class="bf-tv-card group relative flex flex-col items-center p-4 bg-[#161B28] border border-white/5 rounded-xl transition-all duration-300 hover:-translate-y-1 hover:border-[#DF0912]/50 overflow-hidden tv-card">
+                   class="bf-tv-card group relative flex flex-col items-center p-4 bg-[#161B28] border border-white/5 rounded-xl transition-all duration-300 hover:-translate-y-1 hover:border-[#DF0912]/50 overflow-hidden tv-card self-start">
                     ${isVip ? `<div class="absolute top-1.5 right-1.5 z-20 group-hover:scale-110 transition-transform duration-300"><svg class="w-5 h-5 text-[#DF0912] drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>` : ''}
                     <div class="relative w-full aspect-square mb-3 flex items-center justify-center p-2 group-hover:scale-105 transition-transform duration-300">
-                        <img src="${canal.imagem}" alt="${canal.nome}" loading="lazy" width="200" height="200" class="w-full h-full object-contain drop-shadow-md" onerror="this.style.display='none';this.parentElement.innerHTML='<span class=\'text-2xl\'>📺</span>';"/>
+                        <img src="${canal.imagem}" alt="${canal.nome}" loading="lazy" width="200" height="200" class="absolute inset-0 w-full h-full object-contain drop-shadow-md" style="object-fit:contain" onerror="this.style.display='none';this.parentElement.innerHTML='<span class=\'text-2xl\'>📺</span>';"/>
                         ${gameBadge}
                     </div>
                     <div class="relative z-10 w-full text-center">

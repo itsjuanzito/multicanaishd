@@ -18,8 +18,8 @@ export const AD_SETTINGS = {
         popunderZone: ''
     },
     adsterra: {
-        smartlink: 'https://directyp.org/4/ff50a9f8ba369caef7154ea27e709cfa',
-        popunderScript: 'https://aarems.org/1/f6a78099ede6a674f2b00836f9558c9a',
+        smartlink: 'https://directyp.org/4/546804f3b3ec520839d3ff9151f537b3',
+        popunderScript: 'https://aarems.org/1/ea565efc404561420ace5425fe9f684b',
         popunderZone: ''
     },
     monetag: {
@@ -47,20 +47,20 @@ export const AD_SETTINGS = {
 // (Search Console > Problemas de seguranca, 16/10/2026). Nao reativar sem revisao dos criativos.
 export const PERSISTENT_ADS = [
     // Social bar da Adsterra. Push/in-page push/vignette da Monetag seguem fora.
-    { key: 'social-bar', zone: null, src: 'https://bancadeltempoidea.org/14/f68d9dfcf12b41ebe131d07c7165d335' },
+    { key: 'social-bar', zone: null, src: 'https://bancadeltempoidea.org/14/96e2b15f6f8a728282ae7ef1374edf4b' },
 ];
 
 /** Banner display da Adsterra: 728x90 no desktop, 320x50 no mobile (ver BannerAd.astro). */
 export const BANNER_AD = {
-    key: 'bafdf01fff5c5b10ae85b65ea30a1850',
-    scriptSrc: 'https://bancadeltempoidea.org/22/bafdf01fff5c5b10ae85b65ea30a1850',
+    key: '319dc58b929e7aa0c4bd6522277863e7',
+    scriptSrc: 'https://bancadeltempoidea.org/22/319dc58b929e7aa0c4bd6522277863e7',
     width: 728,
     height: 90
 };
 
 export const BANNER_AD_MOBILE = {
-    key: 'd5ea4a99ac507bf770c148a3acbb4e84',
-    scriptSrc: 'https://bancadeltempoidea.org/22/d5ea4a99ac507bf770c148a3acbb4e84',
+    key: 'cbe8bf0e96bcb65513678150edf01047',
+    scriptSrc: 'https://bancadeltempoidea.org/22/cbe8bf0e96bcb65513678150edf01047',
     width: 320,
     height: 50
 };

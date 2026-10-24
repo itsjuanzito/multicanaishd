@@ -103,8 +103,8 @@ export const ui = {
     'home.top10_rank': 'Rank de Visualização Semanal',
     'home.top10_cta': 'VEJA AGORA',
     'home.live_tv_title': 'Canais de TV Ao Vivo',
-    'home.meta_title': 'MultiCanaisHD - Filmes, Séries, Animes e TV Online Grátis HD',
-    'home.meta_desc': 'Assista filmes e séries online grátis no MultiCanaisHD. Catálogo completo de animes, doramas e canais de TV ao vivo em HD dublado e legendado sem travamentos.',
+    'home.meta_title': 'Canais de TV e Futebol ao Vivo Online Grátis - MultiCanaisHD',
+    'home.meta_desc': 'Assista canais de TV ao vivo e jogos de futebol online grátis no MultiCanaisHD: Globo, SporTV, ESPN, Premiere e mais, em HD e sem cadastro.',
     'home.h1_hidden': 'MultiCanaisHD - Site de Filmes, Séries, Animes e Doramas Online Grátis HD',
     
     // 404
@@ -136,7 +136,7 @@ export const ui = {
 
     // TV / Channels
     'tv.meta_title': 'Assistir Canais de TV e Jogos Ao Vivo Online Grátis - MultiCanaisHD',
-    'tv.meta_desc': 'O melhor site para assistir canais de TV e jogos ao vivo online de graça. Acompanhe futebol ao vivo, esportes, notícias e filmes em HD sem travamentos.',
+    'tv.meta_desc': 'Assista canais de TV ao vivo online grátis no MultiCanaisHD: Globo, SporTV, ESPN, Premiere, HBO e mais, em HD e sem cadastro.',
     'tv.title_p1': 'Canais',
     'tv.title_p2': 'Ao Vivo',
     'tv.description': 'Explore nossa grade de programação ao vivo. Dos esportes radicais às últimas notícias, tudo em um só lugar com qualidade HD.',
@@ -714,8 +714,8 @@ export const ui = {
     'home.top10_rank': 'Weekly View Ranking',
     'home.top10_cta': 'WATCH NOW',
     'home.live_tv_title': 'Live TV Channels',
-    'home.meta_title': 'MultiCanaisHD - Watch Movies, Series, Anime & Live TV Free HD',
-    'home.meta_desc': 'Watch movies and TV series online for free on MultiCanaisHD. Stream anime, K-dramas and live TV channels in HD with subtitles and zero delay.',
+    'home.meta_title': 'Live TV Channels and Live Football Online Free - MultiCanaisHD',
+    'home.meta_desc': 'Watch live TV channels and live football matches online free on MultiCanaisHD: Globo, SporTV, ESPN, Premiere and more, in HD with no signup.',
     'home.h1_hidden': 'MultiCanaisHD - Stream Free Movies, TV Shows, Anime and Live Sports in HD',
 
     // 404
@@ -747,7 +747,7 @@ export const ui = {
 
     // TV / Channels
     'tv.meta_title': 'Free Live TV Channels and Soccer Streaming - MultiCanaisHD',
-    'tv.meta_desc': 'Watch the best live TV channels and soccer matches online for free. Sports, news, and movies in HD with zero delay on MultiCanaisHD.',
+    'tv.meta_desc': 'Watch live TV channels online free on MultiCanaisHD: Globo, SporTV, ESPN, Premiere, HBO and more, in HD with no signup.',
     'tv.title_p1': 'Live',
     'tv.title_p2': 'Channels',
     'tv.description': 'Explore our live programming schedule. From extreme sports to the latest news, everything in one place with HD quality.',
